@@ -15,3 +15,4 @@ Simulate interplanetary network latency across the solar system.
 - [etc...]
 
 See full documentation at [docs.latency.space](https://docs.latency.space)
+# latency.space
