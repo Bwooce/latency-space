@@ -12,6 +12,7 @@ services:
     volumes:
       - ./config:/etc/space-proxy
       - ./config/ssl:/etc/letsencrypt
+      - ./certs:/app/certs  # For certificate persistence
     cap_add:
       - NET_ADMIN
     restart: always
