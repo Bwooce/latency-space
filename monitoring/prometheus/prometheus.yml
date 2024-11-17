@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'latency-proxy'
+    static_configs:
+      - targets: ['proxy:9090']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - rules/*.yml
+

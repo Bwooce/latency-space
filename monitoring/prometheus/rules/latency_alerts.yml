@@ -1,0 +1,21 @@
+groups:
+  - name: latency_alerts
+    rules:
+      - alert: HighLatency
+        expr: space_latency_seconds > 86400  # Alert if latency > 24 hours
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High latency detected
+          description: "{{ $labels.planet }} is experiencing unusually high latency"
+
+      - alert: ProxyDown
+        expr: up{job="latency-proxy"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Proxy is down
+          description: "The latency proxy service is not responding"
+
