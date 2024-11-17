@@ -1,14 +1,17 @@
 # monitoring/grafana/Dockerfile
 FROM grafana/grafana:latest
 
-# Copy dashboards
-COPY dashboards /etc/grafana/provisioning/dashboards
-
-# Copy provisioning config
-COPY provisioning/dashboards/default.yaml /etc/grafana/provisioning/dashboards/default.yaml
-
-# Set permissions
+# Create Grafana directories
 USER root
-RUN chown -R grafana:grafana /etc/grafana/provisioning/dashboards
-USER grafana
+RUN mkdir -p /etc/grafana/provisioning/dashboards
+
+# Copy dashboards and config
+COPY dashboards /etc/grafana/provisioning/dashboards
+COPY provisioning/dashboards/default.yaml /etc/grafana/provisioning/dashboards/
+
+# Fix permissions
+RUN chown -R 472:472 /etc/grafana/provisioning/dashboards
+
+# Switch back to Grafana user (uid 472)
+USER 472
 

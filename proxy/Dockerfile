@@ -5,16 +5,20 @@ FROM golang:1.21-alpine AS builder
 RUN apk add --no-cache gcc musl-dev linux-headers
 
 # Set working directory
-WORKDIR /app
+WORKDIR /app/src
 
 # Copy go mod files
-COPY go.* ./
+COPY src/go.mod .
+COPY src/go.sum .
+
+# Download dependencies
+RUN go mod download
 
 # Copy source code
-COPY src/ ./src/
+COPY src/ .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy ./src
+RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy
 
 # Create final image
 FROM alpine:latest
