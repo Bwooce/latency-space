@@ -6,6 +6,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Daily build to update orbital calculations
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   test:
@@ -17,26 +23,157 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-          
-      - name: Test
-        run: go test -v ./...
 
-  deploy:
-    needs: test
-    if: github.ref == 'refs/heads/main'
+      - name: Install dependencies
+        working-directory: ./proxy/src
+        run: |
+          go mod download
+
+      - name: Run tests
+        working-directory: ./proxy/src
+        run: go test -v ./... -race -coverprofile=coverage.txt
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./proxy/src/coverage.txt
+
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/latency-space
-            git pull
-            docker-compose down
-            docker-compose up -d
+          go-version: '1.21'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: ./proxy/src
+
+      - name: Lint Docker files
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./proxy/Dockerfile
+
+  build:
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+
+      - name: Build and push proxy
+        uses: docker/build-push-action@v4
+        with:
+          context: ./proxy
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build other services
+      - name: Build and push monitoring
+        uses: docker/build-push-action@v4
+        with:
+          context: ./monitoring/grafana
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-grafana:${{ github.sha }}
+
+      - name: Build and push status
+        uses: docker/build-push-action@v4
+        with:
+          context: ./status
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-status:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    concurrency: production
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Setup known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Update config
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SERVER_IP: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          cd tools
+          ln -s ../proxy/src/config.go .
+          go run setup_dns.go -token $CF_API_TOKEN -ip $SERVER_IP
+
+      - name: Deploy
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
+            cd /opt/latency-space && \
+            docker-compose pull && \
+            docker-compose up -d && \
+            docker system prune -f
+          '
+
+      - name: Verify Deployment
+        run: |
+          for i in {1..12}; do
+            if curl -s https://mars.latency.space/health; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Notify Discord on Success
+        if: success()
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: '🚀 Successfully deployed latest version to latency.space'
+
+      - name: Notify Discord on Failure
+        if: failure()
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: '❌ Deployment to latency.space failed'
 
