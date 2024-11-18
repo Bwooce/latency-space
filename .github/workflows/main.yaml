@@ -80,7 +80,7 @@ jobs:
       - id: string
         uses: ASzc/change-string-case-action@v2
         with:
-          string: env.IMAGE_NAME
+          string: ${{ env.IMAGE_NAME }}
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v4
