@@ -61,6 +61,12 @@ func setupTLS() *tls.Config {
         Cache:      autocert.DirCache("certs"),
         Prompt:     autocert.AcceptTOS,
         HostPolicy: func(ctx context.Context, host string) error {
+            // Handle empty host (no SNI)
+            if host == "" {
+                log.Printf("Warning: Missing SNI, using default certificate")
+                return nil  // Will use default certificate
+            }
+
             if isValidSubdomain(host) {
                 log.Printf("Accepting certificate request for: %s", host)
                 return nil
@@ -70,9 +76,24 @@ func setupTLS() *tls.Config {
         },
     }
 
+    // Get or create a default certificate
+    defaultCert, err := getDefaultCertificate()
+    if err != nil {
+        log.Printf("Warning: Failed to load default certificate: %v", err)
+    }
+
     // Configure TLS
     return &tls.Config{
-        GetCertificate:           manager.GetCertificate,
+        GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+            // Handle missing SNI
+            if hello.ServerName == "" {
+                log.Printf("Client from %s did not provide SNI", hello.Conn.RemoteAddr())
+                if defaultCert != nil {
+                    return defaultCert, nil
+                }
+            }
+            return manager.GetCertificate(hello)
+        },
         MinVersion:              tls.VersionTLS12,
         CurvePreferences:        []tls.CurveID{tls.X25519, tls.CurveP256},
         PreferServerCipherSuites: true,
@@ -87,24 +108,45 @@ func setupTLS() *tls.Config {
     }
 }
 
-// Helper function to list all valid domains
-func listValidDomains() []string {
-    var domains []string
-    domains = append(domains, "latency.space")
+// Helper function to get or create a default certificate
+func getDefaultCertificate() (*tls.Certificate, error) {
+    certPath := "certs/default.pem"
+    keyPath := "certs/default.key"
 
-    // Add planets and spacecraft
-    for name := range solarSystem {
-        domains = append(domains, name+".latency.space")
-        // Add moons for each planet
-        for moon := range solarSystem[name].Moons {
-            domains = append(domains, moon+"."+name+".latency.space")
+    // Check if default certificate exists
+    if _, err := os.Stat(certPath); os.IsNotExist(err) {
+        // Generate self-signed certificate
+        cmd := exec.Command("openssl", "req", "-x509", "-newkey", "rsa:4096", 
+            "-keyout", keyPath, 
+            "-out", certPath,
+            "-days", "365",
+            "-nodes",
+            "-subj", "/CN=latency.space")
+        
+        if err := cmd.Run(); err != nil {
+            return nil, fmt.Errorf("failed to generate default certificate: %v", err)
         }
     }
 
-    for name := range spacecraft {
-        domains = append(domains, name+".latency.space")
+    // Load the certificate
+    cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to load default certificate: %v", err)
     }
 
-    return domains
+    return &cert, nil
+}
+
+// Add metrics for certificate operations
+func init() {
+    // Add prometheus metrics
+    tlsHandshakeErrors := prometheus.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "tls_handshake_errors_total",
+            Help: "Total number of TLS handshake errors",
+        },
+        []string{"error_type"},
+    )
+    prometheus.MustRegister(tlsHandshakeErrors)
 }
 
