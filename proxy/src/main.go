@@ -33,6 +33,12 @@ func NewServer() *Server {
 }
 
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
+
+	if r.URL.Path == "/_debug/domains" {
+		s.handleDebug(w, r)
+		return
+	}
+
 	// Extract celestial body from subdomain
 	hostParts := strings.Split(r.Host, ".")
 	if len(hostParts) == 0 {
@@ -121,7 +127,7 @@ func (s *Server) Start() error {
 	go s.metrics.ServeMetrics(":9090")
 
 	// Start servers
-	s.wg.Add(3)
+	s.wg.Add(2)
 	go func() {
 		defer s.wg.Done()
 		if err := s.startHTTPServer(); err != http.ErrServerClosed {
