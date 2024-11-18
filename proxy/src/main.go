@@ -115,7 +115,7 @@ func (s *Server) startHTTPSServer() error {
 	}
 
 	log.Printf("Starting HTTPS server on :443")
-	return s.httpsServer.ListenAndServeTLS("", "") // Cert handled by autocert
+	return s.httpsServer.ListenAndServeTLS("", "") // Certificates handled by autocert
 }
 
 func (s *Server) startUDPServer() error {
@@ -235,4 +235,18 @@ func main() {
 	}
 
 	log.Println("Server shutdown complete")
+}
+
+// Add this to your HTTP handler code
+func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/_debug/domains" {
+		http.NotFound(w, r)
+		return
+	}
+
+	domains := listValidDomains()
+	w.Header().Set("Content-Type", "text/plain")
+	for _, domain := range domains {
+		fmt.Fprintf(w, "%s - Valid: %v\n", domain, isValidSubdomain(domain))
+	}
 }
