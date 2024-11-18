@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -21,7 +20,6 @@ import (
 type Server struct {
 	httpServer  *http.Server
 	httpsServer *http.Server
-	udpProxy    *UDPProxy
 	security    *SecurityValidator
 	metrics     *MetricsCollector
 	wg          sync.WaitGroup
@@ -30,7 +28,6 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		security: NewSecurityValidator(),
-		udpProxy: NewUDPProxy(),
 		metrics:  NewMetricsCollector(),
 	}
 }
@@ -118,54 +115,7 @@ func (s *Server) startHTTPSServer() error {
 	return s.httpsServer.ListenAndServeTLS("", "") // Certificates handled by autocert
 }
 
-func (s *Server) startUDPServer() error {
-	addr, err := net.ResolveUDPAddr("udp", ":53")
-	if err != nil {
-		return fmt.Errorf("failed to resolve UDP address: %v", err)
-	}
-
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return fmt.Errorf("failed to start UDP server: %v", err)
-	}
-	defer conn.Close()
-
-	log.Printf("Starting UDP server on :53")
-
-	buffer := make([]byte, 65535)
-	for {
-		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		if err != nil {
-			log.Printf("Error reading UDP: %v", err)
-			continue
-		}
-
-		body, bodyName := getCelestialBody(strings.Split(remoteAddr.String(), ".")[0])
-		if body == nil {
-			continue
-		}
-
-		s.metrics.RecordUDPPacket(bodyName, int64(n))
-		go s.udpProxy.handlePacket(conn, buffer[:n], remoteAddr, body)
-	}
-}
-
 func (s *Server) Start() error {
-	// Start DNS server
-	dnsServer := NewDNSServer()
-	go func() {
-		if err := dnsServer.Start(); err != nil {
-			log.Printf("DNS server error: %v", err)
-		}
-	}()
-
-	// Start UDP server
-	udpServer := NewUDPServer()
-	go func() {
-		if err := udpServer.Start(); err != nil {
-			log.Printf("UDP server error: %v", err)
-		}
-	}()
 
 	// Start metrics endpoint
 	go s.metrics.ServeMetrics(":9090")
@@ -183,13 +133,6 @@ func (s *Server) Start() error {
 		defer s.wg.Done()
 		if err := s.startHTTPSServer(); err != http.ErrServerClosed {
 			log.Printf("HTTPS server error: %v", err)
-		}
-	}()
-
-	go func() {
-		defer s.wg.Done()
-		if err := s.startUDPServer(); err != nil {
-			log.Printf("UDP server error: %v", err)
 		}
 	}()
 
