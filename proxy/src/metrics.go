@@ -77,6 +77,6 @@ func (m *MetricsCollector) ServeMetrics(addr string) {
 	http.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(addr, nil)
 	if err != nil {
-		log.Errorf("Failed to server metrics: %v", err)
+		log.Fatal("Failed to server metrics: %v", err)
 	}
 }
