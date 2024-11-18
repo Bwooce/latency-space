@@ -77,12 +77,15 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: env.IMAGE_NAME
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}
           tags: |
             type=sha
             type=ref,event=branch
@@ -105,14 +108,14 @@ jobs:
         with:
           context: ./monitoring/grafana
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-grafana:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}-grafana:${{ github.sha }}
 
       - name: Build and push status
         uses: docker/build-push-action@v4
         with:
           context: ./status
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-status:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}-status:${{ github.sha }}
 
   deploy:
     needs: build
