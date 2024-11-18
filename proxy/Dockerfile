@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy
 FROM alpine:latest
 
 # Install tc and other network tools
-RUN apk add --no-cache iproute2 iptables
+RUN apk add --no-cache iproute2 iptables openssl
 
 # Copy binary from builder
 COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
