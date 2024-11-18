@@ -151,6 +151,22 @@ func (s *Server) startUDPServer() error {
 }
 
 func (s *Server) Start() error {
+	// Start DNS server
+	dnsServer := NewDNSServer()
+	go func() {
+		if err := dnsServer.Start(); err != nil {
+			log.Printf("DNS server error: %v", err)
+		}
+	}()
+
+	// Start UDP server
+	udpServer := NewUDPServer()
+	go func() {
+		if err := udpServer.Start(); err != nil {
+			log.Printf("UDP server error: %v", err)
+		}
+	}()
+
 	// Start metrics endpoint
 	go s.metrics.ServeMetrics(":9090")
 
