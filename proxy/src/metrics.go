@@ -4,6 +4,7 @@ package main
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log"
 	"net/http"
 	"time"
 )
@@ -74,5 +75,8 @@ func (m *MetricsCollector) RecordUDPPacket(body string, bytes int64) {
 
 func (m *MetricsCollector) ServeMetrics(addr string) {
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(addr, nil)
+	err := http.ListenAndServe(addr, nil)
+	if err != nil {
+		log.Errorf("Failed to server metrics: %v", err)
+	}
 }
