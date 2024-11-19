@@ -150,8 +150,8 @@ jobs:
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
             cd /opt/latency-space && \
-            docker-compose -f /opt/latency-space/docker-compose.yml pull && \
-            docker-compose -f /opt/latency-space/docker-compose.yml up -d && \
+            docker compose -f /opt/latency-space/docker-compose.yml pull && \
+            docker compose -f /opt/latency-space/docker-compose.yml up -d && \
             docker system prune -f
           '
 
