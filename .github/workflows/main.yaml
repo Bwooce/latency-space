@@ -144,7 +144,7 @@ jobs:
           cd tools
           ln -fs ../proxy/src/config.go .
           ln -fs ../proxy/src/models.go .
-          go run setup_dns.go -token $CF_API_TOKEN -ip $SERVER_IP
+          go run . -token $CF_API_TOKEN -ip $SERVER_IP
 
       - name: Deploy
         run: |
