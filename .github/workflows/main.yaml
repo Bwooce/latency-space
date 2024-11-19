@@ -142,7 +142,7 @@ jobs:
           SERVER_IP: ${{ secrets.DEPLOY_HOST }}
         run: |
           cd tools
-          ln -s ../proxy/src/config.go .
+          ln -fs ../proxy/src/config.go .
           go run setup_dns.go -token $CF_API_TOKEN -ip $SERVER_IP
 
       - name: Deploy
