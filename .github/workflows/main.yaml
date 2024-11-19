@@ -165,19 +165,3 @@ jobs:
           done
           exit 1
 
-      - name: Notify Discord on Success
-        if: success()
-        uses: Ilshidur/action-discord@master
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        with:
-          args: '🚀 Successfully deployed latest version to latency.space'
-
-      - name: Notify Discord on Failure
-        if: failure()
-        uses: Ilshidur/action-discord@master
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        with:
-          args: '❌ Deployment to latency.space failed'
-
