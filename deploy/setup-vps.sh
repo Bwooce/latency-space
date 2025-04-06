@@ -1,41 +1,79 @@
 #!/bin/bash
 # deploy/setup-vps.sh
 
+# Ensure the script exits on any error
+set -e
+
+# Configure proper DNS from the start
+echo "Configuring DNS..."
+cp /etc/resolv.conf /etc/resolv.conf.backup
+cat > /etc/resolv.conf << 'EOF'
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+EOF
+
+# Configure Docker DNS
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << 'EOF'
+{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+}
+EOF
+
+# Verify DNS resolution
+echo "Verifying DNS resolution..."
+if ! ping -c 1 github.com &> /dev/null; then
+  echo "Warning: DNS resolution still failing. Continuing anyway..."
+fi
+
 # Update system
+echo "Updating system packages..."
 apt-get update && apt-get upgrade -y
 
 # Install required packages
+echo "Installing required packages..."
 apt-get install -y \
     docker.io \
     docker-compose \
     nginx \
     certbot \
     python3-certbot-nginx \
-    ufw
+    ufw \
+    jq \
+    curl
 
 # Configure firewall
+echo "Configuring firewall..."
 ufw allow 22
 ufw allow 80
 ufw allow 443
 ufw allow 53/udp
 ufw allow 1080 # Allow SOCKS proxy
+ufw allow 9090 # Prometheus metrics
 ufw --force enable
 
 # Create application directory
+echo "Creating application directory..."
 mkdir -p /opt/latency-space
 chown -R $USER:$USER /opt/latency-space
 
 # Install Docker
+echo "Starting Docker service..."
 systemctl start docker
 systemctl enable docker
+systemctl restart docker # Apply DNS settings
 
 # Create docker network
-docker network create space-net
+echo "Creating Docker network..."
+docker network create space-net || echo "Network may already exist, continuing..."
 
 # Setup SSL directory
+echo "Setting up SSL directory..."
 mkdir -p /etc/letsencrypt
 
 # Setup Nginx
+echo "Configuring Nginx..."
 cat > /etc/nginx/sites-available/latency.space << 'EOF'
 server {
     listen 80;
@@ -52,13 +90,29 @@ server {
 }
 EOF
 
-ln -s /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
-rm /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
 
 # Reload Nginx
+echo "Reloading Nginx..."
 systemctl reload nginx
 
 # Setup SSL
-certbot --nginx -d latency.space -d '*.latency.space' --agree-tos -m $SSL_EMAIL -n
+echo "Setting up SSL certificates..."
+certbot --nginx -d latency.space -d '*.latency.space' --agree-tos -m $SSL_EMAIL -n || echo "SSL setup failed, please run manually after DNS is resolved"
+
+# Clone repository
+echo "Cloning the repository..."
+cd /opt/latency-space
+if [ ! -d ".git" ]; then
+  git clone https://github.com/Bwooce/latency-space.git .
+else
+  git pull
+fi
+
+# Copy fix-dns script for easy access
+cp deploy/fix-dns.sh /usr/local/bin/fix-dns
+chmod +x /usr/local/bin/fix-dns
 
 echo "VPS setup completed!"
+echo "You can run 'fix-dns' at any time to troubleshoot DNS issues."

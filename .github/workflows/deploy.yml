@@ -1,0 +1,66 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into VPS and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            # Verify DNS resolution is working
+            echo "Testing DNS resolution..."
+            if ! ping -c 1 github.com &> /dev/null; then
+              echo "DNS resolution issue - trying to fix..."
+              # Add Google DNS servers
+              echo "nameserver 8.8.8.8" > /etc/resolv.conf
+              echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+              
+              # Check if DNS is now working
+              if ! ping -c 1 github.com &> /dev/null; then
+                echo "Failed to resolve github.com - deployment aborted"
+                exit 1
+              fi
+            fi
+            
+            # Verify internet connectivity
+            echo "Checking internet connectivity..."
+            if ! curl -s --connect-timeout 5 https://api.github.com &> /dev/null; then
+              echo "No internet connectivity - deployment aborted"
+              exit 1
+            fi
+            
+            # Proceed with deployment
+            echo "Starting deployment..."
+            cd /opt/latency-space || { echo "Failed to change directory"; exit 1; }
+            
+            # Pull latest code
+            echo "Pulling latest code..."
+            git fetch --all || { echo "Git fetch failed"; exit 1; }
+            git reset --hard origin/main || { echo "Git reset failed"; exit 1; }
+            
+            # Rebuild and restart services
+            echo "Rebuilding and restarting services..."
+            docker-compose down || { echo "Warning: docker-compose down failed, continuing..."; }
+            docker-compose pull || { echo "Warning: docker-compose pull failed, continuing..."; }
+            docker-compose build --no-cache || { echo "Warning: docker-compose build failed, continuing..."; }
+            docker-compose up -d || { echo "Error: docker-compose up failed"; exit 1; }
+            
+            # Verify services are running
+            echo "Verifying services..."
+            sleep 10 # Wait for services to start
+            if ! docker-compose ps | grep -q "Up"; then
+              echo "Services failed to start properly"
+              docker-compose logs
+              exit 1
+            fi
+            
+            echo "Deployment completed successfully!"
