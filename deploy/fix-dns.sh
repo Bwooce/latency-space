@@ -1,5 +1,5 @@
 #!/bin/bash
-# deploy/fix-dns.sh - Fix DNS resolution issues
+# deploy/fix-dns.sh - Fix DNS resolution issues for systemd-resolved systems
 
 set -e
 
@@ -11,38 +11,61 @@ if ping -c 1 github.com &> /dev/null; then
 else
   echo "❌ DNS resolution failed. Attempting to fix..."
   
-  # Backup current resolv.conf
-  if [ -f /etc/resolv.conf ]; then
+  # Check if using systemd-resolved (resolv.conf is a symlink)
+  if [ -L /etc/resolv.conf ]; then
+    echo "📋 System is using systemd-resolved"
+    
+    # Configure systemd-resolved directly
+    cat > /etc/systemd/resolved.conf << 'EOF'
+[Resolve]
+DNS=8.8.8.8 8.8.4.4 1.1.1.1
+FallbackDNS=9.9.9.9 149.112.112.112
+DNSStubListener=yes
+Cache=yes
+EOF
+    
+    # Restart systemd-resolved
+    systemctl restart systemd-resolved
+    
+    echo "🔄 Updated systemd-resolved configuration"
+  else
+    # Direct resolv.conf modification
     cp /etc/resolv.conf /etc/resolv.conf.backup
     echo "📁 Backed up current resolv.conf"
+    
+    # Add Google and Cloudflare DNS servers
+    cat > /etc/resolv.conf << 'EOF'
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+EOF
+    
+    echo "🔄 Updated resolv.conf with public DNS servers"
   fi
-  
-  # Add Google and Cloudflare DNS servers
-  echo "nameserver 8.8.8.8" > /etc/resolv.conf
-  echo "nameserver 8.8.4.4" >> /etc/resolv.conf
-  echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-  
-  echo "🔄 Updated resolv.conf with public DNS servers"
   
   # Test DNS resolution again
   if ping -c 1 github.com &> /dev/null; then
     echo "✅ DNS resolution fixed successfully!"
   else
-    echo "❌ DNS resolution still failing. Additional troubleshooting required."
+    echo "❌ DNS resolution still failing. Trying alternative approach..."
     
-    # Check if systemd-resolved is running
-    if systemctl is-active systemd-resolved &> /dev/null; then
-      echo "🔍 systemd-resolved is running. Restarting service..."
-      systemctl restart systemd-resolved
+    # Create a custom resolv.conf and remove symlink
+    if [ -L /etc/resolv.conf ]; then
+      echo "📋 Removing resolv.conf symlink and creating direct file"
+      rm /etc/resolv.conf
+      cat > /etc/resolv.conf << 'EOF'
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+options timeout:2 attempts:5
+EOF
       
-      # Test again after restart
+      # Check one more time
       if ping -c 1 github.com &> /dev/null; then
-        echo "✅ DNS resolution fixed after restarting systemd-resolved!"
+        echo "✅ DNS resolution fixed with direct resolv.conf file!"
       else
-        echo "❌ DNS resolution still failing after service restart."
+        echo "❌ DNS resolution still failing after direct file creation."
       fi
-    else
-      echo "ℹ️ systemd-resolved is not active."
     fi
     
     # Network connectivity check
@@ -58,6 +81,8 @@ fi
 
 # Check Docker DNS configuration
 echo "🔍 Checking Docker DNS configuration..."
+mkdir -p /etc/docker
+
 if [ -f /etc/docker/daemon.json ]; then
   echo "📁 Current Docker daemon configuration:"
   cat /etc/docker/daemon.json
@@ -73,7 +98,12 @@ if [ -f /etc/docker/daemon.json ]; then
     if [ -s /etc/docker/daemon.json ]; then
       # File exists and is not empty - need to merge
       TMP=$(mktemp)
-      jq '. + {"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' /etc/docker/daemon.json > "$TMP" && mv "$TMP" /etc/docker/daemon.json
+      if command -v jq &> /dev/null; then
+        jq '. + {"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' /etc/docker/daemon.json > "$TMP" && mv "$TMP" /etc/docker/daemon.json
+      else
+        # Fallback if jq not available
+        echo '{"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' > /etc/docker/daemon.json
+      fi
     else
       # File doesn't exist or is empty
       echo '{"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' > /etc/docker/daemon.json
@@ -84,7 +114,6 @@ if [ -f /etc/docker/daemon.json ]; then
   fi
 else
   echo "📁 Creating Docker daemon configuration with public DNS servers..."
-  mkdir -p /etc/docker
   echo '{"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' > /etc/docker/daemon.json
   
   echo "🔄 Restarting Docker service..."

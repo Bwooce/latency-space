@@ -4,14 +4,31 @@
 # Ensure the script exits on any error
 set -e
 
-# Configure proper DNS from the start
+# Configure proper DNS for systemd-resolved systems
 echo "Configuring DNS..."
-cp /etc/resolv.conf /etc/resolv.conf.backup
-cat > /etc/resolv.conf << 'EOF'
+if [ -L /etc/resolv.conf ]; then
+  echo "System using systemd-resolved, configuring it properly..."
+  
+  # Configure systemd-resolved
+  cat > /etc/systemd/resolved.conf << 'EOF'
+[Resolve]
+DNS=8.8.8.8 8.8.4.4 1.1.1.1
+FallbackDNS=9.9.9.9 149.112.112.112
+DNSStubListener=yes
+Cache=yes
+EOF
+
+  # Restart systemd-resolved
+  systemctl restart systemd-resolved
+else
+  # Direct modification for systems not using systemd-resolved
+  cp /etc/resolv.conf /etc/resolv.conf.backup
+  cat > /etc/resolv.conf << 'EOF'
 nameserver 8.8.8.8
 nameserver 8.8.4.4
 nameserver 1.1.1.1
 EOF
+fi
 
 # Configure Docker DNS
 mkdir -p /etc/docker
@@ -24,7 +41,24 @@ EOF
 # Verify DNS resolution
 echo "Verifying DNS resolution..."
 if ! ping -c 1 github.com &> /dev/null; then
-  echo "Warning: DNS resolution still failing. Continuing anyway..."
+  echo "Warning: DNS resolution still failing. Trying alternative approach..."
+  
+  # Try breaking the symlink as a last resort
+  if [ -L /etc/resolv.conf ]; then
+    echo "Removing symlink and creating direct resolv.conf file..."
+    rm /etc/resolv.conf
+    cat > /etc/resolv.conf << 'EOF'
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+options timeout:2 attempts:5
+EOF
+  fi
+  
+  # Check if that fixed it
+  if ! ping -c 1 github.com &> /dev/null; then
+    echo "Warning: DNS resolution still failing. Continuing anyway..."
+  fi
 fi
 
 # Update system
@@ -41,7 +75,9 @@ apt-get install -y \
     python3-certbot-nginx \
     ufw \
     jq \
-    curl
+    curl \
+    dnsutils \
+    net-tools
 
 # Configure firewall
 echo "Configuring firewall..."
