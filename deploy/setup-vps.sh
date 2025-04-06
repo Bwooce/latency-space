@@ -18,6 +18,7 @@ ufw allow 22
 ufw allow 80
 ufw allow 443
 ufw allow 53/udp
+ufw allow 1080 # Allow SOCKS proxy
 ufw --force enable
 
 # Create application directory
@@ -61,4 +62,3 @@ systemctl reload nginx
 certbot --nginx -d latency.space -d '*.latency.space' --agree-tos -m $SSL_EMAIL -n
 
 echo "VPS setup completed!"
-
