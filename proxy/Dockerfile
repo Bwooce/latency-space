@@ -7,9 +7,9 @@ WORKDIR /app/src
 
 # Combine installation and build steps to reduce layers
 RUN apk add --no-cache \
-    gcc==13.2.1_git20231014-r0 \
-    musl-dev==1.2.4_git20230717-r4 \
-    linux-headers==6.5-r0
+    gcc \
+    musl-dev \
+    linux-headers
 
 # Copy dependency files first for better caching
 COPY src/go.mod src/go.sum ./

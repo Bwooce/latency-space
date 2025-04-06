@@ -1,0 +1,16 @@
+services:
+  # Super minimal proxy only - no volumes, no prometheus
+  proxy:
+    build: 
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "5354:53/udp"
+      - "1080:1080"
+      - "9090:9090"
+    # No volumes at all
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN

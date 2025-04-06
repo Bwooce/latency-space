@@ -95,15 +95,28 @@ fi
 echo "🔨 Rebuilding containers..."
 docker compose build --no-cache || echo "⚠️ Warning: build failed, continuing with existing images..."
 
-# Start the containers
+# Start the containers - use minimal config first, then try other versions if available
 echo "🚀 Starting containers..."
-if ! docker compose up -d; then
-  echo "⚠️ Error starting with regular docker-compose.yml, trying simplified version..."
-  if [ -f docker-compose.simple.yml ]; then
-    docker compose -f docker-compose.simple.yml up -d
+
+# Check for read-only filesystem
+if touch /opt/latency-space/test_file 2>/dev/null; then
+  rm /opt/latency-space/test_file
+  echo "✅ Filesystem is writable"
+  WRITABLE=true
+else
+  echo "⚠️ WARNING: Filesystem appears to be read-only!"
+  WRITABLE=false
+fi
+
+if [ "$WRITABLE" = "false" ] || [ -f docker-compose.minimal.yml ]; then
+  echo "🔄 Using minimal configuration..."
+  # First try the pre-built minimal config
+  if [ -f docker-compose.minimal.yml ]; then
+    docker compose -f docker-compose.minimal.yml up -d --force-recreate
   else
-    echo "❌ Simplified docker-compose file not found. Creating a minimal version..."
-    cat > docker-compose.minimal.yml << 'EOF'
+    # Create a truly minimal config that doesn't use any volumes
+    echo "Creating ultra-minimal configuration..."
+    cat > docker-compose.ultra-minimal.yml << 'EOF'
 services:
   proxy:
     build: 
@@ -112,17 +125,20 @@ services:
     ports:
       - "8080:80"
       - "1080:1080"
-    volumes:
-      - proxy_volume:/app
-    cap_add:
-      - NET_ADMIN
     restart: unless-stopped
-
-volumes:
-  proxy_volume:
 EOF
-    echo "🔄 Trying with minimal configuration..."
-    docker compose -f docker-compose.minimal.yml up -d
+    docker compose -f docker-compose.ultra-minimal.yml up -d
+  fi
+else
+  # Try regular config first
+  if ! docker compose up -d; then
+    echo "⚠️ Error starting with regular docker-compose.yml, trying simplified version..."
+    if [ -f docker-compose.simple.yml ]; then
+      docker compose -f docker-compose.simple.yml up -d
+    else
+      echo "Using minimal configuration..."
+      docker compose -f docker-compose.minimal.yml up -d
+    fi
   fi
 fi
 
