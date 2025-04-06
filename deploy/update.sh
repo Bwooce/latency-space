@@ -19,14 +19,32 @@ echo "🔍 Checking DNS..."
 if ! ping -c 1 github.com &> /dev/null; then
   echo "⚠️ DNS issues detected, fixing..."
   
-  # Set DNS servers
-  echo "nameserver 8.8.8.8" > /etc/resolv.conf
-  echo "nameserver 8.8.4.4" >> /etc/resolv.conf
-  echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+  # Run the DNS fix script if it exists
+  if [ -f /usr/local/bin/fix-dns ]; then
+    /usr/local/bin/fix-dns
+  else
+    # Set DNS servers directly
+    if [ -L /etc/resolv.conf ]; then
+      # For systemd-resolved systems
+      cat > /etc/systemd/resolved.conf << 'EOF'
+[Resolve]
+DNS=8.8.8.8 8.8.4.4 1.1.1.1
+FallbackDNS=9.9.9.9 149.112.112.112
+DNSStubListener=yes
+Cache=yes
+EOF
+      systemctl restart systemd-resolved
+    else
+      # Direct modification
+      echo "nameserver 8.8.8.8" > /etc/resolv.conf
+      echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+      echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    fi
+  fi
   
   # Check again
   if ! ping -c 1 github.com &> /dev/null; then
-    echo "❌ DNS still not working. Please run fix-dns manually."
+    echo "❌ DNS still not working. Please check your DNS configuration."
     exit 1
   fi
 fi
@@ -36,26 +54,34 @@ echo "📥 Pulling latest code from GitHub..."
 git fetch origin
 git reset --hard origin/main
 
+# Clean up any stuck containers
+echo "🧹 Cleaning up any problematic containers..."
+docker ps -a | grep "latency-space" | awk '{print $1}' | xargs -r docker rm -f
+
 # Stop the current containers
 echo "🛑 Stopping current containers..."
-docker-compose down || echo "⚠️ Warning: docker-compose down failed, continuing..."
+docker compose down || echo "⚠️ Warning: docker compose down failed, continuing..."
 
 # Rebuild the containers
 echo "🔨 Rebuilding containers..."
-docker-compose build --no-cache || echo "⚠️ Warning: build failed, continuing with existing images..."
+docker compose build --no-cache || echo "⚠️ Warning: build failed, continuing with existing images..."
 
 # Start the containers
 echo "🚀 Starting containers..."
-docker-compose up -d
+docker compose up -d
+
+# Reload nginx to apply configuration changes
+echo "🔄 Reloading Nginx..."
+systemctl reload nginx || echo "⚠️ Warning: Failed to reload nginx"
 
 # Check if everything is running
 echo "🔍 Checking if containers are running..."
 sleep 10
-if docker-compose ps | grep -q "Up"; then
+if docker compose ps | grep -q "Up"; then
   echo "✅ Containers are running properly!"
 else
   echo "❌ Containers failed to start. Checking logs..."
-  docker-compose logs
+  docker compose logs
   exit 1
 fi
 
@@ -70,11 +96,23 @@ fi
 
 # Check if HTTP proxy is working
 echo "🌐 Testing HTTP proxy..."
-if curl -s --max-time 5 http://localhost:80 &> /dev/null; then
-  echo "✅ HTTP proxy is running!"
+if curl -s --max-time 5 http://localhost:8080 &> /dev/null; then
+  echo "✅ HTTP proxy is running on port 8080!"
 else
-  echo "❌ HTTP proxy is not running!"
+  echo "❌ HTTP proxy is not running on port 8080!"
   exit 1
 fi
 
+# Check if proxy is accessible through Nginx
+echo "🌐 Testing Nginx proxy..."
+if curl -s --max-time 5 -H "Host: mars.latency.space" http://localhost:80 &> /dev/null; then
+  echo "✅ HTTP proxy is accessible through Nginx!"
+else
+  echo "⚠️ Warning: HTTP proxy may not be accessible through Nginx"
+fi
+
 echo "✅ Deployment completed successfully!"
+echo "🔍 If you encounter any issues, check the following:"
+echo "  - Nginx configuration: /etc/nginx/sites-available/latency.space"
+echo "  - Container logs: docker compose logs"
+echo "  - Nginx logs: tail -f /var/log/nginx/error.log"
