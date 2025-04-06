@@ -6,8 +6,8 @@ services:
     ports:
       - "8080:80"      # Changed from 80:80 to avoid conflict with Nginx
       - "8443:443"     # Changed from 443:443 to avoid conflict with Nginx
-      - "5353:53/udp"  # Changed from 53:53/udp to avoid conflict with system DNS
-      - "5353:5353/udp" # General UDP
+      - "5354:53/udp"  # Changed from 53:53/udp to avoid conflict with system DNS
+      # Removed 5353:5353/udp as it's conflicting
       - "1080:1080"     # SOCKS5 proxy
       - "9090:9090"     # Prometheus metrics
     volumes:

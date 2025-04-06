@@ -97,7 +97,34 @@ docker compose build --no-cache || echo "⚠️ Warning: build failed, continuin
 
 # Start the containers
 echo "🚀 Starting containers..."
-docker compose up -d
+if ! docker compose up -d; then
+  echo "⚠️ Error starting with regular docker-compose.yml, trying simplified version..."
+  if [ -f docker-compose.simple.yml ]; then
+    docker compose -f docker-compose.simple.yml up -d
+  else
+    echo "❌ Simplified docker-compose file not found. Creating a minimal version..."
+    cat > docker-compose.minimal.yml << 'EOF'
+services:
+  proxy:
+    build: 
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+      - "1080:1080"
+    volumes:
+      - proxy_volume:/app
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+
+volumes:
+  proxy_volume:
+EOF
+    echo "🔄 Trying with minimal configuration..."
+    docker compose -f docker-compose.minimal.yml up -d
+  fi
+fi
 
 # Reload nginx to apply configuration changes
 echo "🔄 Reloading Nginx..."

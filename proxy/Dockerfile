@@ -24,9 +24,9 @@ FROM alpine:3.19.1
 
 # Install required tools in a single layer
 RUN apk add --no-cache \
-    iproute2==6.6.0-r0 \
-    iptables==1.8.10-r3 \
-    openssl==3.1.7-r1 \
+    iproute2 \
+    iptables \
+    openssl \
     && mkdir -p /etc/latency-space
 
 # Copy and prepare binary

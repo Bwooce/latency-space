@@ -1,0 +1,44 @@
+services:
+  proxy:
+    build: 
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "5354:53/udp"
+      - "1080:1080"
+      - "9090:9090"
+    volumes:
+      - proxy_config:/etc/space-proxy
+      - proxy_certs:/app/certs
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    networks:
+      - space-net
+
+  # Optional services that can be commented out if they cause issues
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - space-net
+    user: "root"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+
+networks:
+  space-net:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  proxy_config:
+  proxy_certs:
