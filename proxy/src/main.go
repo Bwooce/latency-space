@@ -223,7 +223,10 @@ func (s *Server) Start() error {
 	go func() {
 		defer s.wg.Done()
 		if err := s.startHTTPSServer(); err != http.ErrServerClosed {
+			// Log the error but continue - HTTP server will still work
+			// This is important for multi-level subdomains that might not have valid certs
 			log.Printf("HTTPS server error: %v", err)
+			log.Printf("Multi-level subdomains will still work via HTTP")
 		}
 	}()
 
@@ -234,6 +237,7 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	log.Printf("Service started - Note that multi-level subdomains (*.*.latency.space) will be served over HTTP only")
 	return nil
 }
 

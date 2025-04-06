@@ -39,7 +39,12 @@ You can also proxy any domain through specific celestial bodies:
 - api.github.com.jupiter.latency.space - Access GitHub API through Jupiter
 - example.com.moon.earth.latency.space - Access example.com through Earth's Moon
 
-This works with both HTTP(S) and SOCKS5 proxies.
+This works with both HTTP and SOCKS5 proxies.
+
+**Important SSL Certificate Note:**
+- First-level subdomains (mars.latency.space) support HTTPS with valid certificates
+- Multi-level subdomains (www.google.com.mars.latency.space) work over HTTP only
+  - This is because wildcard SSL certificates only cover one level of subdomains
 
 ## Monitoring
 

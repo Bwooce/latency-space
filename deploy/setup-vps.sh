@@ -111,9 +111,38 @@ mkdir -p /etc/letsencrypt
 # Setup Nginx
 echo "Configuring Nginx..."
 cat > /etc/nginx/sites-available/latency.space << 'EOF'
+# HTTP server for all subdomains (including multi-level ones)
 server {
     listen 80;
-    server_name *.latency.space;
+    server_name .latency.space;
+    
+    # Handle Let's Encrypt validation challenges
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    
+    # For known subdomains with valid certificates, redirect to HTTPS
+    if ($host ~* ^([^.]+)\.latency\.space$) {
+        return 301 https://$host$request_uri;
+    }
+    
+    # For other subdomains (multi-level ones), serve over HTTP directly
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# HTTPS server for first-level subdomains
+server {
+    listen 443 ssl;
+    server_name latency.space *.latency.space;
+    
+    # SSL certificates will be added by certbot
     
     location / {
         proxy_pass http://localhost:3000;
@@ -126,6 +155,9 @@ server {
 }
 EOF
 
+# Create directory for Let's Encrypt validation
+mkdir -p /var/www/html/.well-known/acme-challenge
+
 ln -sf /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
@@ -133,7 +165,7 @@ rm -f /etc/nginx/sites-enabled/default
 echo "Reloading Nginx..."
 systemctl reload nginx
 
-# Setup SSL
+# Setup SSL for base domain and first-level subdomains
 echo "Setting up SSL certificates..."
 certbot --nginx -d latency.space -d '*.latency.space' --agree-tos -m $SSL_EMAIL -n || echo "SSL setup failed, please run manually after DNS is resolved"
 
