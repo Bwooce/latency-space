@@ -48,6 +48,30 @@ func isValidSubdomain(host string) bool {
 		}
 	}
 
+	// Check if it's our domain.body.latency.space format
+	// Any domain followed by a valid celestial body and latency.space is valid
+	if len(parts) >= 3 && parts[len(parts)-2] == "latency" && parts[len(parts)-1] == "space" {
+		bodyName := parts[len(parts)-3]
+		// Check if it's a valid celestial body
+		if _, exists := solarSystem[bodyName]; exists {
+			return true
+		}
+		if _, exists := spacecraft[bodyName]; exists {
+			return true
+		}
+		
+		// Check for moon format (domain.moon.planet.latency.space)
+		if len(parts) >= 4 {
+			moonName := parts[len(parts)-4]
+			planetName := parts[len(parts)-3]
+			if planet, exists := solarSystem[planetName]; exists {
+				if _, moonExists := planet.Moons[moonName]; moonExists {
+					return true
+				}
+			}
+		}
+	}
+
 	return false
 }
 
@@ -68,6 +92,11 @@ func listValidDomains() []string {
 	for name := range spacecraft {
 		domains = append(domains, name+".latency.space")
 	}
+
+	// Add examples of the new format
+	domains = append(domains, "www.google.com.earth.latency.space")
+	domains = append(domains, "example.com.mars.latency.space")
+	domains = append(domains, "api.github.com.jupiter.latency.space")
 
 	return domains
 }

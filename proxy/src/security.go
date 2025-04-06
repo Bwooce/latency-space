@@ -20,6 +20,7 @@ func NewSecurityValidator() *SecurityValidator {
 			"443":  true,
 			"8080": true,
 			"53":   true,
+			"":     true, // Default ports (80 for HTTP, 443 for HTTPS)
 		},
 		maxRequestSize: 100 * 1024 * 1024, // 100MB
 		allowedSchemes: map[string]bool{
@@ -32,6 +33,10 @@ func NewSecurityValidator() *SecurityValidator {
 }
 
 func (s *SecurityValidator) ValidateDestination(dest string) (string, error) {
+	if dest == "" {
+		return "", fmt.Errorf("destination is required")
+	}
+
 	if !strings.Contains(dest, "://") {
 		dest = "http://" + dest
 	}
@@ -50,4 +55,14 @@ func (s *SecurityValidator) ValidateDestination(dest string) (string, error) {
 	}
 
 	return dest, nil
+}
+
+// ValidateSocksDestination validates a SOCKS destination address and port
+func (s *SecurityValidator) ValidateSocksDestination(host string, port uint16) error {
+	portStr := fmt.Sprintf("%d", port)
+	if port != 0 && !s.allowedPorts[portStr] {
+		return fmt.Errorf("port %s not allowed", portStr)
+	}
+
+	return nil
 }

@@ -33,5 +33,7 @@ RUN apk add --no-cache \
 COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
 RUN chmod +x /usr/local/bin/latency-proxy
 
-CMD ["/usr/local/bin/latency-proxy"]
+# Expose ports
+EXPOSE 80 443 1080 9090
 
+CMD ["/usr/local/bin/latency-proxy"]

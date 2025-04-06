@@ -8,6 +8,8 @@ services:
       - "443:443"
       - "53:53/udp"
       - "5353:5353/udp" # General UDP
+      - "1080:1080"     # SOCKS5 proxy
+      - "9090:9090"     # Prometheus metrics
     volumes:
       - ./config:/etc/space-proxy
       - ./config/ssl:/etc/letsencrypt
@@ -36,7 +38,7 @@ services:
       context: ./monitoring/prometheus
       dockerfile: Dockerfile
     ports:
-      - "9090:9090"
+      - "9091:9090" # Changed to avoid conflict with proxy metrics
     volumes:
       - prometheus_data:/prometheus
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -81,4 +83,3 @@ networks:
 volumes:
   prometheus_data:
   grafana_data:
-

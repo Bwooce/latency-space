@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -18,11 +19,12 @@ import (
 )
 
 type Server struct {
-	httpServer  *http.Server
-	httpsServer *http.Server
-	security    *SecurityValidator
-	metrics     *MetricsCollector
-	wg          sync.WaitGroup
+	httpServer    *http.Server
+	httpsServer   *http.Server
+	socksListener net.Listener
+	security      *SecurityValidator
+	metrics       *MetricsCollector
+	wg            sync.WaitGroup
 }
 
 func NewServer() *Server {
@@ -39,23 +41,28 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract celestial body from subdomain
-	hostParts := strings.Split(r.Host, ".")
-	if len(hostParts) == 0 {
-		http.Error(w, "Invalid host", http.StatusBadRequest)
-		return
-	}
-
-	body, bodyName := getCelestialBody(hostParts[0])
-	if body == nil {
+	// Extract target domain from the hostname
+	targetDomain, celestialBody, bodyName := s.extractDomainAndBody(r.Host)
+	if celestialBody == nil {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
 	}
 
-	// Get destination from header or query param
-	destination := r.Header.Get("X-Destination")
-	if destination == "" {
-		destination = r.URL.Query().Get("destination")
+	// If target domain is present (DNS proxy format), use it as destination
+	var destination string
+	if targetDomain != "" {
+		// Construct destination URL
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		destination = fmt.Sprintf("%s://%s", scheme, targetDomain)
+	} else {
+		// Get destination from header or query param
+		destination = r.Header.Get("X-Destination")
+		if destination == "" {
+			destination = r.URL.Query().Get("destination")
+		}
 	}
 
 	// Validate destination
@@ -67,7 +74,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Check for WebSocket upgrade
 	if websocket.IsWebSocketUpgrade(r) {
-		s.handleWebSocket(w, r, body, validDest)
+		s.handleWebSocket(w, r, celestialBody, validDest)
 		return
 	}
 
@@ -88,7 +95,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Host = target.Host
 
 	// Apply space latency
-	latency := calculateLatency(body.Distance * 1e6)
+	latency := calculateLatency(celestialBody.Distance * 1e6)
 	time.Sleep(latency)
 
 	// Apply bandwidth limiting
@@ -96,6 +103,54 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Forward the request
 	proxy.ServeHTTP(w, r)
+}
+
+// extractDomainAndBody parses domain.body.latency.space format
+// returns the target domain and celestial body
+func (s *Server) extractDomainAndBody(host string) (string, *CelestialBody, string) {
+	// Remove port if present
+	if idx := strings.Index(host, ":"); idx > 0 {
+		host = host[:idx]
+	}
+
+	// Check for latency.space domain
+	if !strings.HasSuffix(host, ".latency.space") {
+		return "", nil, ""
+	}
+
+	// Split hostname parts
+	parts := strings.Split(host, ".")
+	if len(parts) < 3 {
+		return "", nil, ""
+	}
+
+	// If format is domain.body.latency.space
+	// Extract the celestial body and target domain
+	if len(parts) >= 3 {
+		// The celestial body is the second-to-last part before "latency.space"
+		bodyIndex := len(parts) - 3
+		
+		// Everything before the celestial body is the target domain
+		targetParts := parts[:bodyIndex]
+		targetDomain := strings.Join(targetParts, ".")
+		
+		// Get the celestial body
+		bodyName := parts[bodyIndex]
+		celestialBody, bodyFullName := getCelestialBody(bodyName)
+		
+		if celestialBody != nil {
+			return targetDomain, celestialBody, bodyFullName
+		}
+	}
+
+	// Default behavior for standard celestial body subdomains
+	hostParts := strings.Split(host, ".")
+	if len(hostParts) > 0 {
+		body, bodyName := getCelestialBody(hostParts[0])
+		return "", body, bodyName
+	}
+
+	return "", nil, ""
 }
 
 func (s *Server) startHTTPServer() error {
@@ -121,13 +176,43 @@ func (s *Server) startHTTPSServer() error {
 	return s.httpsServer.ListenAndServeTLS("", "") // Certificates handled by autocert
 }
 
+func (s *Server) startSOCKSServer() error {
+	// Start SOCKS5 server on port 1080
+	listener, err := net.Listen("tcp", ":1080")
+	if err != nil {
+		return fmt.Errorf("failed to listen on SOCKS port: %v", err)
+	}
+	s.socksListener = listener
+
+	log.Printf("Starting SOCKS5 server on :1080")
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			// Check if the listener was closed
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				return nil
+			}
+			log.Printf("Failed to accept SOCKS connection: %v", err)
+			continue
+		}
+
+		// Handle each connection in a separate goroutine
+		go func(c net.Conn) {
+			handler := NewSOCKSHandler(c, s.security, s.metrics)
+			handler.Handle()
+		}(conn)
+	}
+}
+
 func (s *Server) Start() error {
 
 	// Start metrics endpoint
 	go s.metrics.ServeMetrics(":9090")
 
 	// Start servers
-	s.wg.Add(2)
+	s.wg.Add(3) // HTTP, HTTPS, and SOCKS
+
 	go func() {
 		defer s.wg.Done()
 		if err := s.startHTTPServer(); err != http.ErrServerClosed {
@@ -142,6 +227,13 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	go func() {
+		defer s.wg.Done()
+		if err := s.startSOCKSServer(); err != nil {
+			log.Printf("SOCKS server error: %v", err)
+		}
+	}()
+
 	return nil
 }
 
@@ -152,6 +244,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if err := s.httpsServer.Shutdown(ctx); err != nil {
 		log.Printf("HTTPS server shutdown error: %v", err)
+	}
+
+	// Close SOCKS listener
+	if s.socksListener != nil {
+		if err := s.socksListener.Close(); err != nil {
+			log.Printf("SOCKS server shutdown error: %v", err)
+		}
 	}
 
 	// Wait for all servers to finish
