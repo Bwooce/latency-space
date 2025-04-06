@@ -96,17 +96,20 @@ jobs:
             
             # Rebuild and restart services
             echo "Rebuilding and restarting services..."
-            docker-compose down || { echo "Warning: docker-compose down failed, continuing..."; }
-            docker-compose pull || { echo "Warning: docker-compose pull failed, continuing..."; }
-            docker-compose build --no-cache || { echo "Warning: docker-compose build failed, continuing..."; }
-            docker-compose up -d || { echo "Error: docker-compose up failed"; exit 1; }
+            docker compose down || { echo "Warning: docker compose down failed, continuing..."; }
+            docker compose pull || { echo "Warning: docker compose pull failed, continuing..."; }
+            docker compose build --no-cache || { echo "Warning: docker compose build failed, continuing..."; }
+            docker compose up -d || { echo "Error: docker compose up failed"; exit 1; }
+            
+            # Reload nginx to apply any configuration changes
+            systemctl reload nginx || { echo "Warning: Failed to reload nginx"; }
             
             # Verify services are running
             echo "Verifying services..."
             sleep 10 # Wait for services to start
-            if ! docker-compose ps | grep -q "Up"; then
+            if ! docker compose ps | grep -q "Up"; then
               echo "Services failed to start properly"
-              docker-compose logs
+              docker compose logs
               exit 1
             fi
             

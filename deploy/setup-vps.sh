@@ -128,7 +128,7 @@ server {
     
     # For other subdomains (multi-level ones), serve over HTTP directly
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:8080;  # Changed from 3000 to 8080 (proxy container)
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -145,7 +145,22 @@ server {
     # SSL certificates will be added by certbot
     
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:8080;  # Changed from 3000 to 8080 (proxy container)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# Server for status dashboard
+server {
+    listen 80;
+    server_name status.latency.space;
+    
+    location / {
+        proxy_pass http://localhost:3000;  # Status service
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
