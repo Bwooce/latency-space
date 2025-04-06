@@ -16,7 +16,7 @@ services:
       - ./certs:/app/certs  # For certificate persistence
     cap_add:
       - NET_ADMIN
-    restart: always
+    restart: unless-stopped
     networks:
       - space-net
 
@@ -63,6 +63,9 @@ services:
 
   node-exporter:
     image: prom/node-exporter:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "9100:9100"
     volumes:
@@ -73,6 +76,7 @@ services:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    user: "65534:65534" # Run as nobody:nogroup
     networks:
       - space-net
 
