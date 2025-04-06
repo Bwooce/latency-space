@@ -6,7 +6,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "53:53/udp"
+      - "5353:53/udp"  # Changed from 53:53/udp to avoid conflict with system DNS
       - "5353:5353/udp" # General UDP
       - "1080:1080"     # SOCKS5 proxy
       - "9090:9090"     # Prometheus metrics
