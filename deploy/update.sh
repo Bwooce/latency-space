@@ -54,9 +54,28 @@ echo "📥 Pulling latest code from GitHub..."
 git fetch origin
 git reset --hard origin/main
 
-# Clean up any stuck containers
+# Clean up any stuck containers with very forceful approach
 echo "🧹 Cleaning up any problematic containers..."
-docker ps -a | grep "latency-space" | awk '{print $1}' | xargs -r docker rm -f
+# Stop all containers 
+docker ps -aq | xargs -r docker stop || true
+
+# Special handling for problematic node-exporter
+echo "Forcefully removing node-exporter if present..."
+container_id=$(docker ps -a | grep "node-exporter" | awk '{print $1}')
+if [ -n "$container_id" ]; then
+  # Try normal remove
+  docker rm -f $container_id || true
+  
+  # If still exists, use extreme measures
+  if docker ps -a | grep -q $container_id; then
+    echo "Forceful removal required. Restarting Docker service..."
+    systemctl restart docker || true
+    sleep 5
+  fi
+fi
+
+# Remove any remaining containers
+docker ps -a | grep "latency-space" | awk '{print $1}' | xargs -r docker rm -f || true
 
 # Stop the current containers
 echo "🛑 Stopping current containers..."
