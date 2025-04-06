@@ -41,9 +41,11 @@ services:
       - "9091:9090" # Changed to avoid conflict with proxy metrics
     volumes:
       - prometheus_data:/prometheus
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      # Use a copy command in Dockerfile instead of a bind mount
+      # - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - space-net
+    user: "root" # Try running as root to avoid permission issues
 
   grafana:
     build: 

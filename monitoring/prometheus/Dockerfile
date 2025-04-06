@@ -6,10 +6,11 @@ COPY prometheus.yml /etc/prometheus/prometheus.yml
 # Copy alert rules if you have them
 COPY rules/ /etc/prometheus/rules/
 
-# Set permissions
+# Set permissions but stay as root
 USER root
 RUN chown -R nobody:nobody /etc/prometheus /prometheus
-USER nobody
+# Stay as root to avoid permission issues
+# USER nobody
 
 # Default command
 CMD [ "--config.file=/etc/prometheus/prometheus.yml", \

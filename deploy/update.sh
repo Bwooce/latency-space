@@ -81,6 +81,16 @@ docker ps -a | grep "latency-space" | awk '{print $1}' | xargs -r docker rm -f |
 echo "🛑 Stopping current containers..."
 docker compose down || echo "⚠️ Warning: docker compose down failed, continuing..."
 
+# Fix permissions before building
+echo "🔧 Fixing permissions..."
+if [ -f deploy/fix-permissions.sh ]; then
+  bash deploy/fix-permissions.sh
+else
+  # Quick permissions fix if the script doesn't exist
+  mkdir -p monitoring/prometheus/rules config certs
+  chmod -R 755 monitoring config certs
+fi
+
 # Rebuild the containers
 echo "🔨 Rebuilding containers..."
 docker compose build --no-cache || echo "⚠️ Warning: build failed, continuing with existing images..."
