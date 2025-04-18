@@ -182,36 +182,41 @@ else
   fi
 fi
 
-# Add entries to /etc/hosts inside containers
-blue "Adding manual host entries to containers..."
+# Skip adding host entries to containers due to permission issues
+blue "Configuring container networking..."
 
-if [ -n "$STATUS_IP" ] && [ -n "$PROXY_IP" ]; then
-  # Add entries to proxy container
-  docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-  docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+yellow "⚠️ Cannot modify /etc/hosts in containers - they lack sufficient permissions"
+yellow "⚠️ Using direct IPs in Nginx configuration and host machine's /etc/hosts instead"
+
+# Alternative approach: Recreate containers with extra_hosts option
+# This would require stopping and recreating all containers, so we'll skip it for now
+# blue "For a more permanent solution, consider adding extra_hosts in docker-compose.yml:"
+# echo "services:"
+# echo "  proxy:"
+# echo "    extra_hosts:"
+# echo "      - \"status:$STATUS_IP\""
+# echo "      - \"prometheus:$PROMETHEUS_IP\""
+# echo "  status:"
+# echo "    extra_hosts:"
+# echo "      - \"proxy:$PROXY_IP\""
+# echo "      - \"prometheus:$PROMETHEUS_IP\""
+
+# Try to use container networks directly
+blue "Checking Docker network configuration..."
+docker network inspect space-net || docker network create space-net
+
+# Ensure all containers are connected to the same network
+for container in $(docker ps -q); do
+  name=$(docker inspect --format '{{.Name}}' $container | sed 's/\///')
+  networks=$(docker inspect --format '{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}' $container)
   
-  # Add entries to status container
-  docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-  docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
-  
-  # Add entries to prometheus container
-  docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-  docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-  
-  # Add entries to grafana container if it exists
-  if [ -n "$GRAFANA_IP" ]; then
-    docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
-    docker exec $(docker ps -q -f name=status) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
-    docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
-    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+  if [[ "$networks" != *"space-net"* ]]; then
+    blue "Connecting $name to space-net network..."
+    docker network connect space-net $container || true
+  else
+    green "✅ $name already connected to space-net"
   fi
-  
-  green "✅ Added host entries to all containers"
-else
-  red "❌ Could not determine all container IPs for manual host entries"
-fi
+done
 
 # Add entries to host machine's /etc/hosts
 if [ -n "$STATUS_IP" ] && [ -n "$PROXY_IP" ]; then

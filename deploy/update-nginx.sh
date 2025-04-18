@@ -219,27 +219,28 @@ else
   green "✅ Nginx reloaded successfully"
 fi
 
-# Add entries to containers' hosts files
-blue "Adding host entries to containers..."
+# Skip adding host entries to containers since they lack permissions
+blue "Skipping host entries for containers (permission issues)..."
+yellow "⚠️ Cannot modify /etc/hosts in containers - using direct IPs in Nginx config instead"
 
-# Add entries to proxy container
-docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
-
-# Add entries to status container
-docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
-
-# Add entries to prometheus container
-docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-
-# Add entries to grafana container if it exists
+# Add entries to host machine's /etc/hosts file instead
+blue "Adding entries to host machine's /etc/hosts..."
+  
+# Remove existing entries if they exist
+sed -i '/status$/d' /etc/hosts
+sed -i '/proxy$/d' /etc/hosts
+sed -i '/prometheus$/d' /etc/hosts
+sed -i '/grafana$/d' /etc/hosts
+  
+# Add new entries
+echo "$STATUS_IP status" >> /etc/hosts
+echo "$PROXY_IP proxy" >> /etc/hosts
+echo "$PROMETHEUS_IP prometheus" >> /etc/hosts
 if [ -n "$GRAFANA_IP" ]; then
-  docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
-  docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
-  docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+  echo "$GRAFANA_IP grafana" >> /etc/hosts
 fi
+  
+green "✅ Added container entries to host /etc/hosts file"
 
 # Test connectivity
 blue "Testing connectivity..."
