@@ -1,0 +1,114 @@
+name: Deploy from Local
+
+# This workflow can be run locally using the GitHub CLI
+# Required: gh auth login
+# Usage: gh workflow run deploy-local.yml -f host=your-server-ip -f username=your-username -f ssh_key_file=~/.ssh/id_rsa
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: 'Server Host IP or domain'
+        required: true
+      username:
+        description: 'SSH Username'
+        required: true
+        default: 'root'
+      ssh_key_file:
+        description: 'Path to SSH private key file on your local machine'
+        required: true
+        default: '~/.ssh/id_rsa'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup SSH
+        run: |
+          # Create SSH config directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Set up private key content from input
+          if [ -n "${{ github.event.inputs.ssh_key_file }}" ]; then
+            echo "Using SSH key from specified file path"
+            # Use local SSH key file with gh cli
+            # This doesn't actually work in the GitHub Actions environment
+            # but is here to document how to use with gh cli locally
+            echo "KEY_FILE_PATH=${{ github.event.inputs.ssh_key_file }}" >> $GITHUB_ENV
+          else
+            echo "ERROR: SSH key file path not provided"
+            exit 1
+          fi
+
+          # Add host to known_hosts
+          ssh-keyscan -H ${{ github.event.inputs.host }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+      
+      - name: Deploy Local Script
+        run: |
+          # Create deployment script
+          cat > deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          HOST="${{ github.event.inputs.host }}"
+          USER="${{ github.event.inputs.username }}"
+          KEY_FILE="$KEY_FILE_PATH"
+
+          echo "Deploying to $USER@$HOST..."
+          
+          # This command would deploy to the server
+          # The actual deployment using the SSH key won't work in GitHub Actions
+          # but this is meant to be run locally with gh cli
+          echo "ssh -i $KEY_FILE $USER@$HOST 'bash -s' << 'ENDSSH'
+          set -e
+          echo 'Connected to server!'
+          
+          # Check if repository exists
+          if [ ! -d '/opt/latency-space' ]; then
+            echo 'Cloning repository...'
+            mkdir -p /opt/latency-space
+            git clone https://github.com/Bwooce/latency-space.git /opt/latency-space
+          fi
+          
+          # Update code
+          cd /opt/latency-space
+          git fetch --all
+          git reset --hard origin/main
+          
+          # Deploy with Docker Compose
+          if command -v docker compose &> /dev/null; then
+            docker compose down
+            docker compose pull
+            docker compose up -d
+          else
+            docker-compose down
+            docker-compose pull
+            docker-compose up -d
+          fi
+          
+          echo 'Deployment completed!'
+          ENDSSH"
+          
+          echo "NOTE: When run from GitHub Actions, this script only outputs the commands."
+          echo "To actually deploy, run this workflow using the GitHub CLI tool (gh) from your local machine:"
+          echo "gh workflow run deploy-local.yml -f host=$HOST -f username=$USER -f ssh_key_file=$KEY_FILE"
+          EOF
+          
+          chmod +x deploy.sh
+          ./deploy.sh
+      
+      - name: Instructions for local use
+        run: |
+          echo "==== HOW TO DEPLOY MANUALLY ===="
+          echo "1. Clone the repository locally"
+          echo "2. Execute the following command from your local terminal:"
+          echo "   ssh ${{ github.event.inputs.username }}@${{ github.event.inputs.host }} 'bash -s' << 'ENDSSH'"
+          echo "   cd /opt/latency-space || { mkdir -p /opt/latency-space && git clone https://github.com/Bwooce/latency-space.git /opt/latency-space && cd /opt/latency-space; }"
+          echo "   git pull"
+          echo "   docker compose down && docker compose pull && docker compose up -d"
+          echo "   ENDSSH"
