@@ -70,6 +70,22 @@ func (s *Server) isRateLimited(clientIP string) bool {
 }
 
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	// Handle CORS preflight for debug endpoints
+	if r.Method == "OPTIONS" && strings.HasPrefix(r.URL.Path, "/_debug/") {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	
+	// Add CORS headers for all debug endpoints
+	if strings.HasPrefix(r.URL.Path, "/_debug/") {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
+	
 	// Add anti-DDoS protection
 	clientIP := r.Header.Get("X-Forwarded-For")
 	if clientIP == "" {
@@ -82,7 +98,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == "/_debug/domains" {
+	if strings.HasPrefix(r.URL.Path, "/_debug/") {
 		s.handleDebug(w, r)
 		return
 	}
@@ -438,8 +454,17 @@ func isValidProxyDomain(domain string) bool {
 func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	
-	switch path {
-	case "/_debug/domains":
+	// Extract the debug endpoint type from the path
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 {
+		http.NotFound(w, r)
+		return
+	}
+	
+	endpointType := parts[2]
+	
+	switch endpointType {
+	case "domains":
 		// List valid domains
 		domains := getExampleDomains()
 		w.Header().Set("Content-Type", "text/plain")
@@ -447,7 +472,7 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "%s - Valid: %v\n", domain, isValidProxyDomain(domain))
 		}
 		
-	case "/_debug/bodies":
+	case "bodies":
 		// List celestial bodies and their attributes
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Celestial Bodies (with real-time distances):\n\n")
@@ -493,7 +518,7 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "\n")
 		}
 		
-	case "/_debug/help":
+	case "help":
 		// Show help info
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Interplanetary Latency Simulator\n\n")
@@ -510,7 +535,7 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "  - /_debug/distances - Show current distances from Earth to all celestial bodies\n")
 		fmt.Fprintf(w, "  - /_debug/help - Show this help message\n")
 		
-	case "/_debug/distances":
+	case "distances":
 		// Show current celestial distances and update time
 		w.Header().Set("Content-Type", "text/plain")
 		
@@ -544,7 +569,7 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 			latency := calculateLatency(distance * 1e6)
 			fmt.Fprintf(w, "%-20s: %.3f million km (latency: %v)\n", name, distance, latency)
 		}
-		
+	
 	default:
 		http.NotFound(w, r)
 	}
