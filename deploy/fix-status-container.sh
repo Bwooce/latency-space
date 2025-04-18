@@ -65,33 +65,110 @@ fi
 
 # Rebuild the status container
 blue "Rebuilding status container..."
-docker-compose build --no-cache status
-if [ $? -ne 0 ]; then
-  red "❌ Failed to build status container"
+# Check for docker-compose file versions
+if [ -f "docker-compose.yml" ]; then
+  COMPOSE_FILE="docker-compose.yml"
+elif [ -f "docker-compose.yaml" ]; then
+  COMPOSE_FILE="docker-compose.yaml"
+else
+  red "❌ docker-compose.yml file not found"
+  echo "Available files in current directory:"
+  ls -la
   exit 1
 fi
-green "✅ Status container rebuilt successfully"
+
+blue "Using compose file: $COMPOSE_FILE"
+# Try with explicit file parameter
+docker-compose -f $COMPOSE_FILE build --no-cache status
+if [ $? -ne 0 ]; then
+  yellow "⚠️ Build failed with docker-compose, trying with docker compose (v2)..."
+  # Try with Docker Compose v2 syntax
+  docker compose -f $COMPOSE_FILE build --no-cache status
+  if [ $? -ne 0 ]; then
+    red "❌ Failed to build status container"
+    echo "Docker compose error. Trying alternative approaches..."
+    
+    # Try building the status image directly
+    blue "Trying direct Docker build..."
+    if [ -d "status" ] && [ -f "status/Dockerfile" ]; then
+      docker build -t latency-space-status ./status
+      if [ $? -ne 0 ]; then
+        red "❌ All build approaches failed"
+        exit 1
+      else
+        green "✅ Direct image build successful"
+      fi
+    else
+      red "❌ Status directory or Dockerfile not found"
+      exit 1
+    fi
+  else
+    green "✅ Status container rebuilt successfully using docker compose v2"
+  fi
+else
+  green "✅ Status container rebuilt successfully"
+fi
 
 # Start the status container
 blue "Starting status container..."
-docker-compose up -d status
-if [ $? -ne 0 ]; then
-  red "❌ Failed to start status container"
-  
-  blue "Checking status container logs..."
-  docker-compose logs status
-  
-  yellow "⚠️ Try checking if there's a port conflict or if another service is preventing it from starting"
+if [ -n "$COMPOSE_FILE" ]; then
+  # Try docker-compose first
+  docker-compose -f $COMPOSE_FILE up -d status
+  if [ $? -ne 0 ]; then
+    yellow "⚠️ Failed with docker-compose, trying docker compose v2..."
+    docker compose -f $COMPOSE_FILE up -d status
+    if [ $? -ne 0 ]; then
+      red "❌ Failed to start status container with both docker-compose commands"
+      
+      # If we built a direct image, try running it directly
+      if docker images | grep -q latency-space-status; then
+        blue "Trying to run the container directly..."
+        docker run -d --name latency-space-status \
+          -p 3000:3000 \
+          --network space-net \
+          -e METRICS_URL=http://prometheus:9090 \
+          latency-space-status
+        if [ $? -ne 0 ]; then
+          red "❌ All attempts to start the container failed"
+          
+          blue "Checking Docker network..."
+          if ! docker network ls | grep -q space-net; then
+            yellow "⚠️ space-net network not found, creating it..."
+            docker network create space-net
+          fi
+          
+          blue "Trying again with network..."
+          docker run -d --name latency-space-status \
+            -p 3000:3000 \
+            --network space-net \
+            -e METRICS_URL=http://prometheus:9090 \
+            latency-space-status
+          if [ $? -ne 0 ]; then
+            red "❌ All attempts to start the container failed"
+            exit 1
+          fi
+        fi
+      else
+        blue "Checking status container logs..."
+        docker-compose -f $COMPOSE_FILE logs status || docker compose -f $COMPOSE_FILE logs status
+        
+        yellow "⚠️ Try checking if there's a port conflict or if another service is preventing it from starting"
+        exit 1
+      fi
+    fi
+  fi
+else
+  red "❌ COMPOSE_FILE variable not set. This should not happen."
   exit 1
 fi
 
 # Check if the container is running
-if docker ps | grep -q status; then
+if docker ps | grep -q "status\|latency-space-status"; then
   green "✅ Status container is now running"
 else
   red "❌ Status container failed to start"
   blue "Container logs:"
-  docker-compose logs status
+  docker-compose -f $COMPOSE_FILE logs status 2>/dev/null || docker compose -f $COMPOSE_FILE logs status 2>/dev/null || echo "Could not retrieve logs"
   exit 1
 fi
 
