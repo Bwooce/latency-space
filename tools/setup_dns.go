@@ -14,9 +14,15 @@ import (
 func collectDomains() []string {
     var domains []string
 
+    // Add the main domain records
+    log.Printf("Adding main domain records...")
+    domains = append(domains, "@")    // Root domain (latency.space)
+    domains = append(domains, "www")  // www subdomain
+    
     // Add essential system subdomains
     log.Printf("Adding essential system subdomains...")
     domains = append(domains, "status")
+    domains = append(domains, "docs")
     
     log.Printf("Processing solar system bodies...")
     for planet := range solarSystem {
@@ -78,11 +84,17 @@ func main() {
         log.Printf("Processing domain: %s.%s", domain, *zoneName)
         
         // Determine if domain should be proxied through Cloudflare
-        // Status subdomain should not be proxied to allow direct monitoring
-        isProxied := true
-        if domain == "status" {
-            log.Printf("Note: Status subdomain will NOT be proxied through Cloudflare")
-            isProxied = false
+        // Only the main domain should be proxied through Cloudflare 
+        // All subdomains (planets, moons, spacecraft, status) must bypass Cloudflare
+        // to allow the long connection timeouts needed for simulating interplanetary latency
+        isProxied := false
+        
+        // Only proxy the main domain through Cloudflare
+        if domain == "@" || domain == "www" {
+            isProxied = true
+            log.Printf("Setting up %s domain with Cloudflare proxying", domain)
+        } else {
+            log.Printf("Setting up %s subdomain to bypass Cloudflare (required for interplanetary latency simulation)", domain)
         }
 
         // Check if record exists
