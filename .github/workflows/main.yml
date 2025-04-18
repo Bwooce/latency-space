@@ -156,17 +156,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      # Optional: Update DNS configuration if needed
-      # - name: Update DNS Configuration
-      #   if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-      #   env:
-      #     CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      #     SERVER_IP: ${{ secrets.DEPLOY_HOST }}
-      #   run: |
-      #     cd tools
-      #     ln -fs ../proxy/src/config.go .
-      #     ln -fs ../proxy/src/models.go .
-      #     go run . -token $CF_API_TOKEN -ip $SERVER_IP
+      # Update DNS configuration
+      - name: Update DNS Configuration
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SERVER_IP: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          cd tools
+          ln -fs ../proxy/src/config.go .
+          ln -fs ../proxy/src/models.go .
+          go run . -token $CF_API_TOKEN -ip $SERVER_IP
 
       # Debug step to check if we have connection details - using same approach as manual workflow
       - name: Check connection details

@@ -14,6 +14,10 @@ import (
 func collectDomains() []string {
     var domains []string
 
+    // Add essential system subdomains
+    log.Printf("Adding essential system subdomains...")
+    domains = append(domains, "status")
+    
     log.Printf("Processing solar system bodies...")
     for planet := range solarSystem {
         log.Printf("Adding planet: %s", planet)
