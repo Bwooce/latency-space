@@ -140,32 +140,45 @@ jobs:
       #     ln -fs ../proxy/src/models.go .
       #     go run . -token $CF_API_TOKEN -ip $SERVER_IP
 
-      # Debug step to check if secrets are available
-      - name: Check secrets (debug)
+      # Debug step to check if we have connection details - using same approach as manual workflow
+      - name: Check connection details
+        id: check-details
         run: |
-          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+          # Check host
+          HOST="${{ secrets.DEPLOY_HOST }}"
+          if [ -z "$HOST" ]; then
             echo "::error::Secret DEPLOY_HOST is not set or is empty"
+            echo "has_host=false" >> $GITHUB_OUTPUT
             exit 1
+          else
+            echo "Host is set (value hidden)"
+            echo "has_host=true" >> $GITHUB_OUTPUT
           fi
-          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+          
+          # Check username
+          USER="${{ secrets.DEPLOY_USER }}"
+          if [ -z "$USER" ]; then
             echo "::error::Secret DEPLOY_USER is not set or is empty"
+            echo "has_user=false" >> $GITHUB_OUTPUT
             exit 1
+          else
+            echo "Username is set (value hidden)"
+            echo "has_user=true" >> $GITHUB_OUTPUT
           fi
+          
+          # Check SSH key
           if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "::error::Secret SSH_PRIVATE_KEY is not set or is empty"
+            echo "has_key=false" >> $GITHUB_OUTPUT
             exit 1
+          else
+            echo "SSH key is present"
+            echo "has_key=true" >> $GITHUB_OUTPUT
           fi
-          echo "All required secrets are available"
       
-      # Temporarily disable for debugging
-      - name: Output host for debugging (redacted)
-        run: |
-          echo "Host: ${{ secrets.DEPLOY_HOST != '' && '***' || 'NOT SET' }}"
-          echo "User: ${{ secrets.DEPLOY_USER != '' && '***' || 'NOT SET' }}"
-          echo "Key: ${{ secrets.SSH_PRIVATE_KEY != '' && 'PRESENT' || 'NOT SET' }}"
-      
-      - name: Configure SSH
-        if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.SSH_PRIVATE_KEY != '' }}
+      # Deploy using the same method as the manual workflow
+      - name: Deploy using SSH
+        if: steps.check-details.outputs.has_host == 'true' && steps.check-details.outputs.has_user == 'true' && steps.check-details.outputs.has_key == 'true'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DEPLOY_HOST }}
