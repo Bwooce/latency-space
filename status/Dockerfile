@@ -19,6 +19,13 @@ FROM nginx:alpine
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Copy backup index.html and assets for resilience
+COPY backup-index.html /usr/share/nginx/html/index.html.backup
+
+# Create assets directory and ensure proper permissions
+RUN mkdir -p /usr/share/nginx/html/assets && \
+    chown -R nginx:nginx /usr/share/nginx/html
+
 # Copy startup script and make executable
 COPY start.sh /start.sh
 RUN chmod +x /start.sh

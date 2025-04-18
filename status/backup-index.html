@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>latency.space - Status Dashboard</title>
+    <meta name="description" content="Status dashboard for the latency.space interplanetary network simulator" />
+    <!-- Main CSS with fallback -->
+    <link rel="stylesheet" href="/assets/index-a21bae11.css" onerror="this.onerror=null;this.href='/assets/index-fallback.css';" />
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <!-- Main JavaScript with fallback -->
+    <script>
+      // Function to load a script with fallback
+      function loadScript(src, fallbackSrc) {
+        var script = document.createElement('script');
+        script.src = src;
+        script.onerror = function() {
+          console.log('Error loading main script, using fallback: ' + fallbackSrc);
+          var fallback = document.createElement('script');
+          fallback.src = fallbackSrc;
+          document.body.appendChild(fallback);
+        };
+        document.body.appendChild(script);
+      }
+      
+      // Load main script with fallback
+      loadScript('/assets/index-dbb786d6.js', '/assets/index-fallback.js');
+    </script>
+  </body>
+</html>
