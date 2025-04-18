@@ -76,20 +76,76 @@ for domain in latency.space www.latency.space status.latency.space mars.latency.
 done
 hr
 
-# Check network connectivity
+# Check network connectivity - removed interactive flag (-it) which can cause problems
 blue "🔌 NETWORK CONNECTIVITY"
-echo "Checking connectivity to proxy container..."
-if docker exec -it $(docker ps -q -f name=proxy) curl -s -o /dev/null -w "%{http_code}" http://localhost 2>/dev/null; then
-    green "✅ Proxy container is responding to HTTP requests"
-else
-    red "❌ Proxy container is not responding to HTTP requests"
-fi
+echo "Checking if curl is available in the proxy container..."
+PROXY_CONTAINER=$(docker ps -q -f name=proxy 2>/dev/null)
+STATUS_CONTAINER=$(docker ps -q -f name=status 2>/dev/null)
 
-echo "Checking connectivity to status container..."
-if docker exec -it $(docker ps -q -f name=proxy) curl -s -o /dev/null -w "%{http_code}" http://status:3000 2>/dev/null; then
-    green "✅ Status container is accessible from proxy container"
+if [ -z "$PROXY_CONTAINER" ]; then
+    red "❌ Proxy container is not running"
+elif docker exec $PROXY_CONTAINER which curl &>/dev/null; then
+    green "✅ curl is available in proxy container"
+    
+    echo "Checking connectivity to proxy container..."
+    if docker exec $PROXY_CONTAINER curl -s -o /dev/null -w "%{http_code}" http://localhost 2>/dev/null; then
+        green "✅ Proxy container is responding to HTTP requests"
+    else
+        red "❌ Proxy container is not responding to HTTP requests"
+    fi
+    
+    echo "Checking connectivity to status container..."
+    if docker exec $PROXY_CONTAINER curl -s -o /dev/null -w "%{http_code}" http://status:3000 2>/dev/null; then
+        green "✅ Status container is accessible from proxy container"
+    else
+        red "❌ Status container is not accessible from proxy container"
+    fi
 else
-    red "❌ Status container is not accessible from proxy container"
+    yellow "⚠️ curl is not available in proxy container, using alternative network tests"
+    
+    echo "Testing proxy container network with ping..."
+    if docker exec $PROXY_CONTAINER ping -c 1 localhost &>/dev/null; then
+        green "✅ Proxy container can ping itself"
+    else
+        # Try with simple command if ping is not available
+        if docker exec $PROXY_CONTAINER echo "Network test" &>/dev/null; then
+            green "✅ Proxy container is responsive"
+        else
+            red "❌ Proxy container is not responsive to basic commands"
+        fi
+    fi
+    
+    echo "Testing connectivity to status container..."
+    if docker exec $PROXY_CONTAINER ping -c 1 status &>/dev/null; then
+        green "✅ Proxy container can ping status container"
+    else
+        yellow "⚠️ Cannot ping status container, checking docker network directly"
+        
+        # Get the container IPs from docker inspect
+        PROXY_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $PROXY_CONTAINER 2>/dev/null)
+        STATUS_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $STATUS_CONTAINER 2>/dev/null)
+        
+        if [ -n "$PROXY_IP" ] && [ -n "$STATUS_IP" ]; then
+            echo "Proxy container IP: $PROXY_IP"
+            echo "Status container IP: $STATUS_IP"
+            
+            # Check if they're on the same network
+            PROXY_NETWORK=$(docker inspect --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' $PROXY_CONTAINER 2>/dev/null)
+            STATUS_NETWORK=$(docker inspect --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' $STATUS_CONTAINER 2>/dev/null)
+            
+            if [ "$PROXY_NETWORK" = "$STATUS_NETWORK" ]; then
+                green "✅ Both containers are on the same network: $PROXY_NETWORK"
+            else
+                red "❌ Containers are on different networks: proxy=$PROXY_NETWORK, status=$STATUS_NETWORK"
+            fi
+        else
+            red "❌ Could not determine container IP addresses"
+        fi
+    fi
+    
+    echo ""
+    yellow "📝 Recommendation: Install curl in the proxy container for better diagnostics:"
+    echo "   docker exec $PROXY_CONTAINER sh -c 'apt-get update && apt-get install -y curl'"
 fi
 hr
 
