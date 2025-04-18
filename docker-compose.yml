@@ -13,7 +13,7 @@ services:
     volumes:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
-      - ./proxy/certs:/app/certs  # For certificate persistence
+      - proxy_certs:/app/certs  # For certificate persistence
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
@@ -55,7 +55,7 @@ services:
       - "3001:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana_dashboards:/etc/grafana/provisioning/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     networks:
@@ -90,5 +90,7 @@ networks:
 volumes:
   prometheus_data:
   grafana_data:
+  grafana_dashboards:
   proxy_config:
   proxy_ssl:
+  proxy_certs:
