@@ -31,11 +31,7 @@ cat > /etc/docker/daemon.json << EOF
 {
   "dns": ["8.8.8.8", "8.8.4.4"],
   "dns-opts": ["ndots:1"],
-  "dns-search": ["latency.space"],
-  "bip": "172.18.0.1/24",
-  "default-address-pools": [
-    {"base": "172.18.0.0/16", "size": 24}
-  ]
+  "dns-search": ["latency.space"]
 }
 EOF
 
