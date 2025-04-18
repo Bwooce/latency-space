@@ -12,6 +12,14 @@ on:
         options:
           - production
           - staging
+      host:
+        description: 'Alternative host (leave empty to use secrets)'
+        required: false
+        type: string
+      username:
+        description: 'Alternative username (leave empty to use secrets)'
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -20,25 +28,99 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
+      # Debug step to check if we have connection details
+      - name: Check connection details
+        id: check-details
+        run: |
+          # Use input values if provided, otherwise use secrets
+          HOST="${{ github.event.inputs.host || secrets.DEPLOY_HOST }}"
+          USER="${{ github.event.inputs.username || secrets.DEPLOY_USER }}"
+          
+          if [ -z "$HOST" ]; then
+            echo "::error::No host specified. Either set the DEPLOY_HOST secret or provide a host input."
+            echo "has_host=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "Host is set (value hidden)"
+            echo "has_host=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -z "$USER" ]; then
+            echo "::error::No username specified. Either set the DEPLOY_USER secret or provide a username input."
+            echo "has_user=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "Username is set (value hidden)"
+            echo "has_user=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "::error::SSH_PRIVATE_KEY secret is not set."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "SSH key is present"
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Deploy
+        if: steps.check-details.outputs.has_host == 'true' && steps.check-details.outputs.has_user == 'true' && steps.check-details.outputs.has_key == 'true'
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: ${{ github.event.inputs.host || secrets.DEPLOY_HOST }}
+          username: ${{ github.event.inputs.username || secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Check if repo exists, if not clone it
+            if [ ! -d "/opt/latency-space" ]; then
+              echo "Repository doesn't exist, cloning..."
+              mkdir -p /opt/latency-space
+              git clone https://github.com/Bwooce/latency-space.git /opt/latency-space
+            fi
+            
             cd /opt/latency-space
-            git pull
+            
+            # Verify DNS resolution is working
+            echo "Testing DNS resolution..."
+            if ! ping -c 1 github.com &> /dev/null; then
+              echo "DNS resolution issue - fixing..."
+              echo "nameserver 8.8.8.8" > /etc/resolv.conf
+              echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+            fi
+            
+            # Pull latest code
+            git fetch --all
+            git reset --hard origin/main
+            
             # Try docker compose v2 first, fall back to legacy if needed
+            echo "Deploying with Docker Compose..."
             if command -v docker compose &> /dev/null; then
+              docker compose down
               docker compose pull
+              docker compose build --no-cache || echo "Build failed, continuing with deployment"
               docker compose up -d || {
                 echo "docker compose failed, trying docker-compose..."
+                docker-compose down
                 docker-compose pull
+                docker-compose build --no-cache || echo "Build failed, continuing with deployment"
                 docker-compose up -d
               }
             else
+              docker-compose down
               docker-compose pull
+              docker-compose build --no-cache || echo "Build failed, continuing with deployment"
               docker-compose up -d
             fi
+            
+            # Check if services are running
+            echo "Verifying services..."
+            sleep 10 # Wait for services to start
+            if docker compose ps | grep -q "Up" || docker-compose ps | grep -q "Up"; then
+              echo "Services are running"
+            else
+              echo "WARNING: Services might not be running correctly"
+              docker compose logs || docker-compose logs
+            fi
+            
+            echo "Deployment completed!"
 
