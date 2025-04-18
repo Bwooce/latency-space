@@ -27,15 +27,12 @@ jobs:
       - name: Install dependencies
         working-directory: ./proxy/src
         run: |
+          # Ensure go.mod and go.sum are up to date
+          go mod tidy
           go mod download
-          # Create a go.sum file in the root directory for the GitHub Actions cache
-          if [ ! -f "../go.sum" ]; then
-            cp go.sum ../
-          fi
-          # Also copy to the root of the repository
-          if [ ! -f "../../go.sum" ]; then
-            cp go.sum ../../
-          fi
+          # Create go.sum files in necessary locations
+          cp go.sum ../
+          cp go.sum ../../
 
       - name: Run tests
         working-directory: ./proxy/src
@@ -60,13 +57,14 @@ jobs:
       # Ensure go.sum is present for linting
       - name: Prepare for linting
         run: |
-          # Create a go.sum file in the root directory for the GitHub Actions cache
-          if [ -f "proxy/src/go.sum" ] && [ ! -f "go.sum" ]; then
+          # Create go.sum files in necessary locations
+          if [ -f "proxy/src/go.sum" ]; then
             cp proxy/src/go.sum .
-          fi
-          # Also copy to the proxy directory
-          if [ -f "proxy/src/go.sum" ] && [ ! -f "proxy/go.sum" ]; then
             cp proxy/src/go.sum proxy/
+            echo "Copied go.sum to required locations"
+          else
+            echo "ERROR: go.sum not found in proxy/src/"
+            exit 1
           fi
 
       - name: golangci-lint
@@ -78,7 +76,8 @@ jobs:
       - name: Lint Docker files
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: ./proxy/Dockerfile
+          dockerfile: proxy/Dockerfile
+          failure-threshold: error
 
   build:
     needs: [test, lint]
@@ -121,8 +120,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Use different cache keys to avoid cache issues
+          cache-from: type=gha,scope=proxy-build
+          cache-to: type=gha,mode=max,scope=proxy-build
 
       # Build other services
       - name: Build and push monitoring
@@ -131,6 +131,9 @@ jobs:
           context: ./monitoring/grafana
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}-grafana:${{ github.sha }}
+          # Use different cache keys to avoid cache issues
+          cache-from: type=gha,scope=grafana-build
+          cache-to: type=gha,mode=max,scope=grafana-build
 
       - name: Build and push status
         uses: docker/build-push-action@v4
@@ -138,6 +141,9 @@ jobs:
           context: ./status
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}-status:${{ github.sha }}
+          # Use different cache keys to avoid cache issues
+          cache-from: type=gha,scope=status-build
+          cache-to: type=gha,mode=max,scope=status-build
 
   deploy:
     needs: build

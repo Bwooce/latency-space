@@ -226,7 +226,7 @@ fi
 
 echo "🌐 Nginx is now configured to:"
 echo "  - Serve the main website at latency.space and www.latency.space"
-echo "  - Proxy all celestial-body subdomains to http://localhost:8080"
-echo "  - Proxy status.latency.space to http://localhost:3000"
+echo "  - Proxy all celestial-body subdomains to http://proxy:80"
+echo "  - Proxy status.latency.space to http://status:3000"
 echo ""
 echo "You should now be able to access the main website and all subdomain proxies."

@@ -7,9 +7,9 @@ WORKDIR /app/src
 
 # Combine installation and build steps to reduce layers
 RUN apk add --no-cache \
-    gcc \
-    musl-dev \
-    linux-headers
+    gcc=13.2.1_git20231014-r0 \
+    musl-dev=1.2.4_git20230717-r4 \
+    linux-headers=6.5-r0
 
 # Copy dependency files first for better caching
 COPY src/go.mod src/go.sum ./
@@ -24,9 +24,9 @@ FROM alpine:3.19.1
 
 # Install required tools in a single layer
 RUN apk add --no-cache \
-    iproute2 \
-    iptables \
-    openssl \
+    iproute2=6.6.0-r0 \
+    iptables=1.8.9-r2 \
+    openssl=3.1.4-r5 \
     && mkdir -p /etc/latency-space
 
 # Copy and prepare binary
