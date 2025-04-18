@@ -17,8 +17,6 @@ const (
 
 type CelestialBody struct {
 	Distance      float64 // millions of km (average)
-	UDPForward    string  // deprecated, kept for backward compatibility
-	TCPForward    string  // deprecated, kept for backward compatibility
 	BandwidthKbps int     // bandwidth limit in Kbps
 	RateLimit     int     // requests per minute
 	Moons         map[string]*CelestialBody
