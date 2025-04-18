@@ -75,31 +75,7 @@ func isValidSubdomain(host string) bool {
 	return false
 }
 
-// Helper function to list all valid domains
-func listValidDomains() []string {
-	var domains []string
-	domains = append(domains, "latency.space")
-
-	// Add planets and spacecraft
-	for name := range solarSystem {
-		domains = append(domains, name+".latency.space")
-		// Add moons for each planet
-		for moon := range solarSystem[name].Moons {
-			domains = append(domains, moon+"."+name+".latency.space")
-		}
-	}
-
-	for name := range spacecraft {
-		domains = append(domains, name+".latency.space")
-	}
-
-	// Add examples of the new format
-	domains = append(domains, "www.google.com.earth.latency.space")
-	domains = append(domains, "example.com.mars.latency.space")
-	domains = append(domains, "api.github.com.jupiter.latency.space")
-
-	return domains
-}
+// Note: This function is now used by the main.go getExampleDomains function
 
 func setupTLS() *tls.Config {
 	// Create certificate cache directory

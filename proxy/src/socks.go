@@ -82,7 +82,9 @@ func (s *SOCKSHandler) handleClientGreeting() bool {
 
 	// No supported auth method
 	resp := []byte{SOCKS5_VERSION, SOCKS5_AUTH_NO_ACCEPTABLE}
-	s.conn.Write(resp)
+	if _, err := s.conn.Write(resp); err != nil {
+		log.Printf("Failed to send auth rejection: %v", err)
+	}
 	log.Printf("No supported authentication method")
 	return false
 }

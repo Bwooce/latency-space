@@ -363,6 +363,7 @@ func main() {
 // getExampleDomains returns a list of example domains for the proxy
 func getExampleDomains() []string {
 	var domains []string
+	domains = append(domains, "latency.space")
 	
 	// Add all celestial bodies
 	for name := range solarSystem {
@@ -383,6 +384,11 @@ func getExampleDomains() []string {
 		domains = append(domains, name+".latency.space")
 		domains = append(domains, "www.example.com."+name+".latency.space")
 	}
+	
+	// Add examples of special formats
+	domains = append(domains, "www.google.com.earth.latency.space")
+	domains = append(domains, "example.com.mars.latency.space")
+	domains = append(domains, "api.github.com.jupiter.latency.space")
 	
 	return domains
 }

@@ -31,3 +31,4 @@ dist/
 .idea/
 .vscode/
 *.swp
+/proxy/proxy
