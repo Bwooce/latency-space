@@ -3,73 +3,136 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"flag"
 	"fmt"
-	"github.com/gorilla/websocket"
+	"io"
 	"log"
-	"math/rand"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+	
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Server is the main latency proxy server
 type Server struct {
+	port          int
+	https         bool
+	metrics       *MetricsCollector
+	security      *SecurityValidator
 	httpServer    *http.Server
 	httpsServer   *http.Server
 	socksListener net.Listener
-	security      *SecurityValidator
-	metrics       *MetricsCollector
-	rateLimits    map[string]time.Time // IP address -> last request time
-	rateLimitMu   sync.Mutex           // Mutex for rate limiting map
-	wg            sync.WaitGroup
 }
 
-func NewServer() *Server {
+// NewServer creates a new latency proxy server
+func NewServer(port int, useHTTPS bool) *Server {
 	return &Server{
-		security:   NewSecurityValidator(),
-		metrics:    NewMetricsCollector(),
-		rateLimits: make(map[string]time.Time),
+		port:     port,
+		https:    useHTTPS,
+		metrics:  NewMetricsCollector(),
+		security: NewSecurityValidator(),
 	}
 }
 
-// isRateLimited implements rate limiting for each IP address
-// Returns true if the request should be limited
-func (s *Server) isRateLimited(clientIP string) bool {
-	s.rateLimitMu.Lock()
-	defer s.rateLimitMu.Unlock()
-	
-	// Clean up old entries every 100 requests (approximately)
-	if len(s.rateLimits) > 100 && rand.Intn(100) == 0 {
-		now := time.Now()
-		for ip, lastTime := range s.rateLimits {
-			if now.Sub(lastTime) > 5*time.Minute {
-				delete(s.rateLimits, ip)
-			}
+// Start runs the latency proxy server
+func (s *Server) Start() error {
+	// Set up signal channel for graceful shutdown
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start proxy servers
+	var wg sync.WaitGroup
+	errCh := make(chan error, 3) // Buffer for HTTP, HTTPS, and SOCKS errors
+
+	// Start HTTP server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := s.startHTTPServer()
+		if err != nil && err != http.ErrServerClosed {
+			errCh <- fmt.Errorf("HTTP server error: %v", err)
 		}
+	}()
+
+	// Start HTTPS server if enabled
+	if s.https {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.startHTTPSServer()
+			if err != nil && err != http.ErrServerClosed {
+				errCh <- fmt.Errorf("HTTPS server error: %v", err)
+			}
+		}()
 	}
-	
-	// Check if this IP has requested recently
-	lastTime, exists := s.rateLimits[clientIP]
-	now := time.Now()
-	
-	// Allow 1 request per 2 seconds per IP
-	if exists && now.Sub(lastTime) < 2*time.Second {
-		return true // Rate limited
+
+	// Start SOCKS5 server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := s.startSOCKSServer()
+		if err != nil {
+			errCh <- fmt.Errorf("SOCKS5 server error: %v", err)
+		}
+	}()
+
+	// Wait for signals or errors
+	select {
+	case <-sigs:
+		log.Println("Received shutdown signal")
+	case err := <-errCh:
+		log.Printf("Server error: %v", err)
 	}
-	
-	// Update last request time
-	s.rateLimits[clientIP] = now
-	return false // Not rate limited
+
+	// Graceful shutdown
+	s.Stop()
+	wg.Wait()
+	return nil
 }
 
+// Stop gracefully shuts down the server
+func (s *Server) Stop() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if s.httpServer != nil {
+		log.Println("Shutting down HTTP server...")
+		s.httpServer.Shutdown(ctx)
+	}
+
+	if s.httpsServer != nil {
+		log.Println("Shutting down HTTPS server...")
+		s.httpsServer.Shutdown(ctx)
+	}
+
+	if s.socksListener != nil {
+		log.Println("Shutting down SOCKS5 server...")
+		s.socksListener.Close()
+	}
+}
+
+// handleHTTP processes HTTP requests with celestial body latency
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	// Special case for metrics endpoint
+	if r.URL.Path == "/metrics" {
+		promhttp.Handler().ServeHTTP(w, r)
+		return
+	}
+	
+	// Special case for debug endpoints
+	if strings.HasPrefix(r.URL.Path, "/_debug/") {
+		s.handleDebugEndpoint(w, r)
+		return
+	}
+	
 	// Handle CORS preflight for debug endpoints
 	if r.Method == "OPTIONS" && strings.HasPrefix(r.URL.Path, "/_debug/") {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -78,125 +141,149 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	
-	// Add CORS headers for all debug endpoints
-	if strings.HasPrefix(r.URL.Path, "/_debug/") {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	}
-	
-	// Add anti-DDoS protection
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP == "" {
-		clientIP = r.RemoteAddr
-	}
-	
-	// Rate limiting per source IP
-	if s.isRateLimited(clientIP) {
-		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
-		return
-	}
 
-	if strings.HasPrefix(r.URL.Path, "/_debug/") {
-		s.handleDebug(w, r)
-		return
-	}
-
-	// Extract target domain from the hostname
-	targetDomain, celestialBody, bodyName := s.extractDomainAndBody(r.Host)
+	// Process the host to determine if this is a celestial body request
+	targetURL, celestialBody, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
+	
+	// Check if celestial body exists
 	if celestialBody == nil {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
 	}
-
-	// Anti-DDoS: Only allow bodies with significant latency (>1s)
+	
+	// Apply space latency
 	latency := calculateLatency(celestialBody.Distance * 1e6)
-	if latency < 1*time.Second {
-		http.Error(w, "This proxy is only for simulating deep space latency. Please use a body with >1s latency.", http.StatusForbidden)
-		return
-	}
-
-	// If target domain is present (DNS proxy format), use it as destination
-	var destination string
-	if targetDomain != "" {
-		// Construct destination URL
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		destination = fmt.Sprintf("%s://%s", scheme, targetDomain)
-	} else {
-		// Get destination from header or query param
-		destination = r.Header.Get("X-Destination")
-		if destination == "" {
-			destination = r.URL.Query().Get("destination")
-		}
-	}
-
-	// Validate destination
-	validDest, err := s.security.ValidateDestination(destination)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Invalid destination: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Anti-DDoS: Restrict destinations to common well-known sites
-	// This protects against using the proxy to attack less-protected sites
-	if !s.security.IsAllowedHost(validDest) {
-		http.Error(w, "Destination not in allowed list", http.StatusForbidden)
-		return
-	}
-
-	// Check for WebSocket upgrade
-	if websocket.IsWebSocketUpgrade(r) {
-		s.handleWebSocket(w, r, celestialBody, validDest)
-		return
-	}
-
+	log.Printf("Proxy request for %s via %s (latency: %v)", targetURL, bodyName, latency)
+	time.Sleep(latency)
+	
 	// Start metrics collection
 	start := time.Now()
 	defer func() {
 		s.metrics.RecordRequest(bodyName, "http", time.Since(start))
 	}()
+	
+	// If there's no target URL, just display info about this celestial body
+	if targetURL == "" {
+		s.displayCelestialInfo(w, celestialBody, bodyName, latency)
+		return
+	}
+	
+	// Apply bandwidth limiting
+	r.Header.Set("X-Celestial-Body", bodyName)
+	
+	// Forward the request to the target URL
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:    10,
+			IdleConnTimeout: 30 * time.Second,
+		},
+	}
 
-	// Create reverse proxy
-	target, _ := url.Parse(validDest)
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	// Create a new request to the target URL
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error creating proxy request: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-	// Modify the request
-	r.URL.Host = target.Host
-	r.URL.Scheme = target.Scheme
-	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
-	r.Host = target.Host
+	// Copy headers from original request
+	for name, values := range r.Header {
+		// Skip host header
+		if strings.ToLower(name) != "host" {
+			for _, value := range values {
+				proxyReq.Header.Add(name, value)
+			}
+		}
+	}
 
-	// Apply space latency
+	// Make the request
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error making proxy request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy headers from response
+	for name, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(name, value)
+		}
+	}
+
+	// Apply interplanetary latency on the return path too
 	time.Sleep(latency)
 
-	// Apply bandwidth limiting
-	s.metrics.TrackBandwidth(bodyName, r.ContentLength)
+	// Copy status code
+	w.WriteHeader(resp.StatusCode)
 
-	// Forward the request
-	proxy.ServeHTTP(w, r)
+	// Copy body
+	io.Copy(w, resp.Body)
 }
 
-// extractDomainAndBody parses domain.body.latency.space format
-// returns the target domain and celestial body
-func (s *Server) extractDomainAndBody(host string) (string, *CelestialBody, string) {
-	// Remove port if present
+// displayCelestialInfo shows information about the celestial body
+func (s *Server) displayCelestialInfo(w http.ResponseWriter, body *CelestialBody, name string, latency time.Duration) {
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	
+	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
+	fmt.Fprintf(w, "<h1>%s</h1>", name)
+	fmt.Fprintf(w, "<p>You are accessing the Solar System through %s.</p>", name)
+	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", body.Distance)
+	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency)
+	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency)
+	fmt.Fprintf(w, "<p>Bandwidth limit: %d Kbps</p>", body.BandwidthKbps)
+	fmt.Fprintf(w, "<p>Rate limit: %d requests per minute</p>", body.RateLimit)
+	
+	fmt.Fprintf(w, "<h2>Usage</h2>")
+	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
+	fmt.Fprintf(w, "<ul>")
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", name)
+	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", name)
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", name)
+	fmt.Fprintf(w, "</ul>")
+	
+	fmt.Fprintf(w, "<h2>SOCKS5 Proxy</h2>")
+	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
+	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", name)
+	
+	if len(body.Moons) > 0 {
+		fmt.Fprintf(w, "<h2>Moons</h2>")
+		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)
+		fmt.Fprintf(w, "<ul>")
+		for moon := range body.Moons {
+			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon, name, moon)
+		}
+		fmt.Fprintf(w, "</ul>")
+	}
+	
+	fmt.Fprintf(w, "</body></html>")
+}
+
+// parseHostForCelestialBody extracts target URL and celestial body from request
+func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string, *CelestialBody, string) {
+	// Remove port from host if present
 	if idx := strings.Index(host, ":"); idx > 0 {
 		host = host[:idx]
 	}
-
-	// Check for latency.space domain
-	if !strings.HasSuffix(host, ".latency.space") {
-		return "", nil, ""
+	
+	// Check for debug endpoints which don't need celestial body processing
+	if strings.HasPrefix(reqURL.Path, "/_debug/") {
+		return "", solarSystem["earth"], "earth"
 	}
-
-	// Split hostname parts
+	
+	// Not a latency.space domain
+	if !strings.HasSuffix(host, ".latency.space") {
+		// Default to Earth
+		return reqURL.String(), solarSystem["earth"], "earth"
+	}
+	
+	// Extract parts: [subdomain, latency, space]
 	parts := strings.Split(host, ".")
-	if len(parts) < 3 {
-		return "", nil, ""
+	if len(parts) < 3 || parts[len(parts)-1] != "space" || parts[len(parts)-2] != "latency" {
+		// Not a proper latency.space domain
+		return reqURL.String(), solarSystem["earth"], "earth"
 	}
 
 	// If format is domain.body.latency.space
@@ -287,11 +374,17 @@ func (s *Server) startSOCKSServer() error {
 		// Configure extended timeouts for TCP connections
 		if tcpConn, ok := conn.(*net.TCPConn); ok {
 			// Set keep-alive with a long period suitable for celestial distances
-			tcpConn.SetKeepAlive(true)
-			tcpConn.SetKeepAlivePeriod(10 * time.Minute)
+			if err := tcpConn.SetKeepAlive(true); err != nil {
+				log.Printf("Warning: Failed to set TCP keepalive: %v", err)
+			}
+			if err := tcpConn.SetKeepAlivePeriod(10 * time.Minute); err != nil {
+				log.Printf("Warning: Failed to set TCP keepalive period: %v", err)
+			}
 			
 			// Disable Nagle's algorithm for low-latency transmission
-			tcpConn.SetNoDelay(true)
+			if err := tcpConn.SetNoDelay(true); err != nil {
+				log.Printf("Warning: Failed to disable Nagle's algorithm: %v", err)
+			}
 			
 			log.Printf("SOCKS: Configured extended timeouts for connection from %s", conn.RemoteAddr().String())
 		}
@@ -301,300 +394,148 @@ func (s *Server) startSOCKSServer() error {
 		if idx := strings.Index(clientIP, ":"); idx > 0 {
 			clientIP = clientIP[:idx]
 		}
-		
-		// Apply rate limiting
-		if s.isRateLimited(clientIP) {
-			log.Printf("Rate limiting SOCKS connection from %s", clientIP)
+
+		// Apply rate limiting based on IP (simplified)
+		// This is a basic form of rate limiting to prevent abuse
+		if !s.security.IsAllowedIP(clientIP) {
 			conn.Close()
 			continue
 		}
 
-		// Handle each connection in a separate goroutine
-		go func(c net.Conn) {
-			handler := NewSOCKSHandler(c, s.security, s.metrics)
-			handler.Handle()
-		}(conn)
+		// Handle the connection in a goroutine
+		go NewSOCKSHandler(conn, s.security, s.metrics).Handle()
 	}
 }
 
-func (s *Server) Start() error {
-
-	// Start metrics endpoint
-	go s.metrics.ServeMetrics(":9090")
+// handleDebugEndpoint handles debug and info endpoints
+func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
+	// Enable CORS for debug endpoints
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	
-	// Start celestial distance update routine
-	go func() {
-		for {
-			updateCelestialDistances()
-			// Update every hour
-			time.Sleep(1 * time.Hour)
-		}
-	}()
-
-	// Start servers
-	s.wg.Add(3) // HTTP, HTTPS, and SOCKS
-
-	go func() {
-		defer s.wg.Done()
-		if err := s.startHTTPServer(); err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-		}
-	}()
-
-	go func() {
-		defer s.wg.Done()
-		if err := s.startHTTPSServer(); err != http.ErrServerClosed {
-			// Log the error but continue - HTTP server will still work
-			// This is important for multi-level subdomains that might not have valid certs
-			log.Printf("HTTPS server error: %v", err)
-			log.Printf("Multi-level subdomains will still work via HTTP")
-		}
-	}()
-
-	go func() {
-		defer s.wg.Done()
-		if err := s.startSOCKSServer(); err != nil {
-			log.Printf("SOCKS server error: %v", err)
-		}
-	}()
-
-	log.Printf("Service started - Note that multi-level subdomains (*.*.latency.space) will be served over HTTP only")
-	return nil
+	// Extract the debug command
+	path := strings.TrimPrefix(r.URL.Path, "/_debug/")
+	
+	switch path {
+	case "distances":
+		s.printCelestialDistances(w)
+	case "bodies":
+		s.printCelestialBodies(w)
+	case "help":
+		s.printHelp(w)
+	default:
+		http.Error(w, "Unknown debug command", http.StatusNotFound)
+	}
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
-	// Shutdown HTTP servers gracefully
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
-	}
-	if err := s.httpsServer.Shutdown(ctx); err != nil {
-		log.Printf("HTTPS server shutdown error: %v", err)
-	}
-
-	// Close SOCKS listener
-	if s.socksListener != nil {
-		if err := s.socksListener.Close(); err != nil {
-			log.Printf("SOCKS server shutdown error: %v", err)
+// printCelestialDistances shows the current distances of all celestial bodies
+func (s *Server) printCelestialDistances(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain")
+	
+	fmt.Fprintln(w, "Latency Space - Current Celestial Distances")
+	fmt.Fprintln(w, "============================================")
+	fmt.Fprintf(w, "Current Time: %s\n\n", time.Now().Format(time.RFC3339))
+	
+	// Print planets
+	fmt.Fprintln(w, "PLANETS:")
+	for name, body := range solarSystem {
+		latency := calculateLatency(body.Distance * 1e6)
+		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
+			name, body.Distance, latency)
+			
+		// Print moons
+		for moonName, moon := range body.Moons {
+			moonLatency := calculateLatency(moon.Distance * 1e6)
+			fmt.Fprintf(w, "  %s.%s: %.6f million km (one-way latency: %v)\n", 
+				moonName, name, moon.Distance, moonLatency)
 		}
 	}
+	
+	// Print spacecraft
+	fmt.Fprintln(w, "\nSPACECRAFT:")
+	for name, body := range spacecraft {
+		latency := calculateLatency(body.Distance * 1e6)
+		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
+			name, body.Distance, latency)
+	}
+}
 
-	// Wait for all servers to finish
-	s.wg.Wait()
-	return nil
+// printCelestialBodies displays all celestial body info
+func (s *Server) printCelestialBodies(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain")
+	
+	fmt.Fprintln(w, "Latency Space - Celestial Body Configuration")
+	fmt.Fprintln(w, "===========================================")
+	
+	// Print planets
+	fmt.Fprintln(w, "PLANETS:")
+	for name, body := range solarSystem {
+		fmt.Fprintf(w, "%s:\n", name)
+		fmt.Fprintf(w, "  Distance: %.2f million km\n", body.Distance)
+		fmt.Fprintf(w, "  Bandwidth: %d Kbps\n", body.BandwidthKbps)
+		fmt.Fprintf(w, "  Rate Limit: %d requests/minute\n", body.RateLimit)
+		fmt.Fprintf(w, "  Moons: %d\n", len(body.Moons))
+		
+		// Print moons
+		for moonName, moon := range body.Moons {
+			fmt.Fprintf(w, "  - %s:\n", moonName)
+			fmt.Fprintf(w, "    Distance: %.6f million km\n", moon.Distance)
+			fmt.Fprintf(w, "    Bandwidth: %d Kbps\n", moon.BandwidthKbps)
+			fmt.Fprintf(w, "    Rate Limit: %d requests/minute\n", moon.RateLimit)
+		}
+		fmt.Fprintln(w)
+	}
+	
+	// Print spacecraft
+	fmt.Fprintln(w, "SPACECRAFT:")
+	for name, body := range spacecraft {
+		fmt.Fprintf(w, "%s:\n", name)
+		fmt.Fprintf(w, "  Distance: %.2f million km\n", body.Distance)
+		fmt.Fprintf(w, "  Bandwidth: %d Kbps\n", body.BandwidthKbps)
+		fmt.Fprintf(w, "  Rate Limit: %d requests/minute\n", body.RateLimit)
+		fmt.Fprintln(w)
+	}
+}
+
+// printHelp displays usage information
+func (s *Server) printHelp(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain")
+	
+	fmt.Fprintln(w, "Latency Space - Interplanetary Internet Simulator")
+	fmt.Fprintln(w, "===============================================")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "This service simulates the latency of Internet access from different")
+	fmt.Fprintln(w, "celestial bodies in our solar system.")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "HTTP Proxy Usage:")
+	fmt.Fprintln(w, "----------------")
+	fmt.Fprintln(w, "1. Direct URL: http://mars.latency.space/http://example.com")
+	fmt.Fprintln(w, "2. Domain format: http://example.com.mars.latency.space/")
+	fmt.Fprintln(w, "3. Query parameter: http://mars.latency.space/?url=http://example.com")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "SOCKS5 Proxy:")
+	fmt.Fprintln(w, "------------")
+	fmt.Fprintln(w, "Host: mars.latency.space (or any celestial body subdomain)")
+	fmt.Fprintln(w, "Port: 1080")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Debug Endpoints:")
+	fmt.Fprintln(w, "---------------")
+	fmt.Fprintln(w, "/_debug/distances - Current distances and latencies")
+	fmt.Fprintln(w, "/_debug/bodies - Detailed celestial body configurations")
+	fmt.Fprintln(w, "/_debug/help - This help information")
 }
 
 func main() {
-	// Initialize server
-	server := NewServer()
-
-	// Handle shutdown gracefully
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
-	if err := server.Start(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-
-	// Wait for shutdown signal
-	<-signals
-	log.Println("Shutting down servers...")
-
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("Error during shutdown: %v", err)
-	}
-
-	log.Println("Server shutdown complete")
-}
-
-// getExampleDomains returns a list of example domains for the proxy
-func getExampleDomains() []string {
-	var domains []string
-	domains = append(domains, "latency.space")
+	// Parse command-line arguments
+	port := flag.Int("port", 80, "HTTP port to listen on")
+	https := flag.Bool("https", true, "Enable HTTPS")
 	
-	// Add all celestial bodies
-	for name := range solarSystem {
-		domains = append(domains, name+".latency.space")
-		
-		// Add example formats with domain
-		domains = append(domains, "www.example.com."+name+".latency.space")
-		
-		// Add moons
-		for moonName := range solarSystem[name].Moons {
-			domains = append(domains, moonName+"."+name+".latency.space")
-			domains = append(domains, "www.example.com."+moonName+"."+name+".latency.space")
-		}
-	}
+	flag.Parse()
 	
-	// Add spacecraft
-	for name := range spacecraft {
-		domains = append(domains, name+".latency.space")
-		domains = append(domains, "www.example.com."+name+".latency.space")
-	}
-	
-	// Add examples of special formats
-	domains = append(domains, "www.google.com.earth.latency.space")
-	domains = append(domains, "example.com.mars.latency.space")
-	domains = append(domains, "api.github.com.jupiter.latency.space")
-	
-	return domains
-}
-
-// isValidProxyDomain checks if a domain is a valid proxy domain format
-func isValidProxyDomain(domain string) bool {
-	if !strings.HasSuffix(domain, ".latency.space") {
-		return false
-	}
-	
-	parts := strings.Split(domain, ".")
-	if len(parts) < 3 {
-		return false
-	}
-	
-	// Check if it's a celestial body subdomain
-	// Format: body.latency.space
-	if len(parts) == 3 {
-		body, _ := getCelestialBody(parts[0])
-		return body != nil
-	}
-	
-	// Check if it's a domain with celestial body
-	// Format: domain.body.latency.space
-	if len(parts) > 3 {
-		// The celestial body is the second-to-last part before "latency.space"
-		bodyIndex := len(parts) - 3
-		bodyName := parts[bodyIndex]
-		body, _ := getCelestialBody(bodyName)
-		return body != nil
-	}
-	
-	return false
-}
-
-// handleDebug provides debug information
-func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	
-	// Extract the debug endpoint type from the path
-	parts := strings.Split(path, "/")
-	if len(parts) < 3 {
-		http.NotFound(w, r)
-		return
-	}
-	
-	endpointType := parts[2]
-	
-	switch endpointType {
-	case "domains":
-		// List valid domains
-		domains := getExampleDomains()
-		w.Header().Set("Content-Type", "text/plain")
-		for _, domain := range domains {
-			fmt.Fprintf(w, "%s - Valid: %v\n", domain, isValidProxyDomain(domain))
-		}
-		
-	case "bodies":
-		// List celestial bodies and their attributes
-		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "Celestial Bodies (with real-time distances):\n\n")
-		
-		// Force an update of celestial distances
-		updateCelestialDistances()
-		
-		// Planets and spacecraft
-		for name, body := range solarSystem {
-			// Get current distance
-			distance := getCurrentDistance(name)
-			latency := calculateLatency(distance * 1e6)
-			
-			fmt.Fprintf(w, "%s:\n", name)
-			fmt.Fprintf(w, "  Distance: %.2f million km\n", distance)
-			fmt.Fprintf(w, "  Latency: %v\n", latency)
-			fmt.Fprintf(w, "  Bandwidth: %d kbps\n", body.BandwidthKbps)
-			
-			// Moons
-			if len(body.Moons) > 0 {
-				fmt.Fprintf(w, "  Moons:\n")
-				for moonName, moon := range body.Moons {
-					moonDistance := getCurrentDistance(moonName + "." + name)
-					moonLatency := calculateLatency(moonDistance * 1e6)
-					fmt.Fprintf(w, "    %s:\n", moonName)
-					fmt.Fprintf(w, "      Distance: %.6f million km\n", moonDistance)
-					fmt.Fprintf(w, "      Latency: %v\n", moonLatency)
-					fmt.Fprintf(w, "      Bandwidth: %d kbps\n", moon.BandwidthKbps)
-				}
-			}
-			fmt.Fprintf(w, "\n")
-		}
-		
-		// Spacecraft
-		fmt.Fprintf(w, "Spacecraft:\n\n")
-		for name, craft := range spacecraft {
-			distance := getCurrentDistance(name)
-			latency := calculateLatency(distance * 1e6)
-			fmt.Fprintf(w, "%s:\n", name)
-			fmt.Fprintf(w, "  Distance: %.2f million km\n", distance)
-			fmt.Fprintf(w, "  Latency: %v\n", latency)
-			fmt.Fprintf(w, "  Bandwidth: %d kbps\n", craft.BandwidthKbps)
-			fmt.Fprintf(w, "\n")
-		}
-		
-	case "help":
-		// Show help info
-		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "Interplanetary Latency Simulator\n\n")
-		fmt.Fprintf(w, "HTTP Proxy Usage:\n")
-		fmt.Fprintf(w, "  To use with built-in latency:\n")
-		fmt.Fprintf(w, "  - http://mars.latency.space/destination?url=https://example.com\n")
-		fmt.Fprintf(w, "  - http://www.example.com.mars.latency.space/ (DNS style routing)\n\n")
-		fmt.Fprintf(w, "SOCKS5 Proxy Usage:\n")
-		fmt.Fprintf(w, "  - Connect to mars.latency.space:1080 as your SOCKS5 proxy\n")
-		fmt.Fprintf(w, "  - Or use www.example.com.mars.latency.space:1080 format to route to example.com\n\n")
-		fmt.Fprintf(w, "Debug Endpoints:\n")
-		fmt.Fprintf(w, "  - /_debug/domains - List valid domain formats\n")
-		fmt.Fprintf(w, "  - /_debug/bodies - List celestial bodies and their properties (with real-time distances)\n")
-		fmt.Fprintf(w, "  - /_debug/distances - Show current distances from Earth to all celestial bodies\n")
-		fmt.Fprintf(w, "  - /_debug/help - Show this help message\n")
-		
-	case "distances":
-		// Show current celestial distances and update time
-		w.Header().Set("Content-Type", "text/plain")
-		
-		// Get current time
-		now := time.Now().UTC()
-		
-		fmt.Fprintf(w, "Current Celestial Body Distances\n")
-		fmt.Fprintf(w, "Current Time: %s UTC\n", now.Format(time.RFC3339))
-		fmt.Fprintf(w, "Last Distance Update: %s UTC\n\n", lastDistanceUpdate.Format(time.RFC3339))
-		
-		// Force an update if more than an hour has passed
-		if time.Since(lastDistanceUpdate) > time.Hour {
-			updateCelestialDistances()
-			fmt.Fprintf(w, "Distances updated now.\n\n")
-		}
-		
-		// Lock to safely read the cache
-		distanceCacheMu.RLock()
-		defer distanceCacheMu.RUnlock()
-		
-		// Sort cache keys for consistent display
-		var keys []string
-		for k := range distanceCache {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		
-		// Display all distances
-		for _, name := range keys {
-			distance := distanceCache[name]
-			latency := calculateLatency(distance * 1e6)
-			fmt.Fprintf(w, "%-20s: %.3f million km (latency: %v)\n", name, distance, latency)
-		}
-	
-	default:
-		http.NotFound(w, r)
+	// Create and start the server
+	server := NewServer(*port, *https)
+	err := server.Start()
+	if err != nil {
+		log.Fatalf("Server error: %v", err)
 	}
 }
