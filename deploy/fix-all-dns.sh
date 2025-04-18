@@ -33,15 +33,22 @@ if [ -z "$CF_API_TOKEN" ]; then
   fi
 fi
 
-# Get server IP
-SERVER_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipecho.net/plain)
+# Get server IP - explicitly requesting IPv4
+SERVER_IP=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || curl -s -4 ipecho.net/plain)
 if [ -z "$SERVER_IP" ]; then
-  red "Could not automatically detect server IP."
-  read -p "Enter your server IP address: " SERVER_IP
+  red "Could not automatically detect IPv4 address."
+  read -p "Enter your server IPv4 address: " SERVER_IP
   if [ -z "$SERVER_IP" ]; then
-    red "No server IP provided. Exiting."
+    red "No IPv4 address provided. Exiting."
     exit 1
   fi
+fi
+
+# Validate that we have an IPv4 address
+if ! echo "$SERVER_IP" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$" > /dev/null; then
+  red "Error: '$SERVER_IP' does not appear to be a valid IPv4 address."
+  red "This script only supports IPv4 addresses for DNS A records."
+  exit 1
 fi
 
 blue "Using server IP: $SERVER_IP"
