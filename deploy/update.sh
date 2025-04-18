@@ -59,87 +59,16 @@ echo "🧹 Cleaning up any problematic containers..."
 # Stop all containers 
 docker ps -aq | xargs -r docker stop || true
 
-# Special handling for problematic node-exporter
-echo "Forcefully removing node-exporter if present..."
-container_id=$(docker ps -a | grep "node-exporter" | awk '{print $1}')
-if [ -n "$container_id" ]; then
-  # Try normal remove
-  docker rm -f $container_id || true
-  
-  # If still exists, use extreme measures
-  if docker ps -a | grep -q $container_id; then
-    echo "Forceful removal required. Restarting Docker service..."
-    systemctl restart docker || true
-    sleep 5
-  fi
-fi
-
-# Remove any remaining containers
-docker ps -a | grep "latency-space" | awk '{print $1}' | xargs -r docker rm -f || true
-
-# Stop the current containers
-echo "🛑 Stopping current containers..."
-docker compose down || echo "⚠️ Warning: docker compose down failed, continuing..."
-
-# Fix permissions before building
-echo "🔧 Fixing permissions..."
-if [ -f deploy/fix-permissions.sh ]; then
-  bash deploy/fix-permissions.sh
+# Restart the containers
+echo "🔄 Restarting all containers..."
+cd /opt/latency-space
+docker compose down
+docker compose up -d
+if [ $? -eq 0 ]; then
+  echo "✅ All containers restarted successfully"
 else
-  # Quick permissions fix if the script doesn't exist
-  mkdir -p monitoring/prometheus/rules config certs
-  chmod -R 755 monitoring config certs
-fi
-
-# Rebuild the containers
-echo "🔨 Rebuilding containers..."
-docker compose build --no-cache || echo "⚠️ Warning: build failed, continuing with existing images..."
-
-# Start the containers - use minimal config first, then try other versions if available
-echo "🚀 Starting containers..."
-
-# Check for read-only filesystem
-if touch /opt/latency-space/test_file 2>/dev/null; then
-  rm /opt/latency-space/test_file
-  echo "✅ Filesystem is writable"
-  WRITABLE=true
-else
-  echo "⚠️ WARNING: Filesystem appears to be read-only!"
-  WRITABLE=false
-fi
-
-if [ "$WRITABLE" = "false" ] || [ -f docker-compose.minimal.yml ]; then
-  echo "🔄 Using minimal configuration..."
-  # First try the pre-built minimal config
-  if [ -f docker-compose.minimal.yml ]; then
-    docker compose -f docker-compose.minimal.yml up -d --force-recreate
-  else
-    # Create a truly minimal config that doesn't use any volumes
-    echo "Creating ultra-minimal configuration..."
-    cat > docker-compose.ultra-minimal.yml << 'EOF'
-services:
-  proxy:
-    build: 
-      context: ./proxy
-      dockerfile: Dockerfile
-    ports:
-      - "8080:80"
-      - "1080:1080"
-    restart: unless-stopped
-EOF
-    docker compose -f docker-compose.ultra-minimal.yml up -d
-  fi
-else
-  # Try regular config first
-  if ! docker compose up -d; then
-    echo "⚠️ Error starting with regular docker-compose.yml, trying simplified version..."
-    if [ -f docker-compose.simple.yml ]; then
-      docker compose -f docker-compose.simple.yml up -d
-    else
-      echo "Using minimal configuration..."
-      docker compose -f docker-compose.minimal.yml up -d
-    fi
-  fi
+  echo "❌ Failed to restart containers"
+  exit 1
 fi
 
 # Reload nginx to apply configuration changes

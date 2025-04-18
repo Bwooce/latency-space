@@ -108,84 +108,6 @@ docker network create space-net || echo "Network may already exist, continuing..
 echo "Setting up SSL directory..."
 mkdir -p /etc/letsencrypt
 
-# Setup Nginx
-echo "Configuring Nginx..."
-cat > /etc/nginx/sites-available/latency.space << 'EOF'
-# HTTP server for all subdomains (including multi-level ones)
-server {
-    listen 80;
-    server_name .latency.space;
-    
-    # Handle Let's Encrypt validation challenges
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
-    
-    # For known subdomains with valid certificates, redirect to HTTPS
-    if ($host ~* ^([^.]+)\.latency\.space$) {
-        return 301 https://$host$request_uri;
-    }
-    
-    # For other subdomains (multi-level ones), serve over HTTP directly
-    location / {
-        proxy_pass http://localhost:8080;  # Changed from 3000 to 8080 (proxy container)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-
-# HTTPS server for first-level subdomains
-server {
-    listen 443 ssl;
-    server_name latency.space *.latency.space;
-    
-    # SSL certificates will be added by certbot
-    
-    location / {
-        proxy_pass http://localhost:8080;  # Changed from 3000 to 8080 (proxy container)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-
-# Server for status dashboard
-server {
-    listen 80;
-    server_name status.latency.space;
-    
-    location / {
-        proxy_pass http://localhost:3000;  # Status service
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-
-# Create directory for Let's Encrypt validation
-mkdir -p /var/www/html/.well-known/acme-challenge
-
-ln -sf /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-
-# Reload Nginx
-echo "Reloading Nginx..."
-systemctl reload nginx
-
-# Setup SSL for base domain and first-level subdomains
-echo "Setting up SSL certificates..."
-certbot --nginx -d latency.space -d '*.latency.space' --agree-tos -m $SSL_EMAIL -n || echo "SSL setup failed, please run manually after DNS is resolved"
-
 # Clone repository
 echo "Cloning the repository..."
 cd /opt/latency-space
@@ -195,9 +117,7 @@ else
   git pull
 fi
 
-# Copy fix-dns script for easy access
-cp deploy/fix-dns.sh /usr/local/bin/fix-dns
-chmod +x /usr/local/bin/fix-dns
-
 echo "VPS setup completed!"
-echo "You can run 'fix-dns' at any time to troubleshoot DNS issues."
+echo "Next steps:"
+echo "1. Configure Nginx using: ./deploy/update-nginx.sh"
+echo "2. Start the services with: docker compose up -d"
