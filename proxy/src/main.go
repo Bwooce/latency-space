@@ -108,12 +108,16 @@ func (s *Server) Stop() {
 
 	if s.httpServer != nil {
 		log.Println("Shutting down HTTP server...")
-		s.httpServer.Shutdown(ctx)
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
 	}
 
 	if s.httpsServer != nil {
 		log.Println("Shutting down HTTPS server...")
-		s.httpsServer.Shutdown(ctx)
+		if err := s.httpsServer.Shutdown(ctx); err != nil {
+			log.Printf("HTTPS server shutdown error: %v", err)
+		}
 	}
 
 	if s.socksListener != nil {
@@ -221,8 +225,11 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Copy status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy body
-	io.Copy(w, resp.Body)
+	// Copy body and check for errors
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		log.Printf("Error copying response body: %v", err)
+	}
 }
 
 // displayCelestialInfo shows information about the celestial body
