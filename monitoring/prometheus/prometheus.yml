@@ -5,7 +5,7 @@ global:
 scrape_configs:
   - job_name: 'latency-proxy'
     static_configs:
-      - targets: ['proxy:9090']
+      - targets: ['172.18.0.4:9090']  # Using direct IP for proxy container
 
   # Node exporter commented due to permission issues
   # - job_name: 'node'
@@ -15,7 +15,7 @@ scrape_configs:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['alertmanager:9093']
+        - targets: ['172.18.0.6:9093']  # Using direct IP for alertmanager (if used)
 
 rule_files:
   - rules/*.yml
