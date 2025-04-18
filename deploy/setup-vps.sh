@@ -69,7 +69,7 @@ apt-get update && apt-get upgrade -y
 echo "Installing required packages..."
 apt-get install -y \
     docker.io \
-    docker-compose \
+    docker-compose-plugin \
     nginx \
     certbot \
     python3-certbot-nginx \

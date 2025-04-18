@@ -6,7 +6,7 @@ Simulate interplanetary network latency across the solar system with real-time o
 
 1. Clone this repository
 2. Copy `config/example.env` to `.env` and configure
-3. Run `docker-compose up -d`
+3. Run `docker compose up -d`
 
 ## GitHub Actions Setup
 

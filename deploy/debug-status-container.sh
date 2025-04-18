@@ -84,7 +84,7 @@ else
   
   # Try to start status container
   blue "Attempting to start status container..." | tee -a "$LOG_FILE"
-  docker-compose up -d status || docker compose up -d status
+  docker compose up -d status
   
   if docker ps | grep -q status; then
     green "✅ Successfully started status container" | tee -a "$LOG_FILE"

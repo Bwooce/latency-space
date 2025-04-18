@@ -14,7 +14,7 @@ go build -o test_socks test_socks.go
 if ! curl -s http://localhost:80 > /dev/null; then
   echo "Starting the proxy..."
   cd ../../
-  docker-compose up -d
+  docker compose up -d
   sleep 5  # Wait for services to start
 else
   cd ../../

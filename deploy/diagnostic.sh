@@ -321,7 +321,7 @@ generate_summary() {
   fi
   
   # Check for port mapping issues
-  if docker-compose -f /opt/latency-space/docker-compose.yml config 2>/dev/null | grep -q '"3000:3000"'; then
+  if docker compose -f /opt/latency-space/docker-compose.yml config 2>/dev/null | grep -q '"3000:3000"'; then
     echo "- Incorrect port mapping in docker-compose.yml (3000:3000 instead of 3000:80) ❌"
     ISSUES_FOUND=$((ISSUES_FOUND+1))
   fi
@@ -361,10 +361,10 @@ section "System Information" "echo 'Kernel: $(uname -a)'; echo 'Distribution: $(
 section "Network Information" "echo 'Network interfaces:'; ip addr show | grep -E 'inet|^[0-9]'; echo -e '\nDefault route:'; ip route | grep default; echo -e '\nDNS configuration:'; cat /etc/resolv.conf; echo -e '\nDocker DNS configuration:'; if [ -f /etc/docker/daemon.json ]; then cat /etc/docker/daemon.json; else echo 'Docker daemon.json not found'; fi; echo -e '\nNetwork connections:'; ss -tuln | grep -E ':(80|443|3000|8080|9090|9091)'; echo -e '\nIP Tables rules:'; iptables -L -n | head -30" "network"
 
 # Docker status
-section "Docker Status" "echo 'Docker version: $(docker --version)'; echo 'Docker compose version:'; docker compose version 2>/dev/null || docker-compose --version 2>/dev/null || echo 'No docker compose found'; echo -e '\nDocker status:'; systemctl status docker | head -20; echo -e '\nDocker info:'; docker info | head -30; echo -e '\nDocker networks:'; docker network ls; echo -e '\nDocker disk usage:'; docker system df; echo -e '\nDocker network details:'; docker network inspect space-net 2>/dev/null || echo 'space-net network not found'" "docker"
+section "Docker Status" "echo 'Docker version: $(docker --version)'; echo 'Docker compose version:'; docker compose version 2>/dev/null || echo 'Docker compose not found'; echo -e '\nDocker status:'; systemctl status docker | head -20; echo -e '\nDocker info:'; docker info | head -30; echo -e '\nDocker networks:'; docker network ls; echo -e '\nDocker disk usage:'; docker system df; echo -e '\nDocker network details:'; docker network inspect space-net 2>/dev/null || echo 'space-net network not found'" "docker"
 
 # Container status
-section "Container Status" "echo 'Running containers:'; docker ps; echo -e '\nAll containers:'; docker ps -a; echo -e '\nDocker compose config:'; cd /opt/latency-space 2>/dev/null && (docker compose config 2>/dev/null || docker-compose config 2>/dev/null || echo 'Failed to read compose config'); echo -e '\nProxy container details:'; docker inspect \$(docker ps -q -f name=proxy) 2>/dev/null || echo 'Proxy container not running'; echo -e '\nStatus container details:'; docker inspect \$(docker ps -q -f name=status) 2>/dev/null || echo 'Status container not running'; echo -e '\nContainer logs:'; for c in proxy status prometheus; do echo -e \"\n--- \$c logs ---\"; docker logs --tail 20 \$(docker ps -a -q -f name=\$c) 2>/dev/null || echo \"\$c container not found\"; done" "containers"
+section "Container Status" "echo 'Running containers:'; docker ps; echo -e '\nAll containers:'; docker ps -a; echo -e '\nDocker compose config:'; cd /opt/latency-space 2>/dev/null && (docker compose config 2>/dev/null || echo 'Failed to read compose config'); echo -e '\nProxy container details:'; docker inspect \$(docker ps -q -f name=proxy) 2>/dev/null || echo 'Proxy container not running'; echo -e '\nStatus container details:'; docker inspect \$(docker ps -q -f name=status) 2>/dev/null || echo 'Status container not running'; echo -e '\nContainer logs:'; for c in proxy status prometheus; do echo -e \"\n--- \$c logs ---\"; docker logs --tail 20 \$(docker ps -a -q -f name=\$c) 2>/dev/null || echo \"\$c container not found\"; done" "containers"
 
 # Nginx configuration
 section "Nginx Configuration" "echo 'Nginx version: $(nginx -v 2>&1)'; echo -e '\nNginx status:'; systemctl status nginx | head -20; echo -e '\nNginx enabled sites:'; ls -la /etc/nginx/sites-enabled/; echo -e '\nLatency.space configuration:'; cat /etc/nginx/sites-available/latency.space 2>/dev/null || cat /etc/nginx/sites-enabled/latency.space 2>/dev/null || echo 'Configuration file not found'; echo -e '\nNginx configuration test:'; nginx -t 2>&1" "nginx"

@@ -161,7 +161,7 @@ if docker compose version &>/dev/null; then
   DOCKER_COMPOSE="docker compose"
 elif docker-compose --version &>/dev/null; then
   green "✅ docker-compose (v1) available"
-  DOCKER_COMPOSE="docker-compose"
+  DOCKER_COMPOSE="docker compose"
 else
   yellow "⚠️ No Docker Compose found. Attempting direct Docker commands."
   DOCKER_COMPOSE=""
@@ -169,8 +169,8 @@ fi
 
 # Fix for snap paths
 blue "Checking if running from snap..."
-if which docker-compose | grep -q snap; then
-  yellow "⚠️ docker-compose is installed via snap, which may cause path issues"
+if command -v docker-compose &> /dev/null && which docker-compose | grep -q snap; then
+  yellow "⚠️ Legacy docker-compose is installed via snap, which may cause path issues"
   
   # Create a wrapper script
   blue "Creating a direct wrapper script..."

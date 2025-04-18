@@ -121,7 +121,7 @@ fi
 
 # Restart all containers
 blue "Stopping all containers..."
-docker stop $(docker ps -a -q) 2>/dev/null || true
+docker compose down || docker stop $(docker ps -a -q) 2>/dev/null || true
 
 blue "Removing orphaned containers..."
 docker container prune -f
@@ -129,7 +129,7 @@ docker container prune -f
 # Run docker compose with correct file path
 blue "Starting containers with Docker Compose..."
 if [ -n "$compose_cmd" ]; then
-  if [ "$compose_cmd" == "docker-compose" ]; then
+  if [ "$compose_cmd" == "docker-compose" ]; then  # Legacy v1 support
     ORIG_PWD=$(pwd)
     cd "$ORIG_PWD"  # Ensure we're in the right directory
     COMPOSE_FILE="$ORIG_PWD/docker-compose.yml"

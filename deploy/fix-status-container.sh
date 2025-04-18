@@ -76,12 +76,12 @@ green "✅ Removed any existing status container"
 
 # Rebuild the status container
 blue "Rebuilding status container from scratch..."
-docker-compose build --no-cache status
+docker compose build --no-cache status
 if [ $? -ne 0 ]; then
-  yellow "⚠️ docker-compose build failed, trying with docker compose v2..."
+  yellow "⚠️ docker compose build failed, trying alternative approach..."
   docker compose build --no-cache status
   if [ $? -ne 0 ]; then
-    red "❌ Failed to build status container with both docker-compose v1 and v2"
+    red "❌ Failed to build status container"
     
     # Try direct Docker build
     blue "Trying direct Docker build..."
@@ -104,12 +104,12 @@ fi
 
 # Start the status container
 blue "Starting status container..."
-docker-compose up -d status
+docker compose up -d status
 if [ $? -ne 0 ]; then
-  yellow "⚠️ docker-compose up failed, trying with docker compose v2..."
+  yellow "⚠️ docker compose up failed, trying alternative approach..."
   docker compose up -d status
   if [ $? -ne 0 ]; then
-    red "❌ Failed to start status container with both docker-compose v1 and v2"
+    red "❌ Failed to start status container"
     
     # Try running container directly if we have the image
     if docker images | grep -q latency-space-status; then

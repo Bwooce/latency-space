@@ -69,7 +69,7 @@ cd /opt/latency-space || { red "❌ Could not change to /opt/latency-space direc
 
 # Stop all containers
 blue "Stopping all containers..."
-docker-compose down || docker compose down || docker stop $(docker ps -q)
+docker compose down || docker stop $(docker ps -q)
 green "✅ All containers stopped"
 
 # Create hosts file entries for containers
@@ -92,7 +92,7 @@ green "✅ Custom hosts file created"
 
 # Start the containers
 blue "Starting containers..."
-docker-compose up -d || docker compose up -d
+docker compose up -d
 if [ $? -eq 0 ]; then
   green "✅ Containers started successfully"
 else
@@ -151,20 +151,59 @@ done
 
 # Try pinging between containers
 blue "Testing connectivity between containers..."
-if docker exec $(docker ps -q -f name=proxy) ping -c 1 status &>/dev/null; then
-  green "✅ Proxy can ping status"
+PROXY_CONTAINER=$(docker ps -q -f name=proxy)
+STATUS_CONTAINER=$(docker ps -q -f name=status)
+
+if [ -n "$PROXY_CONTAINER" ] && [ -n "$STATUS_CONTAINER" ]; then
+  # Get container IP addresses
+  PROXY_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $PROXY_CONTAINER)
+  STATUS_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $STATUS_CONTAINER)
+  
+  echo "Proxy container IP: $PROXY_IP"
+  echo "Status container IP: $STATUS_IP"
+  
+  # Check if proxy can see status
+  if docker exec $PROXY_CONTAINER ping -c 1 status &>/dev/null; then
+    green "✅ Proxy can ping status"
+  else
+    yellow "⚠️ Proxy cannot ping status (this might be expected if ping is not installed)"
+    
+    # Try using a TCP connection test with netcat if it's available
+    if docker exec $PROXY_CONTAINER which nc &>/dev/null; then
+      if docker exec $PROXY_CONTAINER timeout 1 nc -z status 80 &>/dev/null; then
+        green "✅ Proxy can connect to status:80"
+      else
+        red "❌ Proxy cannot connect to status:80"
+      fi
+    fi
+  fi
+  
+  # Add hosts entries if needed
+  if ! docker exec $PROXY_CONTAINER getent hosts status | grep -q "$STATUS_IP"; then
+    blue "Adding status entry to proxy container's hosts file..."
+    docker exec $PROXY_CONTAINER sh -c "echo '$STATUS_IP status' >> /etc/hosts"
+    green "✅ Added status entry to proxy container"
+  fi
+  
+  if ! docker exec $STATUS_CONTAINER getent hosts proxy | grep -q "$PROXY_IP"; then
+    blue "Adding proxy entry to status container's hosts file..."
+    docker exec $STATUS_CONTAINER sh -c "echo '$PROXY_IP proxy' >> /etc/hosts"
+    green "✅ Added proxy entry to status container"
+  fi
 else
-  yellow "⚠️ Proxy cannot ping status - this might be expected if ping is not installed"
+  red "❌ One or both containers are not running"
 fi
 
 # Test access to status dashboard from proxy container
 blue "Testing HTTP access from proxy to status..."
-if docker exec $(docker ps -q -f name=proxy) which curl &>/dev/null; then
-  docker exec $(docker ps -q -f name=proxy) curl -I http://status 2>/dev/null || echo "HTTP request failed"
-elif docker exec $(docker ps -q -f name=proxy) which wget &>/dev/null; then
-  docker exec $(docker ps -q -f name=proxy) wget -q -O /dev/null http://status 2>/dev/null || echo "HTTP request failed"
-else
-  yellow "⚠️ No HTTP tools available in proxy container"
+if [ -n "$PROXY_CONTAINER" ]; then
+  if docker exec $PROXY_CONTAINER which curl &>/dev/null; then
+    docker exec $PROXY_CONTAINER curl -I http://status 2>/dev/null || echo "HTTP request failed"
+  elif docker exec $PROXY_CONTAINER which wget &>/dev/null; then
+    docker exec $PROXY_CONTAINER wget -q -O /dev/null http://status 2>/dev/null || echo "HTTP request failed"
+  else
+    yellow "⚠️ No HTTP tools available in proxy container"
+  fi
 fi
 
 # Verify Nginx configuration

@@ -44,7 +44,7 @@ cd /opt/latency-space || { red "❌ Could not change to /opt/latency-space direc
 
 # Stop existing containers
 blue "Stopping all latency.space containers..."
-docker-compose down
+docker compose down
 green "✅ All containers stopped"
 
 # Optional: Remove any dangling containers
@@ -54,7 +54,7 @@ green "✅ Cleanup complete"
 
 # Start containers
 blue "Starting all containers..."
-docker-compose up -d
+docker compose up -d
 if [ $? -eq 0 ]; then
   green "✅ All containers started successfully"
 else
@@ -65,7 +65,7 @@ fi
 # Verify containers are running
 blue "Verifying container status..."
 echo $DIVIDER
-docker-compose ps
+docker compose ps
 echo $DIVIDER
 
 # Check if status container is running
@@ -74,7 +74,7 @@ if ! docker ps | grep -q "status"; then
   
   # Try to start it specifically
   blue "Attempting to start status container specifically..."
-  docker-compose up -d status
+  docker compose up -d status
   
   if docker ps | grep -q "status"; then
     green "✅ Status container started successfully"
@@ -83,10 +83,10 @@ if ! docker ps | grep -q "status"; then
     
     # Check logs for status container
     blue "Checking logs for status container..."
-    docker-compose logs status
+    docker compose logs status
     
     yellow "⚠️ The status container failed to start. This might be due to:"
-    echo "   1. Misconfiguration in docker-compose.yml"
+    echo "   1. Misconfiguration in compose file"
     echo "   2. Network issues between containers"
     echo "   3. Resource constraints"
     
@@ -94,8 +94,8 @@ if ! docker ps | grep -q "status"; then
     read -p "Would you like to try rebuilding the status container? (y/n): " rebuild
     if [[ "$rebuild" == "y" ]]; then
       blue "Rebuilding status container..."
-      docker-compose build --no-cache status
-      docker-compose up -d status
+      docker compose build --no-cache status
+      docker compose up -d status
       
       if docker ps | grep -q "status"; then
         green "✅ Status container rebuilt and started successfully"
