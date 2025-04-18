@@ -187,11 +187,13 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	// Calculate latency based on celestial distance
 	latency := calculateLatency(celestialBody.Distance * 1e6)
 	
-	// Log the latency but don't reject based on it
-	// Removing the anti-DDoS measure that blocked bodies with <1s latency
-	// as this was preventing local testing
+	// Anti-DDoS: Only allow bodies with significant latency (>1s)
+	// This prevents the proxy from being used for DDoS attacks
 	if latency < 1*time.Second {
-		log.Printf("Note: %s has low latency (%.2f ms)", bodyName, latency.Seconds()*1000)
+		log.Printf("Rejecting connection with insufficient latency: %s (%.2f ms)", 
+			bodyName, latency.Seconds()*1000)
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("rejecting request with insufficient latency: %s", bodyName)
 	}
 
 	// Apply space latency for the connection
@@ -402,12 +404,9 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 		log.Printf("SOCKS destination allowed: %s", host)
 	}
 	
-	// For now, allow all destinations for testing purposes
-	// Comment this line out in production to enforce the security check
-	return true // Allow all destinations for testing
-	
-	// In production, use:
-	// return allowed
+	// Enforce the allowed hosts list to prevent proxy abuse
+	// This is an important security measure
+	return allowed
 }
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
