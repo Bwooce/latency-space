@@ -38,7 +38,7 @@ services:
       context: ./monitoring/prometheus
       dockerfile: Dockerfile
     ports:
-      - "9091:9090" # Changed to avoid conflict with proxy metrics
+      - "9092:9090" # Changed to avoid conflict with port 9091
     volumes:
       - prometheus_data:/prometheus
       # Use a copy command in Dockerfile instead of a bind mount

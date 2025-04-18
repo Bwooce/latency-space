@@ -64,7 +64,7 @@ This works with both HTTP and SOCKS5 proxies.
 ## Monitoring
 
 - Status page: http://localhost:3000
-- Prometheus: http://localhost:9091
+- Prometheus: http://localhost:9092
 - Grafana: http://localhost:3001 (admin/admin by default)
 
 See full documentation at [docs.latency.space](https://docs.latency.space)

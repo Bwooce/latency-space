@@ -22,7 +22,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9091:9090"
+      - "9092:9090" # Changed to avoid conflict with port 9091
     volumes:
       - prometheus_data:/prometheus
     networks:
