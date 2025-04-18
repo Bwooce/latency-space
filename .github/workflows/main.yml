@@ -158,10 +158,10 @@ jobs:
       
       # Update DNS configuration
       - name: Update DNS Configuration
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SERVER_IP: ${{ secrets.DEPLOY_HOST }}
+        if: "${{ env.CF_API_TOKEN != '' }}"
         run: |
           cd tools
           ln -fs ../proxy/src/config.go .
