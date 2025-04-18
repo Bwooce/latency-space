@@ -28,6 +28,9 @@ services:
       - "3000:80"
     environment:
       - METRICS_URL=http://prometheus:9090
+      # These will be filled in during deployment by Docker network service discovery
+      - PROMETHEUS_IP=prometheus
+      - PROXY_IP=proxy
     networks:
       - space-net
     depends_on:

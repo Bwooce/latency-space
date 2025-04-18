@@ -19,10 +19,19 @@ FROM nginx:alpine
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config if you have custom configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy startup script and make executable
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Keep the nginx.conf as a reference, but it won't be used directly
+COPY nginx.conf /etc/nginx/conf.d/default.conf.template
+
+# Add environment variables for service IPs
+ENV PROMETHEUS_IP="172.18.0.3"
+ENV PROXY_IP="172.18.0.2"
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Use the startup script that will generate the configuration with the correct IPs
+CMD ["/start.sh"]
 
