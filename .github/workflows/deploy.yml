@@ -91,26 +91,69 @@ jobs:
             
             # Pull latest code
             echo "Pulling latest code..."
+            
+            # Fix any file permission issues
+            echo "Fixing file permissions..."
+            chown -R $USER:$USER . || echo "Warning: Failed to update ownership, continuing anyway"
+            find . -type d -exec chmod 755 {} \; || echo "Warning: Failed to update directory permissions, continuing anyway"
+            find . -type f -exec chmod 644 {} \; || echo "Warning: Failed to update file permissions, continuing anyway"
+            
             git fetch --all || { echo "Git fetch failed"; exit 1; }
             git reset --hard origin/main || { echo "Git reset failed"; exit 1; }
+            
+            # Backup the docker-compose.yml file
+            echo "Backing up docker-compose.yml..."
+            if [ -f docker-compose.yml ]; then
+              cp docker-compose.yml docker-compose.yml.backup || echo "Warning: Failed to backup docker-compose.yml"
+            fi
+            
+            # Ensure docker compose is installed
+            echo "Setting up docker compose..."
+            if ! command -v docker compose &> /dev/null; then
+              echo "docker compose not found, trying to install it..."
+              apt-get update
+              apt-get install -y docker-compose-plugin || { echo "Failed to install docker-compose-plugin"; }
+            fi
             
             # Rebuild and restart services
             echo "Rebuilding and restarting services..."
             docker compose down || { echo "Warning: docker compose down failed, continuing..."; }
             docker compose pull || { echo "Warning: docker compose pull failed, continuing..."; }
             docker compose build --no-cache || { echo "Warning: docker compose build failed, continuing..."; }
-            docker compose up -d || { echo "Error: docker compose up failed"; exit 1; }
+            docker compose up -d || { 
+              echo "Error: docker compose up failed, trying fallback to docker-compose..."; 
+              # Try with legacy docker-compose if docker compose fails
+              if command -v docker-compose &> /dev/null; then
+                docker-compose down
+                docker-compose pull
+                docker-compose build --no-cache
+                docker-compose up -d || { echo "Error: docker-compose up also failed"; exit 1; }
+              else
+                echo "Neither docker compose nor docker-compose is working"; 
+                exit 1; 
+              fi
+            }
             
             # Reload nginx to apply any configuration changes
-            systemctl reload nginx || { echo "Warning: Failed to reload nginx"; }
+            if systemctl is-active --quiet nginx; then
+              systemctl reload nginx || echo "Warning: Failed to reload nginx"
+            else
+              echo "Nginx not running, trying to start it..."
+              systemctl start nginx || echo "Warning: Failed to start nginx"
+            fi
             
             # Verify services are running
             echo "Verifying services..."
             sleep 10 # Wait for services to start
             if ! docker compose ps | grep -q "Up"; then
-              echo "Services failed to start properly"
-              docker compose logs
-              exit 1
+              echo "Services may not be running, checking alternative command..."
+              if command -v docker-compose &> /dev/null && docker-compose ps | grep -q "Up"; then
+                echo "Services are up (verified using legacy docker-compose)"
+              else
+                echo "Services failed to start properly"
+                docker compose logs || docker-compose logs
+                exit 1
+              fi
             fi
             
             echo "Deployment completed successfully!"

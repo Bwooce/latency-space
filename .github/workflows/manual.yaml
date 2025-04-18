@@ -29,6 +29,16 @@ jobs:
           script: |
             cd /opt/latency-space
             git pull
-            docker-compose pull
-            docker-compose up -d
+            # Try docker compose v2 first, fall back to legacy if needed
+            if command -v docker compose &> /dev/null; then
+              docker compose pull
+              docker compose up -d || {
+                echo "docker compose failed, trying docker-compose..."
+                docker-compose pull
+                docker-compose up -d
+              }
+            else
+              docker-compose pull
+              docker-compose up -d
+            fi
 
