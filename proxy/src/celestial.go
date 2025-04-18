@@ -69,8 +69,8 @@ func getOrbitalPosition(orbit struct {
 	peri := deg2rad(orbit.LongPeri)
 	meanLong := deg2rad(orbit.MeanLong)
 	
-	// Calculate centuries since J2000.0
-	T := daysSinceEpoch / 36525.0
+	// Century calculation is commented out but kept for future use
+	// T := daysSinceEpoch / 36525.0
 	
 	// Calculate mean anomaly
 	// n = 2*pi/period (mean motion)
@@ -230,7 +230,7 @@ func getCelestialBody(name string) (*CelestialBody, string) {
 		if planet, ok := solarSystem[parts[1]]; ok {
 			if moon, ok := planet.Moons[parts[0]]; ok {
 				moonCopy := *moon
-				planetDistance := getCurrentDistance(parts[1])
+				// We do not need the individual planet distance, just the moon distance
 				moonDistance := getCurrentDistance(parts[0] + "." + parts[1])
 				moonCopy.Distance = moonDistance
 				return &moonCopy, parts[0] + "." + parts[1]
