@@ -1,12 +1,27 @@
 # latency.space
 
-Simulate interplanetary network latency across the solar system.
+Simulate interplanetary network latency across the solar system with real-time orbital calculations.
 
 ## Quick Start
 
 1. Clone this repository
 2. Copy `config/example.env` to `.env` and configure
 3. Run `docker-compose up -d`
+
+## GitHub Actions Setup
+
+To enable CI/CD with GitHub Actions for deployment, you need to configure the following secrets in your GitHub repository:
+
+1. Go to your repository on GitHub
+2. Navigate to Settings > Secrets and variables > Actions
+3. Add the following secrets:
+
+- `DEPLOY_HOST`: Your server's IP address or hostname
+- `DEPLOY_USER`: SSH username for deployment
+- `SSH_PRIVATE_KEY`: Private SSH key for authentication
+
+Optional:
+- `CLOUDFLARE_API_TOKEN`: If using Cloudflare for DNS, add your API token here
 
 ## Available Endpoints
 
