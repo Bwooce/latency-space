@@ -118,3 +118,10 @@ func (s *SecurityValidator) ValidateSocksDestination(host string, port uint16) e
 
 	return nil
 }
+
+// IsAllowedIP checks if an IP address is allowed to use the proxy
+// Currently allows all IPs, but could be used for rate limiting or blocklists
+func (s *SecurityValidator) IsAllowedIP(ip string) bool {
+	// For now, allow all IPs to use the proxy
+	return true
+}
