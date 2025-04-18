@@ -1,11 +1,12 @@
 #!/bin/bash
-# Script to fix Docker DNS resolution issues
+# Script to fix Docker DNS resolution issues and restart containers properly
 
 # Colors for better output
 red() { echo -e "\033[0;31m$1\033[0m"; }
 green() { echo -e "\033[0;32m$1\033[0m"; }
 blue() { echo -e "\033[0;34m$1\033[0m"; }
 yellow() { echo -e "\033[0;33m$1\033[0m"; }
+DIVIDER="----------------------------------------"
 
 # Check if script is run as root
 if [ "$EUID" -ne 0 ]; then
@@ -15,39 +16,57 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 blue "🔧 Docker DNS Resolution Fix"
-echo "----------------------------------------"
+echo $DIVIDER
 
-# Create a backup of Docker daemon.json if it exists
-if [ -f "/etc/docker/daemon.json" ]; then
-  blue "Creating backup of daemon.json..."
-  cp /etc/docker/daemon.json /etc/docker/daemon.json.bak.$(date +%s)
-  green "✅ Backup created"
-fi
-
-# Create or update Docker daemon.json
-blue "Creating/updating Docker daemon.json with proper DNS settings..."
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json << EOF
-{
-  "dns": ["8.8.8.8", "8.8.4.4"],
-  "dns-opts": ["ndots:1"],
-  "dns-search": ["latency.space"]
-}
-EOF
-
-green "✅ Docker daemon.json created/updated"
-
-# Restart Docker service to apply changes
-blue "Restarting Docker service..."
-systemctl restart docker
-if [ $? -eq 0 ]; then
-  green "✅ Docker service restarted successfully"
-else
-  red "❌ Failed to restart Docker service"
+# Check if we're in the right directory
+if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
+  red "Docker compose file not found. Please run this script from the latency-space directory"
   exit 1
 fi
 
-# Wait for Docker to become available
+# First, we'll properly configure Docker's DNS settings
+blue "Configuring Docker DNS settings..."
+
+# Create /etc/docker directory if it doesn't exist
+mkdir -p /etc/docker
+
+# Check if daemon.json exists
+if [ -f "/etc/docker/daemon.json" ]; then
+  blue "Backing up existing daemon.json..."
+  cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+  
+  # Create a minimal Docker daemon configuration to avoid conflicts
+  echo '{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}' > /etc/docker/daemon.json
+else
+  # Create a new daemon.json file
+  blue "Creating new Docker daemon config with proper DNS settings..."
+  echo '{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}' > /etc/docker/daemon.json
+fi
+
+# Fix permissions
+chmod 644 /etc/docker/daemon.json
+green "✅ Docker DNS configuration updated"
+
+# Restart Docker
+blue "Restarting Docker service..."
+systemctl restart docker
+green "✅ Docker service restarted"
+
+# Wait for Docker to be fully available
 blue "Waiting for Docker to become available..."
 counter=0
 max_attempts=30
@@ -59,175 +78,180 @@ done
 
 if [ $counter -eq $max_attempts ]; then
   red "❌ Docker did not start within the expected time"
+  echo "Please check Docker status with: systemctl status docker"
   exit 1
 fi
 echo ""
 green "✅ Docker is now available"
 
-# Check if we're in the right directory
-cd /opt/latency-space || { red "❌ Could not change to /opt/latency-space directory"; exit 1; }
-
-# Stop all containers
+# Restart all containers
 blue "Stopping all containers..."
-docker compose down || docker stop $(docker ps -q)
-green "✅ All containers stopped"
+docker compose down || docker stop $(docker ps -a -q) 2>/dev/null || true
 
-# Create hosts file entries for containers
-blue "Creating custom hosts file for containers..."
-cat > /tmp/container-hosts << EOF
-127.0.0.1 localhost
-::1 localhost ip6-localhost ip6-loopback
-fe00::0 ip6-localnet
-ff00::0 ip6-mcastprefix
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
+blue "Removing orphaned containers..."
+docker container prune -f
 
-# Container DNS entries
-172.18.0.2 proxy
-172.18.0.3 prometheus
-172.18.0.4 grafana
-172.18.0.5 status
-EOF
-green "✅ Custom hosts file created"
-
-# Start the containers
-blue "Starting containers..."
+# Run docker compose with correct file path
+blue "Starting containers with Docker Compose..."
 docker compose up -d
-if [ $? -eq 0 ]; then
-  green "✅ Containers started successfully"
+
+# Wait for containers to be ready
+blue "Waiting for containers to become ready..."
+sleep 10
+
+# Add hosts entries and update Nginx config
+blue "Updating Nginx configuration with container IPs..."
+
+# Get container IPs
+STATUS_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=status) 2>/dev/null)
+PROXY_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=proxy) 2>/dev/null)
+PROMETHEUS_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=prometheus) 2>/dev/null)
+GRAFANA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=grafana) 2>/dev/null)
+
+# Print container IPs for debugging
+echo "Status container IP: $STATUS_IP"
+echo "Proxy container IP: $PROXY_IP"
+echo "Prometheus container IP: $PROMETHEUS_IP"
+echo "Grafana container IP: $GRAFANA_IP"
+
+# Update Nginx config
+if [ -f "/etc/nginx/sites-enabled/latency.space" ]; then
+  # Backup the config
+  cp /etc/nginx/sites-enabled/latency.space /etc/nginx/sites-enabled/latency.space.backup.$(date +%s)
+  
+  # Update status IP
+  if [ -n "$STATUS_IP" ]; then
+    blue "Updating status.latency.space to use IP $STATUS_IP..."
+    sed -i "s/proxy_pass http:\/\/status:80/proxy_pass http:\/\/$STATUS_IP:80/g" /etc/nginx/sites-enabled/latency.space
+    sed -i "s/proxy_pass http:\/\/status:3000/proxy_pass http:\/\/$STATUS_IP:80/g" /etc/nginx/sites-enabled/latency.space
+    sed -i "s/set \$upstream_status http:\/\/status:80/proxy_pass http:\/\/$STATUS_IP:80/g" /etc/nginx/sites-enabled/latency.space
+    sed -i "s/set \$upstream_status http:\/\/status:3000/proxy_pass http:\/\/$STATUS_IP:80/g" /etc/nginx/sites-enabled/latency.space
+  fi
+  
+  # Update proxy IP
+  if [ -n "$PROXY_IP" ]; then
+    blue "Updating latency.space to use proxy IP $PROXY_IP..."
+    sed -i "s/proxy_pass http:\/\/proxy:80/proxy_pass http:\/\/$PROXY_IP:80/g" /etc/nginx/sites-enabled/latency.space
+    sed -i "s/set \$upstream_proxy http:\/\/proxy:80/proxy_pass http:\/\/$PROXY_IP:80/g" /etc/nginx/sites-enabled/latency.space
+  fi
+  
+  # Test and reload Nginx
+  blue "Testing Nginx configuration..."
+  nginx -t
+  if [ $? -ne 0 ]; then
+    red "❌ Nginx configuration test failed"
+    yellow "Restoring previous configuration..."
+    cp /etc/nginx/sites-enabled/latency.space.backup.$(ls -t /etc/nginx/sites-enabled/latency.space.backup.* | head -1 | awk -F'.' '{print $NF}') /etc/nginx/sites-enabled/latency.space
+  else
+    green "✅ Nginx configuration test passed"
+    blue "Reloading Nginx..."
+    systemctl reload nginx
+    green "✅ Nginx reloaded successfully"
+  fi
 else
-  red "❌ Failed to start containers"
-  exit 1
-fi
-
-# Copy hosts file to containers
-blue "Copying hosts file to containers..."
-for container in $(docker ps -q); do
-  name=$(docker inspect --format '{{.Name}}' $container | sed 's/^\///')
-  blue "Configuring $name..."
+  # If the config doesn't exist, see if we can install it
+  yellow "⚠️ Nginx configuration file not found at /etc/nginx/sites-enabled/latency.space"
   
-  # Copy hosts file
-  docker cp /tmp/container-hosts $container:/etc/hosts
-  if [ $? -eq 0 ]; then
-    green "✅ Copied hosts file to $name"
-  else
-    yellow "⚠️ Failed to copy hosts file to $name"
-  fi
-  
-  # Add nameserver configuration
-  docker exec $container sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
-  docker exec $container sh -c "echo 'nameserver 8.8.4.4' >> /etc/resolv.conf"
-  if [ $? -eq 0 ]; then
-    green "✅ Updated resolv.conf in $name"
-  else
-    yellow "⚠️ Failed to update resolv.conf in $name"
-  fi
-done
-
-# Verify DNS resolution in containers
-blue "Verifying DNS resolution in containers..."
-for container in $(docker ps -q); do
-  name=$(docker inspect --format '{{.Name}}' $container | sed 's/^\///')
-  echo "Testing resolution in $name:"
-  
-  # Test DNS resolution of status container
-  if docker exec $container cat /etc/hosts | grep -q status; then
-    green "✅ $name has status in hosts file"
-  else
-    red "❌ $name missing status in hosts file"
-  fi
-  
-  # Test nslookup if available
-  if docker exec $container which nslookup &>/dev/null; then
-    docker exec $container nslookup status || echo "nslookup failed"
-  elif docker exec $container which dig &>/dev/null; then
-    docker exec $container dig status || echo "dig failed"
-  elif docker exec $container which getent &>/dev/null; then
-    docker exec $container getent hosts status || echo "getent failed"
-  else
-    yellow "⚠️ No DNS tools available in $name"
-  fi
-done
-
-# Try pinging between containers
-blue "Testing connectivity between containers..."
-PROXY_CONTAINER=$(docker ps -q -f name=proxy)
-STATUS_CONTAINER=$(docker ps -q -f name=status)
-
-if [ -n "$PROXY_CONTAINER" ] && [ -n "$STATUS_CONTAINER" ]; then
-  # Get container IP addresses
-  PROXY_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $PROXY_CONTAINER)
-  STATUS_IP=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $STATUS_CONTAINER)
-  
-  echo "Proxy container IP: $PROXY_IP"
-  echo "Status container IP: $STATUS_IP"
-  
-  # Check if proxy can see status
-  if docker exec $PROXY_CONTAINER ping -c 1 status &>/dev/null; then
-    green "✅ Proxy can ping status"
-  else
-    yellow "⚠️ Proxy cannot ping status (this might be expected if ping is not installed)"
+  # Copy our template configuration and update IPs
+  if [ -f "deploy/nginx-proxy.conf" ]; then
+    blue "Installing Nginx configuration from template..."
+    cp deploy/nginx-proxy.conf /etc/nginx/sites-available/latency.space
     
-    # Try using a TCP connection test with netcat if it's available
-    if docker exec $PROXY_CONTAINER which nc &>/dev/null; then
-      if docker exec $PROXY_CONTAINER timeout 1 nc -z status 80 &>/dev/null; then
-        green "✅ Proxy can connect to status:80"
-      else
-        red "❌ Proxy cannot connect to status:80"
-      fi
+    # Update IPs in the new config
+    if [ -n "$STATUS_IP" ]; then
+      sed -i "s/172.18.0.5:80/$STATUS_IP:80/g" /etc/nginx/sites-available/latency.space
     fi
-  fi
-  
-  # Add hosts entries if needed
-  if ! docker exec $PROXY_CONTAINER getent hosts status | grep -q "$STATUS_IP"; then
-    blue "Adding status entry to proxy container's hosts file..."
-    docker exec $PROXY_CONTAINER sh -c "echo '$STATUS_IP status' >> /etc/hosts"
-    green "✅ Added status entry to proxy container"
-  fi
-  
-  if ! docker exec $STATUS_CONTAINER getent hosts proxy | grep -q "$PROXY_IP"; then
-    blue "Adding proxy entry to status container's hosts file..."
-    docker exec $STATUS_CONTAINER sh -c "echo '$PROXY_IP proxy' >> /etc/hosts"
-    green "✅ Added proxy entry to status container"
-  fi
-else
-  red "❌ One or both containers are not running"
-fi
-
-# Test access to status dashboard from proxy container
-blue "Testing HTTP access from proxy to status..."
-if [ -n "$PROXY_CONTAINER" ]; then
-  if docker exec $PROXY_CONTAINER which curl &>/dev/null; then
-    docker exec $PROXY_CONTAINER curl -I http://status 2>/dev/null || echo "HTTP request failed"
-  elif docker exec $PROXY_CONTAINER which wget &>/dev/null; then
-    docker exec $PROXY_CONTAINER wget -q -O /dev/null http://status 2>/dev/null || echo "HTTP request failed"
+    
+    if [ -n "$PROXY_IP" ]; then
+      sed -i "s/172.18.0.4:80/$PROXY_IP:80/g" /etc/nginx/sites-available/latency.space
+    fi
+    
+    # Enable the site
+    ln -sf /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
+    
+    # Test and reload Nginx
+    nginx -t
+    if [ $? -eq 0 ]; then
+      systemctl reload nginx
+      green "✅ Nginx configuration installed and loaded"
+    else
+      red "❌ Nginx configuration test failed"
+    fi
   else
-    yellow "⚠️ No HTTP tools available in proxy container"
+    red "❌ Nginx configuration template not found"
   fi
 fi
 
-# Verify Nginx configuration
-blue "Verifying Nginx configuration..."
-nginx -t
-if [ $? -eq 0 ]; then
-  blue "Reloading Nginx..."
-  systemctl reload nginx
-  green "✅ Nginx configuration is valid and service reloaded"
+# Add entries to /etc/hosts inside containers
+blue "Adding manual host entries to containers..."
+
+if [ -n "$STATUS_IP" ] && [ -n "$PROXY_IP" ]; then
+  # Add entries to proxy container
+  docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
+  docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+  
+  # Add entries to status container
+  docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
+  docker exec $(docker ps -q -f name=status) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+  
+  # Add entries to prometheus container
+  docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
+  docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
+  
+  # Add entries to grafana container if it exists
+  if [ -n "$GRAFANA_IP" ]; then
+    docker exec $(docker ps -q -f name=proxy) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
+    docker exec $(docker ps -q -f name=status) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
+    docker exec $(docker ps -q -f name=prometheus) sh -c "grep -q '$GRAFANA_IP grafana' /etc/hosts || echo '$GRAFANA_IP grafana' >> /etc/hosts"
+    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROXY_IP proxy' /etc/hosts || echo '$PROXY_IP proxy' >> /etc/hosts"
+    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$STATUS_IP status' /etc/hosts || echo '$STATUS_IP status' >> /etc/hosts"
+    docker exec $(docker ps -q -f name=grafana) sh -c "grep -q '$PROMETHEUS_IP prometheus' /etc/hosts || echo '$PROMETHEUS_IP prometheus' >> /etc/hosts"
+  fi
+  
+  green "✅ Added host entries to all containers"
 else
-  red "❌ Nginx configuration test failed"
-  exit 1
+  red "❌ Could not determine all container IPs for manual host entries"
 fi
 
-# Test status dashboard
-blue "Testing status dashboard directly via port 3000..."
-curl -I http://localhost:3000 || echo "Failed to connect"
+# Add entries to host machine's /etc/hosts
+if [ -n "$STATUS_IP" ] && [ -n "$PROXY_IP" ]; then
+  blue "Adding entries to host machine's /etc/hosts..."
+  
+  # Remove existing entries if they exist
+  sed -i '/status$/d' /etc/hosts
+  sed -i '/proxy$/d' /etc/hosts
+  sed -i '/prometheus$/d' /etc/hosts
+  sed -i '/grafana$/d' /etc/hosts
+  
+  # Add new entries
+  echo "$STATUS_IP status" >> /etc/hosts
+  echo "$PROXY_IP proxy" >> /etc/hosts
+  echo "$PROMETHEUS_IP prometheus" >> /etc/hosts
+  if [ -n "$GRAFANA_IP" ]; then
+    echo "$GRAFANA_IP grafana" >> /etc/hosts
+  fi
+  
+  green "✅ Added container entries to host /etc/hosts file"
+fi
 
-blue "Testing status dashboard via Nginx..."
-curl -I -H "Host: status.latency.space" http://localhost || echo "Failed to connect"
+# Test the final result
+blue "Testing final connectivity..."
+echo $DIVIDER
 
-echo "----------------------------------------"
-green "✅ Docker DNS fix completed!"
+echo "1. Testing status container directly:"
+curl -I -s http://$STATUS_IP | head -1 || echo "Failed"
+
+echo "2. Testing status.latency.space domain:"
+curl -I -s -H "Host: status.latency.space" http://localhost | head -1 || echo "Failed"
+
+echo "3. Testing status.latency.space with direct IP:"
+curl -I -s -H "Host: status.latency.space" http://$STATUS_IP | head -1 || echo "Failed"
+
+echo $DIVIDER
+
+green "✅ DNS and container setup fixed!"
 echo ""
+echo "If you still have issues:"
 echo "1. Try accessing status.latency.space in a browser"
 echo "2. If it's still not working, check Nginx logs: tail -f /var/log/nginx/error.log"
 echo "3. If needed, run server health check: sudo ./deploy/server-health-check.sh"
