@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -24,17 +25,61 @@ type Server struct {
 	socksListener net.Listener
 	security      *SecurityValidator
 	metrics       *MetricsCollector
+	rateLimits    map[string]time.Time // IP address -> last request time
+	rateLimitMu   sync.Mutex           // Mutex for rate limiting map
 	wg            sync.WaitGroup
 }
 
 func NewServer() *Server {
 	return &Server{
-		security: NewSecurityValidator(),
-		metrics:  NewMetricsCollector(),
+		security:   NewSecurityValidator(),
+		metrics:    NewMetricsCollector(),
+		rateLimits: make(map[string]time.Time),
 	}
 }
 
+// isRateLimited implements rate limiting for each IP address
+// Returns true if the request should be limited
+func (s *Server) isRateLimited(clientIP string) bool {
+	s.rateLimitMu.Lock()
+	defer s.rateLimitMu.Unlock()
+	
+	// Clean up old entries every 100 requests (approximately)
+	if len(s.rateLimits) > 100 && rand.Intn(100) == 0 {
+		now := time.Now()
+		for ip, lastTime := range s.rateLimits {
+			if now.Sub(lastTime) > 5*time.Minute {
+				delete(s.rateLimits, ip)
+			}
+		}
+	}
+	
+	// Check if this IP has requested recently
+	lastTime, exists := s.rateLimits[clientIP]
+	now := time.Now()
+	
+	// Allow 1 request per 2 seconds per IP
+	if exists && now.Sub(lastTime) < 2*time.Second {
+		return true // Rate limited
+	}
+	
+	// Update last request time
+	s.rateLimits[clientIP] = now
+	return false // Not rate limited
+}
+
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	// Add anti-DDoS protection
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+	
+	// Rate limiting per source IP
+	if s.isRateLimited(clientIP) {
+		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+		return
+	}
 
 	if r.URL.Path == "/_debug/domains" {
 		s.handleDebug(w, r)
@@ -45,6 +90,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	targetDomain, celestialBody, bodyName := s.extractDomainAndBody(r.Host)
 	if celestialBody == nil {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
+		return
+	}
+
+	// Anti-DDoS: Only allow bodies with significant latency (>1s)
+	latency := calculateLatency(celestialBody.Distance * 1e6)
+	if latency < 1*time.Second {
+		http.Error(w, "This proxy is only for simulating deep space latency. Please use a body with >1s latency.", http.StatusForbidden)
 		return
 	}
 
@@ -72,6 +124,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Anti-DDoS: Restrict destinations to common well-known sites
+	// This protects against using the proxy to attack less-protected sites
+	if !s.security.IsAllowedHost(validDest) {
+		http.Error(w, "Destination not in allowed list", http.StatusForbidden)
+		return
+	}
+
 	// Check for WebSocket upgrade
 	if websocket.IsWebSocketUpgrade(r) {
 		s.handleWebSocket(w, r, celestialBody, validDest)
@@ -95,7 +154,6 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Host = target.Host
 
 	// Apply space latency
-	latency := calculateLatency(celestialBody.Distance * 1e6)
 	time.Sleep(latency)
 
 	// Apply bandwidth limiting

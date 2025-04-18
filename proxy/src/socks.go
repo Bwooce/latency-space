@@ -170,14 +170,28 @@ func (s *SOCKSHandler) handleClientRequest() {
 	// Destination address in host:port format
 	dstAddrPort := net.JoinHostPort(dstAddr, strconv.Itoa(int(dstPort)))
 
+	// Anti-DDoS: Check if destination is in allowed list
+	if !s.isAllowedDestination(dstAddr) {
+		log.Printf("Destination not in allowed list: %s", dstAddr)
+		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
+		return
+	}
+
 	// Extract celestial body and apply latency
 	celestialBody, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
 	if celestialBody == nil {
 		celestialBody, bodyName = solarSystem["earth"], "earth"
 	}
 
-	// Apply space latency for the connection
+	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	latency := calculateLatency(celestialBody.Distance * 1e6)
+	if latency < 1*time.Second {
+		log.Printf("Rejecting request with insufficient latency: %s", bodyName)
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return
+	}
+
+	// Apply space latency for the connection
 	time.Sleep(latency)
 
 	// Start metrics collection
@@ -329,6 +343,13 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 		return "", fmt.Errorf("invalid latency.space domain format")
 	}
 	return domain, nil
+}
+
+// isAllowedDestination checks if a destination is in the allowed list
+func (s *SOCKSHandler) isAllowedDestination(host string) bool {
+	// Create a dummy URL to use the security validator
+	url := "http://" + host
+	return s.security.IsAllowedHost(url)
 }
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
