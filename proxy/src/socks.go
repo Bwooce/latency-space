@@ -39,7 +39,10 @@ func (s *SOCKSHandler) Handle() {
 	}
 
 	// Process client request
-	s.handleClientRequest()
+	err := s.handleClientRequest()
+	if err != nil {
+		log.Printf("SOCKS error: %v", err)
+	}
 }
 
 // handleClientGreeting handles the initial SOCKS5 greeting
@@ -85,25 +88,24 @@ func (s *SOCKSHandler) handleClientGreeting() bool {
 }
 
 // handleClientRequest processes the SOCKS5 connection request
-func (s *SOCKSHandler) handleClientRequest() {
+func (s *SOCKSHandler) handleClientRequest() error {
 	// Read request header
 	buf := make([]byte, 4)
 	if _, err := io.ReadFull(s.conn, buf); err != nil {
-		log.Printf("Failed to read SOCKS request: %v", err)
-		return
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("failed to read SOCKS request: %v", err)
 	}
 
 	version, cmd, _, addrType := buf[0], buf[1], buf[2], buf[3]
 	if version != SOCKS5_VERSION {
-		log.Printf("Unsupported SOCKS version: %d", version)
-		return
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("unsupported SOCKS version: %d", version)
 	}
 
 	// We only support CONNECT command
 	if cmd != SOCKS5_CMD_CONNECT {
 		s.sendReply(SOCKS5_REP_CMD_NOT_SUPPORTED, net.IPv4zero, 0)
-		log.Printf("Unsupported command: %d", cmd)
-		return
+		return fmt.Errorf("unsupported command: %d", cmd)
 	}
 
 	// Read destination address based on address type
@@ -115,8 +117,8 @@ func (s *SOCKSHandler) handleClientRequest() {
 		// IPv4 address (4 bytes)
 		ipv4 := make([]byte, 4)
 		if _, err := io.ReadFull(s.conn, ipv4); err != nil {
-			log.Printf("Failed to read IPv4 address: %v", err)
-			return
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read IPv4 address: %v", err)
 		}
 		dstAddr = net.IP(ipv4).String()
 
@@ -124,46 +126,44 @@ func (s *SOCKSHandler) handleClientRequest() {
 		// Domain name (first byte is length)
 		lenBuf := make([]byte, 1)
 		if _, err := io.ReadFull(s.conn, lenBuf); err != nil {
-			log.Printf("Failed to read domain length: %v", err)
-			return
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read domain length: %v", err)
 		}
 		domainLen := int(lenBuf[0])
 		
 		domain := make([]byte, domainLen)
 		if _, err := io.ReadFull(s.conn, domain); err != nil {
-			log.Printf("Failed to read domain: %v", err)
-			return
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read domain: %v", err)
 		}
 		dstAddr = string(domain)
 		
 		// Process special domain format: address.celestialbody.latency.space
 		dstAddr, err = s.processDomainName(dstAddr)
 		if err != nil {
-			log.Printf("Failed to process domain name: %v", err)
 			s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
-			return
+			return fmt.Errorf("failed to process domain name: %v", err)
 		}
 
 	case SOCKS5_ADDR_IPV6:
 		// IPv6 address (16 bytes)
 		ipv6 := make([]byte, 16)
 		if _, err := io.ReadFull(s.conn, ipv6); err != nil {
-			log.Printf("Failed to read IPv6 address: %v", err)
-			return
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read IPv6 address: %v", err)
 		}
 		dstAddr = net.IP(ipv6).String()
 
 	default:
 		s.sendReply(SOCKS5_REP_ADDR_NOT_SUPPORTED, net.IPv4zero, 0)
-		log.Printf("Unsupported address type: %d", addrType)
-		return
+		return fmt.Errorf("unsupported address type: %d", addrType)
 	}
 
 	// Read destination port (2 bytes)
 	portBuf := make([]byte, 2)
 	if _, err := io.ReadFull(s.conn, portBuf); err != nil {
-		log.Printf("Failed to read port: %v", err)
-		return
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("failed to read port: %v", err)
 	}
 	dstPort := binary.BigEndian.Uint16(portBuf)
 
@@ -172,9 +172,8 @@ func (s *SOCKSHandler) handleClientRequest() {
 
 	// Anti-DDoS: Check if destination is in allowed list
 	if !s.isAllowedDestination(dstAddr) {
-		log.Printf("Destination not in allowed list: %s", dstAddr)
 		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
-		return
+		return fmt.Errorf("destination not in allowed list: %s", dstAddr)
 	}
 
 	// Extract celestial body and apply latency
@@ -186,9 +185,8 @@ func (s *SOCKSHandler) handleClientRequest() {
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	latency := calculateLatency(celestialBody.Distance * 1e6)
 	if latency < 1*time.Second {
-		log.Printf("Rejecting request with insufficient latency: %s", bodyName)
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
-		return
+		return fmt.Errorf("rejecting request with insufficient latency: %s", bodyName)
 	}
 
 	// Apply space latency for the connection
@@ -201,10 +199,11 @@ func (s *SOCKSHandler) handleClientRequest() {
 	}()
 
 	// Connect to destination
-	log.Printf("SOCKS connect to %s from %s", dstAddrPort, s.conn.RemoteAddr().String())
+	log.Printf("SOCKS connect to %s from %s via %s (latency: %v)", 
+		dstAddrPort, s.conn.RemoteAddr().String(), bodyName, latency)
 	target, err := net.DialTimeout("tcp", dstAddrPort, 10*time.Second)
 	if err != nil {
-		log.Printf("Failed to connect to %s: %v", dstAddrPort, err)
+		// Send appropriate error code based on the error
 		switch {
 		case strings.Contains(err.Error(), "connection refused"):
 			s.sendReply(SOCKS5_REP_CONN_REFUSED, net.IPv4zero, 0)
@@ -215,7 +214,7 @@ func (s *SOCKSHandler) handleClientRequest() {
 		default:
 			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
 		}
-		return
+		return fmt.Errorf("failed to connect to %s: %v", dstAddrPort, err)
 	}
 	defer target.Close()
 
@@ -286,6 +285,8 @@ func (s *SOCKSHandler) handleClientRequest() {
 
 	// Wait for both goroutines to complete
 	wg.Wait()
+	
+	return nil
 }
 
 // sendReply sends a SOCKS5 reply message
@@ -335,12 +336,33 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 	// Check if this is our special format
 	if strings.HasSuffix(domain, ".latency.space") {
 		parts := strings.Split(domain, ".")
-		if len(parts) >= 3 {
-			// Extract target domain (everything before the celestial body part)
-			targetDomain := strings.Join(parts[:len(parts)-2], ".")
-			return targetDomain, nil
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid latency.space domain format")
 		}
-		return "", fmt.Errorf("invalid latency.space domain format")
+		
+		// If format is domain.body.latency.space
+		// Extract the celestial body and target domain
+		// The celestial body is the second-to-last part before "latency.space"
+		bodyIndex := len(parts) - 3
+		
+		// Everything before the celestial body is the target domain
+		targetParts := parts[:bodyIndex]
+		if len(targetParts) == 0 {
+			return "", fmt.Errorf("missing target domain in latency.space format")
+		}
+		
+		targetDomain := strings.Join(targetParts, ".")
+		
+		// Get the celestial body name for logging
+		bodyName := parts[bodyIndex]
+		celestialBody, _ := getCelestialBody(bodyName)
+		
+		if celestialBody == nil {
+			return "", fmt.Errorf("unknown celestial body: %s", bodyName)
+		}
+		
+		log.Printf("SOCKS: Extracted target domain %s from %s.latency.space format", targetDomain, bodyName)
+		return targetDomain, nil
 	}
 	return domain, nil
 }
@@ -354,7 +376,37 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
 func getCelestialBodyFromConn(addr net.Addr) (*CelestialBody, string) {
-	// In a real implementation, you might associate client IPs with celestial bodies
-	// For now, we'll default to Earth
+	host := addr.String()
+	
+	// Extract the host part without port
+	if idx := strings.Index(host, ":"); idx > 0 {
+		host = host[:idx]
+	}
+	
+	// Check if this is a celestial body domain
+	if strings.HasSuffix(host, ".latency.space") {
+		parts := strings.Split(host, ".")
+		if len(parts) >= 3 {
+			// The celestial body is the second-to-last part before "latency.space"
+			bodyIndex := len(parts) - 3
+			bodyName := parts[bodyIndex]
+			celestialBody, fullName := getCelestialBody(bodyName)
+			
+			if celestialBody != nil {
+				return celestialBody, fullName
+			}
+		}
+	}
+	
+	// Check if the first part of the hostname is a celestial body
+	hostParts := strings.Split(host, ".")
+	if len(hostParts) > 0 {
+		body, bodyName := getCelestialBody(hostParts[0])
+		if body != nil {
+			return body, bodyName
+		}
+	}
+	
+	// Default to Earth
 	return solarSystem["earth"], "earth"
 }
