@@ -11,9 +11,9 @@ services:
       - "1080:1080"     # SOCKS5 proxy
       - "9090:9090"     # Prometheus metrics
     volumes:
-      - ./config:/etc/space-proxy
-      - ./config/ssl:/etc/letsencrypt
-      - ./certs:/app/certs  # For certificate persistence
+      - proxy_config:/etc/space-proxy
+      - proxy_ssl:/etc/letsencrypt
+      - ./proxy/certs:/app/certs  # For certificate persistence
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
@@ -90,3 +90,5 @@ networks:
 volumes:
   prometheus_data:
   grafana_data:
+  proxy_config:
+  proxy_ssl:
