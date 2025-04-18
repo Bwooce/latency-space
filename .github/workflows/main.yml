@@ -265,6 +265,11 @@ jobs:
               fi
             fi
             
+            # Run diagnostic script to create initial report
+            echo "Running diagnostic script..."
+            chmod +x ./deploy/diagnostic.sh
+            ./deploy/diagnostic.sh
+            
             echo "Deployment completed successfully!"
 
       # Commented out until health endpoint is properly implemented
