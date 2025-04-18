@@ -76,6 +76,14 @@ func main() {
     // Process each domain
     for _, domain := range domains {
         log.Printf("Processing domain: %s.%s", domain, *zoneName)
+        
+        // Determine if domain should be proxied through Cloudflare
+        // Status subdomain should not be proxied to allow direct monitoring
+        isProxied := true
+        if domain == "status" {
+            log.Printf("Note: Status subdomain will NOT be proxied through Cloudflare")
+            isProxied = false
+        }
 
         // Check if record exists
         records, _, err := api.ListDNSRecords(ctx, cloudflare.ZoneIdentifier(zoneID), cloudflare.ListDNSRecordsParams{
@@ -90,12 +98,14 @@ func main() {
         if len(records) > 0 {
             // Update existing record
             for _, existing := range records {
+                // Use the isProxied value determined above
+                
                 updateParams := cloudflare.UpdateDNSRecordParams{
                     ID:      existing.ID,
                     Type:    "A",
                     Name:    domain,
                     Content: *serverIP,
-                    Proxied: cloudflare.BoolPtr(true),
+                    Proxied: cloudflare.BoolPtr(isProxied),
                     TTL:     1,
                 }
                 _, err := api.UpdateDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneID), updateParams)
@@ -107,11 +117,13 @@ func main() {
             }
         } else {
             // Create new record
+            // Use the isProxied value determined above
+            
             createParams := cloudflare.CreateDNSRecordParams{
                 Type:    "A",
                 Name:    domain,
                 Content: *serverIP,
-                Proxied: cloudflare.BoolPtr(true),
+                Proxied: cloudflare.BoolPtr(isProxied),
                 TTL:     1,
             }
             _, err := api.CreateDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneID), createParams)
