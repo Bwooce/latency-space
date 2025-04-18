@@ -117,7 +117,7 @@ services:
       context: ./monitoring/grafana
       dockerfile: Dockerfile
     ports:
-      - "3001:3000"
+      - "3002:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - grafana_dashboards:/etc/grafana/provisioning/dashboards
