@@ -332,37 +332,44 @@ else
   red "❌ One or both containers are not running"
 fi
 
-# Verify that Nginx configuration uses correct paths
-blue "Checking Nginx configuration for static files..."
-NGINX_CONFIG="/etc/nginx/sites-enabled/latency.space"
-if [ -f "$NGINX_CONFIG" ]; then
-  if grep -q "/opt/latency-space/static" "$NGINX_CONFIG"; then
-    green "✅ Nginx is correctly configured to use the repository's static directory"
-  else
-    yellow "⚠️ Nginx is not configured to use the repository's static directory"
-    blue "Updating Nginx configuration..."
-    
-    if grep -q "/var/www/html/latency-space" "$NGINX_CONFIG"; then
-      sed -i 's|root /var/www/html/latency-space;|root /opt/latency-space/static;|g' "$NGINX_CONFIG"
-      green "✅ Updated Nginx configuration to use the repository's static directory"
-      
-      blue "Reloading Nginx..."
-      systemctl reload nginx
-    fi
+# Install the Nginx configuration
+blue "Installing Nginx configuration..."
+if [ -f "deploy/install-nginx-config.sh" ]; then
+  bash deploy/install-nginx-config.sh
+  if [ $? -ne 0 ]; then
+    red "❌ Failed to install Nginx configuration"
+    exit 1
   fi
+  green "✅ Nginx configuration installed"
+else
+  red "❌ Nginx installation script not found"
+  yellow "Checking for other Nginx configuration scripts..."
   
-  # Verify static directory exists
-  if [ ! -d "/opt/latency-space/static" ]; then
-    blue "Creating static directory..."
-    mkdir -p /opt/latency-space/static
-    
-    # Copy the index.html file if it exists in deploy/static
-    if [ -f "deploy/static/index.html" ]; then
-      cp deploy/static/index.html /opt/latency-space/static/
-      green "✅ Copied index.html to static directory"
-    else
-      # Create a basic index.html file
-      cat > /opt/latency-space/static/index.html << 'EOF'
+  if [ -f "deploy/fix-nginx-clean.sh" ]; then
+    blue "Running legacy Nginx fix script..."
+    bash deploy/fix-nginx-clean.sh
+  else
+    yellow "⚠️ No Nginx configuration scripts found"
+  fi
+fi
+
+# Verify static directory exists
+if [ ! -d "/opt/latency-space/static" ]; then
+  blue "Creating static directory..."
+  mkdir -p /opt/latency-space/static
+  
+  # Copy the index.html file if it exists in the static directory
+  if [ -f "static/index.html" ]; then
+    blue "Using index.html from repository..."
+    cp static/index.html /opt/latency-space/static/
+    green "✅ Copied index.html to static directory"
+  elif [ -f "deploy/static/index.html" ]; then
+    blue "Using index.html from deploy/static..."
+    cp deploy/static/index.html /opt/latency-space/static/
+    green "✅ Copied index.html to static directory"
+  else
+    yellow "⚠️ No index.html found. Creating a basic one..."
+    cat > /opt/latency-space/static/index.html << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -379,15 +386,7 @@ if [ -f "$NGINX_CONFIG" ]; then
 </body>
 </html>
 EOF
-      green "✅ Created basic index.html in static directory"
-    fi
-  fi
-else
-  red "❌ Nginx configuration file not found"
-  
-  if [ -f "deploy/fix-nginx-clean.sh" ]; then
-    blue "Running Nginx fix script..."
-    bash deploy/fix-nginx-clean.sh
+    green "✅ Created basic index.html in static directory"
   fi
 fi
 

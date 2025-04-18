@@ -186,65 +186,16 @@ cd - > /dev/null
 rm -rf $PROXY_DIR
 
 # Update Nginx configuration
-blue "Updating Nginx configuration for subdomain routing..."
-cat > /etc/nginx/sites-available/latency.space << 'EOF'
-# Basic Nginx configuration for latency.space
-server {
-    listen 80;
-    server_name latency.space www.latency.space;
-    
-    root /opt/latency-space/static;
-    index index.html;
-    
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-
-# Status subdomain
-server {
-    listen 80;
-    server_name status.latency.space;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-
-# All other subdomains
-server {
-    listen 80;
-    server_name ~^[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.[^.]+\.latency\.space$;
-    
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Destination $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-
-ln -sf /etc/nginx/sites-available/latency.space /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-
-nginx -t
-if [ $? -eq 0 ]; then
-  blue "Reloading Nginx..."
-  systemctl reload nginx
-  green "✅ Nginx configuration updated"
+blue "Installing Nginx configuration..."
+if [ -f "deploy/install-nginx-config.sh" ]; then
+  bash deploy/install-nginx-config.sh minimal
+  if [ $? -ne 0 ]; then
+    red "❌ Failed to install Nginx configuration"
+    exit 1
+  fi
+  green "✅ Nginx configuration installed"
 else
-  red "❌ Nginx configuration test failed"
+  red "❌ Nginx installation script not found"
   exit 1
 fi
 
