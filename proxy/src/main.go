@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -280,6 +281,15 @@ func (s *Server) Start() error {
 
 	// Start metrics endpoint
 	go s.metrics.ServeMetrics(":9090")
+	
+	// Start celestial distance update routine
+	go func() {
+		for {
+			updateCelestialDistances()
+			// Update every hour
+			time.Sleep(1 * time.Hour)
+		}
+	}()
 
 	// Start servers
 	s.wg.Add(3) // HTTP, HTTPS, and SOCKS
@@ -440,13 +450,19 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 	case "/_debug/bodies":
 		// List celestial bodies and their attributes
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "Celestial Bodies:\n\n")
+		fmt.Fprintf(w, "Celestial Bodies (with real-time distances):\n\n")
+		
+		// Force an update of celestial distances
+		updateCelestialDistances()
 		
 		// Planets and spacecraft
 		for name, body := range solarSystem {
-			latency := calculateLatency(body.Distance * 1e6)
+			// Get current distance
+			distance := getCurrentDistance(name)
+			latency := calculateLatency(distance * 1e6)
+			
 			fmt.Fprintf(w, "%s:\n", name)
-			fmt.Fprintf(w, "  Distance: %.2f million km\n", body.Distance)
+			fmt.Fprintf(w, "  Distance: %.2f million km\n", distance)
 			fmt.Fprintf(w, "  Latency: %v\n", latency)
 			fmt.Fprintf(w, "  Bandwidth: %d kbps\n", body.BandwidthKbps)
 			
@@ -454,9 +470,10 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 			if len(body.Moons) > 0 {
 				fmt.Fprintf(w, "  Moons:\n")
 				for moonName, moon := range body.Moons {
-					moonLatency := calculateLatency((body.Distance + moon.Distance) * 1e6)
+					moonDistance := getCurrentDistance(moonName + "." + name)
+					moonLatency := calculateLatency(moonDistance * 1e6)
 					fmt.Fprintf(w, "    %s:\n", moonName)
-					fmt.Fprintf(w, "      Distance: %.6f million km\n", moon.Distance)
+					fmt.Fprintf(w, "      Distance: %.6f million km\n", moonDistance)
 					fmt.Fprintf(w, "      Latency: %v\n", moonLatency)
 					fmt.Fprintf(w, "      Bandwidth: %d kbps\n", moon.BandwidthKbps)
 				}
@@ -467,9 +484,10 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 		// Spacecraft
 		fmt.Fprintf(w, "Spacecraft:\n\n")
 		for name, craft := range spacecraft {
-			latency := calculateLatency(craft.Distance * 1e6)
+			distance := getCurrentDistance(name)
+			latency := calculateLatency(distance * 1e6)
 			fmt.Fprintf(w, "%s:\n", name)
-			fmt.Fprintf(w, "  Distance: %.2f million km\n", craft.Distance)
+			fmt.Fprintf(w, "  Distance: %.2f million km\n", distance)
 			fmt.Fprintf(w, "  Latency: %v\n", latency)
 			fmt.Fprintf(w, "  Bandwidth: %d kbps\n", craft.BandwidthKbps)
 			fmt.Fprintf(w, "\n")
@@ -488,8 +506,44 @@ func (s *Server) handleDebug(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "  - Or use www.example.com.mars.latency.space:1080 format to route to example.com\n\n")
 		fmt.Fprintf(w, "Debug Endpoints:\n")
 		fmt.Fprintf(w, "  - /_debug/domains - List valid domain formats\n")
-		fmt.Fprintf(w, "  - /_debug/bodies - List celestial bodies and their properties\n")
+		fmt.Fprintf(w, "  - /_debug/bodies - List celestial bodies and their properties (with real-time distances)\n")
+		fmt.Fprintf(w, "  - /_debug/distances - Show current distances from Earth to all celestial bodies\n")
 		fmt.Fprintf(w, "  - /_debug/help - Show this help message\n")
+		
+	case "/_debug/distances":
+		// Show current celestial distances and update time
+		w.Header().Set("Content-Type", "text/plain")
+		
+		// Get current time
+		now := time.Now().UTC()
+		
+		fmt.Fprintf(w, "Current Celestial Body Distances\n")
+		fmt.Fprintf(w, "Current Time: %s UTC\n", now.Format(time.RFC3339))
+		fmt.Fprintf(w, "Last Distance Update: %s UTC\n\n", lastDistanceUpdate.Format(time.RFC3339))
+		
+		// Force an update if more than an hour has passed
+		if time.Since(lastDistanceUpdate) > time.Hour {
+			updateCelestialDistances()
+			fmt.Fprintf(w, "Distances updated now.\n\n")
+		}
+		
+		// Lock to safely read the cache
+		distanceCacheMu.RLock()
+		defer distanceCacheMu.RUnlock()
+		
+		// Sort cache keys for consistent display
+		var keys []string
+		for k := range distanceCache {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		
+		// Display all distances
+		for _, name := range keys {
+			distance := distanceCache[name]
+			latency := calculateLatency(distance * 1e6)
+			fmt.Fprintf(w, "%-20s: %.3f million km (latency: %v)\n", name, distance, latency)
+		}
 		
 	default:
 		http.NotFound(w, r)
