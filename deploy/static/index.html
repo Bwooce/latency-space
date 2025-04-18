@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency Space - Interplanetary Network Simulator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #ddd;
+        }
+        h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        h2 {
+            font-size: 24px;
+            margin-top: 30px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            color: #3498db;
+        }
+        h3 {
+            font-size: 20px;
+            margin-top: 25px;
+            color: #2980b9;
+        }
+        p {
+            margin: 15px 0;
+        }
+        code {
+            background-color: #f8f8f8;
+            padding: 2px 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f8f8;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .card {
+            background-color: #f8f8f8;
+            border-radius: 5px;
+            padding: 15px;
+            border: 1px solid #ddd;
+        }
+        .card h4 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Latency Space</h1>
+            <p>An Interplanetary Network Simulator</p>
+        </header>
+
+        <div class="section">
+            <h2>What is Latency Space?</h2>
+            <p>
+                Latency Space simulates the communication delays experienced when sending data across the Solar System. It provides HTTP and SOCKS proxies that delay network traffic based on the real-time distances between celestial bodies, accurately modeling the physical limitations of light-speed communication.
+            </p>
+        </div>
+
+        <div class="section">
+            <h2>Available Celestial Bodies</h2>
+            
+            <h3>Planets</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>Mercury</h4>
+                    <p>Distance: ~77.3 million km</p>
+                    <p>Domain: <code>mercury.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Venus</h4>
+                    <p>Distance: ~38.2 million km</p>
+                    <p>Domain: <code>venus.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Earth</h4>
+                    <p>Distance: 0 km (reference point)</p>
+                    <p>Domain: <code>earth.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Mars</h4>
+                    <p>Distance: ~225 million km</p>
+                    <p>Domain: <code>mars.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Jupiter</h4>
+                    <p>Distance: ~778.5 million km</p>
+                    <p>Domain: <code>jupiter.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Saturn</h4>
+                    <p>Distance: ~1.43 billion km</p>
+                    <p>Domain: <code>saturn.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Uranus</h4>
+                    <p>Distance: ~2.87 billion km</p>
+                    <p>Domain: <code>uranus.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Neptune</h4>
+                    <p>Distance: ~4.5 billion km</p>
+                    <p>Domain: <code>neptune.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Pluto</h4>
+                    <p>Distance: ~5.9 billion km</p>
+                    <p>Domain: <code>pluto.latency.space</code></p>
+                </div>
+            </div>
+
+            <h3>Major Moons</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>Earth's Moon</h4>
+                    <p>Domain: <code>moon.earth.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Mars' Moons</h4>
+                    <p>Domain: <code>phobos.mars.latency.space</code></p>
+                    <p>Domain: <code>deimos.mars.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Jupiter's Moons</h4>
+                    <p>Domain: <code>io.jupiter.latency.space</code></p>
+                    <p>Domain: <code>europa.jupiter.latency.space</code></p>
+                    <p>Domain: <code>ganymede.jupiter.latency.space</code></p>
+                    <p>Domain: <code>callisto.jupiter.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Saturn's Moons</h4>
+                    <p>Domain: <code>titan.saturn.latency.space</code></p>
+                    <p>Domain: <code>enceladus.saturn.latency.space</code></p>
+                    <p>Domain: <code>mimas.saturn.latency.space</code></p>
+                    <p>Domain: <code>iapetus.saturn.latency.space</code></p>
+                    <p>Domain: <code>rhea.saturn.latency.space</code></p>
+                </div>
+            </div>
+
+            <h3>Spacecraft</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>ISS</h4>
+                    <p>Domain: <code>iss.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>James Webb Space Telescope</h4>
+                    <p>Domain: <code>jwst.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Voyager 1</h4>
+                    <p>Domain: <code>voyager1.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Voyager 2</h4>
+                    <p>Domain: <code>voyager2.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>New Horizons</h4>
+                    <p>Domain: <code>newhorizons.latency.space</code></p>
+                </div>
+                <div class="card">
+                    <h4>Perseverance Rover</h4>
+                    <p>Domain: <code>perseverance.latency.space</code></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Usage Methods</h2>
+
+            <h3>HTTP Proxy</h3>
+            <p>Access websites through the HTTP proxy:</p>
+            
+            <h4>Direct URL Method</h4>
+            <pre>http://mars.latency.space/https://example.com</pre>
+            
+            <h4>Subdomain Method</h4>
+            <pre>http://example.com.mars.latency.space/</pre>
+            
+            <h4>Query Parameter Method</h4>
+            <pre>http://mars.latency.space/?url=https://example.com</pre>
+            
+            <h4>Using curl</h4>
+            <pre>curl -x mars.latency.space:80 https://example.com</pre>
+
+            <h3>SOCKS5 Proxy</h3>
+            <p>Access the SOCKS5 proxy for any TCP application:</p>
+            
+            <h4>SOCKS Proxy Details</h4>
+            <pre>Host: mars.latency.space (or any other celestial body)
+Port: 1080
+Type: SOCKS5</pre>
+            
+            <h4>Using curl with SOCKS</h4>
+            <pre>curl --socks5 mars.latency.space:1080 https://example.com</pre>
+            
+            <h4>Using SSH through the proxy</h4>
+            <pre>ssh -o ProxyCommand="nc -X 5 -x jupiter.latency.space:1080 %h %p" user@destination-server.com</pre>
+            
+            <h4>Browser Configuration</h4>
+            <p>Configure your browser to use the SOCKS proxy settings:</p>
+            <ul>
+                <li>Firefox: Settings → Network Settings → Manual proxy configuration</li>
+                <li>Chrome: Settings → System → Open your computer's proxy settings</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Bandwidth and Rate Limits</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Bandwidth</th>
+                        <th>Rate Limit</th>
+                        <th>Bodies</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>High-Speed DSN</td>
+                        <td>2 Mbps</td>
+                        <td>1200 req/min</td>
+                        <td>Earth, Moon, Mercury, Venus</td>
+                    </tr>
+                    <tr>
+                        <td>Medium DSN</td>
+                        <td>1 Mbps</td>
+                        <td>300 req/min</td>
+                        <td>Mars and its moons</td>
+                    </tr>
+                    <tr>
+                        <td>Low DSN</td>
+                        <td>512 Kbps</td>
+                        <td>120 req/min</td>
+                        <td>Jupiter and its moons</td>
+                    </tr>
+                    <tr>
+                        <td>Outer Planets</td>
+                        <td>256 Kbps</td>
+                        <td>30-60 req/min</td>
+                        <td>Saturn, Uranus and their moons</td>
+                    </tr>
+                    <tr>
+                        <td>Distant Objects</td>
+                        <td>128 Kbps</td>
+                        <td>10-15 req/min</td>
+                        <td>Neptune, Pluto and their moons</td>
+                    </tr>
+                    <tr>
+                        <td>Deep Space</td>
+                        <td>32-64 Kbps</td>
+                        <td>5-10 req/min</td>
+                        <td>Voyager 1, Voyager 2, New Horizons</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Technical Details</h2>
+            <p>
+                Latency Space calculates real-time distances between Earth and other celestial bodies using accurate orbital mechanics. 
+                The communication delay is simulated by holding data for the appropriate duration based on the speed of light 
+                (299,792.458 km/s) and the current distance.
+            </p>
+            
+            <p>
+                The system also simulates bandwidth limitations based on actual Deep Space Network capabilities for different 
+                regions of the Solar System, and implements rate limiting to represent realistic connection constraints.
+            </p>
+            
+            <h3>Debug Endpoints</h3>
+            <p>Access information about the current system state:</p>
+            <ul>
+                <li><code>http://latency.space/_debug/distances</code> - Current distances from Earth to all bodies</li>
+                <li><code>http://latency.space/_debug/bodies</code> - Complete details of all celestial bodies</li>
+                <li><code>http://latency.space/_debug/domains</code> - List of valid domain formats</li>
+                <li><code>http://latency.space/_debug/help</code> - Usage instructions and examples</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Use Cases</h2>
+            <ul>
+                <li><strong>Education:</strong> Demonstrate real interplanetary communication challenges</li>
+                <li><strong>Development:</strong> Test applications under extreme network conditions</li>
+                <li><strong>Research:</strong> Explore protocols for high-latency environments</li>
+                <li><strong>Experience:</strong> Feel what it's like to browse the web from Mars!</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>Latency Space - Simulating interplanetary communication since 2023</p>
+            <p>For more detailed information, visit <a href="http://status.latency.space">status.latency.space</a></p>
+        </footer>
+    </div>
+</body>
+</html>

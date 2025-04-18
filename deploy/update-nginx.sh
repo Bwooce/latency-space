@@ -28,9 +28,16 @@ fi
 mkdir -p /var/www/html/latency-space
 chmod 755 /var/www/html/latency-space
 
-# Create a simple landing page with clear console output for debugging
+# Create a comprehensive landing page
 echo "Creating landing page at /var/www/html/latency-space/index.html"
-cat > /var/www/html/latency-space/index.html << 'EOF'
+
+# Copy the comprehensive static index.html if available
+if [ -f "deploy/static/index.html" ]; then
+  cp deploy/static/index.html /var/www/html/latency-space/index.html
+  echo "✅ Copied comprehensive index.html to web root"
+else
+  # Fall back to creating a simple landing page
+  cat > /var/www/html/latency-space/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
