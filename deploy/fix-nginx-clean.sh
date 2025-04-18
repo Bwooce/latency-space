@@ -101,6 +101,8 @@ server {
         }
         
         # Docker service resolution with variable for DNS resolution
+        # Note: docker-compose.yml maps internal port 80 to external port 8080,
+        # but inside the Docker network we need to use the internal port 80
         set $proxy_upstream http://proxy:80;
         proxy_pass $proxy_upstream;
         
