@@ -178,12 +178,13 @@ NGINX_CONFIG="/etc/nginx/sites-enabled/latency.space"
 if [ ! -f "$NGINX_CONFIG" ]; then
   yellow "⚠️ Nginx configuration not found at $NGINX_CONFIG"
   
-  # Run the Nginx configuration fix
-  if [ -f "deploy/fix-nginx-clean.sh" ]; then
-    blue "Running Nginx configuration fix..."
-    bash deploy/fix-nginx-clean.sh
+  # Run the Nginx configuration install
+  if [ -f "deploy/install-nginx-config.sh" ]; then
+    blue "Running Nginx configuration install..."
+    sudo bash deploy/install-nginx-config.sh
   else
-    red "❌ Nginx fix script not found"
+    red "❌ Nginx install script not found"
+    yellow "Try running: git pull to get the latest scripts"
     exit 1
   fi
 else
@@ -197,10 +198,11 @@ else
     
     read -p "Do you want to fix the Nginx configuration now? (y/n): " fix_nginx
     if [[ "$fix_nginx" == "y" ]]; then
-      if [ -f "deploy/fix-nginx-clean.sh" ]; then
-        bash deploy/fix-nginx-clean.sh
+      if [ -f "deploy/install-nginx-config.sh" ]; then
+        sudo bash deploy/install-nginx-config.sh
       else
-        red "❌ Nginx fix script not found"
+        red "❌ Nginx install script not found"
+        yellow "Try running: git pull to get the latest scripts"
       fi
     fi
   fi

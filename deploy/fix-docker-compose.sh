@@ -335,7 +335,7 @@ fi
 # Install the Nginx configuration
 blue "Installing Nginx configuration..."
 if [ -f "deploy/install-nginx-config.sh" ]; then
-  bash deploy/install-nginx-config.sh
+  sudo bash deploy/install-nginx-config.sh
   if [ $? -ne 0 ]; then
     red "❌ Failed to install Nginx configuration"
     exit 1
@@ -343,14 +343,8 @@ if [ -f "deploy/install-nginx-config.sh" ]; then
   green "✅ Nginx configuration installed"
 else
   red "❌ Nginx installation script not found"
-  yellow "Checking for other Nginx configuration scripts..."
-  
-  if [ -f "deploy/fix-nginx-clean.sh" ]; then
-    blue "Running legacy Nginx fix script..."
-    bash deploy/fix-nginx-clean.sh
-  else
-    yellow "⚠️ No Nginx configuration scripts found"
-  fi
+  yellow "⚠️ No Nginx configuration scripts found"
+  yellow "Please run git pull to get the latest scripts"
 fi
 
 # Verify static directory exists

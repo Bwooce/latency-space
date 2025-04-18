@@ -110,11 +110,12 @@ fi
 blue "Would you like to fix the Nginx configuration? (y/n): "
 read fix_nginx
 if [[ "$fix_nginx" == "y" ]]; then
-  if [ -f "/opt/latency-space/deploy/fix-nginx-clean.sh" ]; then
-    blue "Running Nginx configuration fix script..."
-    bash /opt/latency-space/deploy/fix-nginx-clean.sh
+  if [ -f "/opt/latency-space/deploy/install-nginx-config.sh" ]; then
+    blue "Running Nginx configuration install script..."
+    sudo bash /opt/latency-space/deploy/install-nginx-config.sh
   else
-    red "❌ Nginx fix script not found at /opt/latency-space/deploy/fix-nginx-clean.sh"
+    red "❌ Nginx install script not found at /opt/latency-space/deploy/install-nginx-config.sh"
+    yellow "Try running: git pull to get the latest scripts"
   fi
 fi
 

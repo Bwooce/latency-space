@@ -259,13 +259,14 @@ if [ -f "/etc/nginx/sites-enabled/latency.space" ]; then
   fi
 else
   yellow "⚠️ Nginx configuration not found at /etc/nginx/sites-enabled/latency.space"
-  blue "Looking for fix-nginx-clean.sh script..."
+  blue "Looking for Nginx install script..."
   
-  if [ -f "deploy/fix-nginx-clean.sh" ]; then
-    blue "Running Nginx fix script..."
-    bash deploy/fix-nginx-clean.sh
+  if [ -f "deploy/install-nginx-config.sh" ]; then
+    blue "Running Nginx install script..."
+    sudo bash deploy/install-nginx-config.sh
   else
-    red "❌ Nginx fix script not found"
+    red "❌ Nginx install script not found"
+    yellow "Try running: git pull to get the latest scripts"
   fi
 fi
 
