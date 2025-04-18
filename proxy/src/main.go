@@ -232,8 +232,9 @@ func (s *Server) startHTTPServer() error {
 	s.httpServer = &http.Server{
 		Addr:         ":80",
 		Handler:      http.HandlerFunc(s.handleHTTP),
-		ReadTimeout:  5 * time.Minute,
-		WriteTimeout: 5 * time.Minute,
+		ReadTimeout:  60 * time.Minute,  // Increased for distant celestial bodies
+		WriteTimeout: 60 * time.Minute,  // Increased for distant celestial bodies
+		IdleTimeout:  120 * time.Minute, // Allow long-lived connections
 	}
 
 	log.Printf("Starting HTTP server on :80")
@@ -242,9 +243,12 @@ func (s *Server) startHTTPServer() error {
 
 func (s *Server) startHTTPSServer() error {
 	s.httpsServer = &http.Server{
-		Addr:      ":443",
-		Handler:   http.HandlerFunc(s.handleHTTP),
-		TLSConfig: setupTLS(),
+		Addr:         ":443",
+		Handler:      http.HandlerFunc(s.handleHTTP),
+		TLSConfig:    setupTLS(),
+		ReadTimeout:  60 * time.Minute,  // Increased for distant celestial bodies
+		WriteTimeout: 60 * time.Minute,  // Increased for distant celestial bodies
+		IdleTimeout:  120 * time.Minute, // Allow long-lived connections
 	}
 
 	log.Printf("Starting HTTPS server on :443")
@@ -253,10 +257,18 @@ func (s *Server) startHTTPSServer() error {
 
 func (s *Server) startSOCKSServer() error {
 	// Start SOCKS5 server on port 1080
-	listener, err := net.Listen("tcp", ":1080")
+	// Create a custom TCP listener with extended keepalive settings
+	tcpAddr, err := net.ResolveTCPAddr("tcp", ":1080")
+	if err != nil {
+		return fmt.Errorf("failed to resolve TCP address: %v", err)
+	}
+	
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on SOCKS port: %v", err)
 	}
+	
+	log.Printf("SOCKS server using extended timeouts for interplanetary latency")
 	s.socksListener = listener
 
 	log.Printf("Starting SOCKS5 server on :1080")
@@ -270,6 +282,18 @@ func (s *Server) startSOCKSServer() error {
 			}
 			log.Printf("Failed to accept SOCKS connection: %v", err)
 			continue
+		}
+		
+		// Configure extended timeouts for TCP connections
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			// Set keep-alive with a long period suitable for celestial distances
+			tcpConn.SetKeepAlive(true)
+			tcpConn.SetKeepAlivePeriod(10 * time.Minute)
+			
+			// Disable Nagle's algorithm for low-latency transmission
+			tcpConn.SetNoDelay(true)
+			
+			log.Printf("SOCKS: Configured extended timeouts for connection from %s", conn.RemoteAddr().String())
 		}
 
 		// Get client IP for rate limiting

@@ -203,7 +203,24 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	// Connect to destination
 	log.Printf("SOCKS connect to %s from %s via %s (latency: %v)", 
 		dstAddrPort, s.conn.RemoteAddr().String(), bodyName, latency)
-	target, err := net.DialTimeout("tcp", dstAddrPort, 10*time.Second)
+		
+	// Calculate appropriate timeout based on celestial distance
+	// Minimum 30 seconds, maximum 24 hours, plus 3x the one-way latency
+	connectTimeout := 30 * time.Second
+	if latency > 10*time.Second {
+		// For distant bodies, use a timeout that's at least 3x the one-way latency
+		// This gives enough time for connection establishment plus latency
+		connectTimeout = 3 * latency
+		
+		// Cap at 24 hours for extremely distant objects like Voyager
+		maxTimeout := 24 * time.Hour
+		if connectTimeout > maxTimeout {
+			connectTimeout = maxTimeout
+		}
+	}
+	
+	log.Printf("Using connection timeout of %v for %s", connectTimeout, bodyName)
+	target, err := net.DialTimeout("tcp", dstAddrPort, connectTimeout)
 	if err != nil {
 		// Send appropriate error code based on the error
 		switch {
