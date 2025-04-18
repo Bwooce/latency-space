@@ -21,6 +21,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Ensure tls package is used - needed for TLS configuration
+var _ = tls.Config{}
+
 // Server is the main latency proxy server
 type Server struct {
 	port          int
