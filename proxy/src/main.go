@@ -453,24 +453,27 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	// Print planets
 	fmt.Fprintln(w, "PLANETS:")
 	for name, body := range solarSystem {
-		latency := calculateLatency(getCurrentDistance(name) * 1e6)
+		distance := getCurrentDistance(name)
+		latency := calculateLatency( * 1e6)
 		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
-			name, body.Distance, latency)
+			name, distance, latency)
 			
 		// Print moons
 		for moonName, moon := range body.Moons {
-			moonLatency := calculateLatency(getCurrentDistance(name+"."+moonName) * 1e6)
+			distance := getCurrentDistance(name+"."+moonName)
+			moonLatency := calculateLatency(distance * 1e6)
 			fmt.Fprintf(w, "  %s.%s: %.6f million km (one-way latency: %v)\n", 
-				moonName, name, moon.Distance, moonLatency)
+				moonName, name, distance, moonLatency)
 		}
 	}
 	
 	// Print spacecraft
 	fmt.Fprintln(w, "\nSPACECRAFT:")
 	for name, body := range spacecraft {
+		distance := getCurrentDistance(name)
 		latency := calculateLatency(getCurrentDistance(name) * 1e6)
 		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
-			name, body.Distance, latency)
+			name, distance, latency)
 	}
 }
 

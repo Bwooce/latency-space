@@ -28,7 +28,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"mars": {
-		Distance:      225.0,
 		BandwidthKbps: DSN_MED,
 		RateLimit:     300,
 		Moons: map[string]*CelestialBody{
