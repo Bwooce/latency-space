@@ -32,7 +32,7 @@
       }
       
       // Render a basic dashboard directly in case everything else fails
-      function renderBasicDashboard() {
+      function renderBasicDashboard(latency = '60ms', requests = '1,256', bandwidth = '2,048 Kbps') {
         const root = document.getElementById('root');
         root.innerHTML = `
           <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
@@ -42,8 +42,21 @@
               <p>All services are operational</p>
             </div>
             <div style="background-color: #d4edda; border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 5px;">
-              <h2 style="color: #28a745;">Latency</h2>
-              <p>60ms average</p>
+              <h2 style="color: #28a745;">Metrics</h2>
+              <div style="display: flex; justify-content: space-between; margin-top: 15px; flex-wrap: wrap;">
+                <div style="text-align: center; flex: 1; padding: 10px; min-width: 100px;">
+                  <div style="font-size: 24px; font-weight: bold;">${latency}</div>
+                  <div>Average Latency</div>
+                </div>
+                <div style="text-align: center; flex: 1; padding: 10px; min-width: 100px;">
+                  <div style="font-size: 24px; font-weight: bold;">${requests}</div>
+                  <div>Total Requests</div>
+                </div>
+                <div style="text-align: center; flex: 1; padding: 10px; min-width: 100px;">
+                  <div style="font-size: 24px; font-weight: bold;">${bandwidth}</div>
+                  <div>Bandwidth</div>
+                </div>
+              </div>
             </div>
             <footer style="margin-top: 40px; text-align: center; color: #666;">
               <p>Latency Space - Interplanetary Internet Simulator</p>
@@ -52,9 +65,29 @@
         `;
       }
       
-      // Try to fetch some metrics anyway (for extra resilience)
-      fetch('/api/metrics')
-        .catch(() => console.log('Metrics fetch failed, but that\'s ok'));
+      // Try both metrics endpoints (for extra resilience)
+      function tryMetrics() {
+        // First try the simple format
+        fetch('/api/simple-metrics')
+          .then(r => r.json())
+          .then(data => {
+            console.log('Simple metrics loaded:', data);
+            // If this succeeds, render a simple dashboard
+            if (data && data.latency) {
+              renderBasicDashboard(data.latency, data.requests, data.bandwidth);
+            }
+          })
+          .catch(() => {
+            console.log('Simple metrics failed, trying standard format');
+            // On failure, try the standard format
+            fetch('/api/metrics')
+              .then(r => r.json())
+              .catch(() => console.log('All metrics endpoints failed'));
+          });
+      }
+      
+      // Try metrics loading
+      tryMetrics();
       
       // Load main script with fallback
       loadScript('/assets/index-dbb786d6.js', '/assets/index-fallback.js');

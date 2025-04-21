@@ -21,6 +21,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy backup index.html and assets for resilience
 COPY backup-index.html /usr/share/nginx/html/index.html.backup
+COPY test-metrics.html /usr/share/nginx/html/test-metrics.html
 
 # Create assets directory and ensure proper permissions
 RUN mkdir -p /usr/share/nginx/html/assets && \

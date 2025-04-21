@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metrics Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.5;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Metrics API Test</h1>
+  
+  <div>
+    <button id="testButton">Test Metrics API</button>
+    <button id="testSimpleButton">Test Simple Metrics API</button>
+  </div>
+  
+  <h2>Results:</h2>
+  <div id="status"></div>
+  <pre id="results"></pre>
+  
+  <h2>Parsed Metrics:</h2>
+  <div id="parsedResults"></div>
+  
+  <h2>Manual Tests (Copy/Paste into browser console):</h2>
+  <pre class="code">
+// Test 1: Basic fetch
+fetch('/api/metrics')
+  .then(r => r.json())
+  .then(data => console.log('Success:', data))
+  .catch(err => console.error('Error:', err));
+
+// Test 2: Simple metrics format
+fetch('/api/simple-metrics')
+  .then(r => r.json())
+  .then(data => console.log('Simple metrics:', data))
+  .catch(err => console.error('Error:', err));
+
+// Test 3: XMLHttpRequest (old style)
+var xhr = new XMLHttpRequest();
+xhr.open('GET', '/api/metrics');
+xhr.onload = function() {
+  if (xhr.status === 200) {
+    console.log('XHR Success:', JSON.parse(xhr.responseText));
+  } else {
+    console.error('XHR Error:', xhr.statusText);
+  }
+};
+xhr.onerror = function() {
+  console.error('XHR Request failed');
+};
+xhr.send();
+  </pre>
+  
+  <script>
+    function testEndpoint(endpoint) {
+      const statusEl = document.getElementById('status');
+      const resultsEl = document.getElementById('results');
+      const parsedEl = document.getElementById('parsedResults');
+      
+      statusEl.textContent = `Testing ${endpoint}...`;
+      statusEl.className = '';
+      resultsEl.textContent = '';
+      parsedEl.innerHTML = '';
+      
+      // Test the metrics API
+      fetch(endpoint)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          statusEl.textContent = `Success! ${endpoint}`;
+          statusEl.className = 'success';
+          resultsEl.textContent = JSON.stringify(data, null, 2);
+          
+          // Try to parse the metrics
+          try {
+            if (endpoint === '/api/simple-metrics') {
+              // Simple format
+              let html = '<ul>';
+              html += `<li><strong>latency:</strong> ${data.latency}</li>`;
+              html += `<li><strong>requests:</strong> ${data.requests}</li>`;
+              html += `<li><strong>bandwidth:</strong> ${data.bandwidth}</li>`;
+              html += '</ul>';
+              parsedEl.innerHTML = html;
+            }
+            else if (data && data.data && data.data.result) {
+              // Complex Prometheus format
+              let html = '<ul>';
+              data.data.result.forEach(item => {
+                const name = item.metric?.__name__ || 'unknown';
+                const value = item.value?.[1] || 'N/A';
+                html += `<li><strong>${name}:</strong> ${value}</li>`;
+              });
+              html += '</ul>';
+              parsedEl.innerHTML = html;
+            } else {
+              parsedEl.innerHTML = '<p>No metrics data found in the response.</p>';
+            }
+          } catch (err) {
+            parsedEl.innerHTML = `<p class="error">Error parsing metrics: ${err.message}</p>`;
+          }
+        })
+        .catch(error => {
+          statusEl.textContent = `Error: ${error.message}`;
+          statusEl.className = 'error';
+          console.error('Error:', error);
+        });
+    }
+    
+    document.getElementById('testButton').addEventListener('click', function() {
+      testEndpoint('/api/metrics');
+    });
+    
+    document.getElementById('testSimpleButton').addEventListener('click', function() {
+      testEndpoint('/api/simple-metrics');
+    });
+  </script>
+</body>
+</html>
