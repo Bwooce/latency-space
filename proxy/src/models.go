@@ -16,7 +16,7 @@ const (
 )
 
 type CelestialBody struct {
-	Distance      float64 // millions of km (average)
+	Distance      float64 // used for moons only
 	BandwidthKbps int     // bandwidth limit in Kbps
 	RateLimit     int     // requests per minute
 	Moons         map[string]*CelestialBody

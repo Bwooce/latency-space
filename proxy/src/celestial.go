@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"log"
 )
 
 // planetaryOrbits contains parameters needed to calculate current distances
@@ -129,6 +130,7 @@ func getOrbitalPosition(orbit struct {
 
 // updateCelestialDistances calculates current distances from Earth to celestial bodies
 func updateCelestialDistances() {
+	log.Printf("Updating Celestial Distances")
 	distanceCacheMu.Lock()
 	defer distanceCacheMu.Unlock()
 	

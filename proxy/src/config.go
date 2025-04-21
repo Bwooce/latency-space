@@ -4,21 +4,18 @@ package main
 // Complete solar system configuration
 var solarSystem = map[string]*CelestialBody{
 	"mercury": {
-		Distance:      77.3,
 		BandwidthKbps: DSN_HIGH,
 		RateLimit:     600,
 		Moons:         make(map[string]*CelestialBody), // Mercury has no moons
 	},
 
 	"venus": {
-		Distance:      38.2,
 		BandwidthKbps: DSN_HIGH,
 		RateLimit:     600,
 		Moons:         make(map[string]*CelestialBody), // Venus has no moons
 	},
 
 	"earth": {
-		Distance:      0,
 		BandwidthKbps: DSN_HIGH,
 		RateLimit:     1200,
 		Moons: map[string]*CelestialBody{
@@ -49,7 +46,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"jupiter": {
-		Distance:      778.5,
 		BandwidthKbps: DSN_LOW,
 		RateLimit:     120,
 		Moons: map[string]*CelestialBody{
@@ -77,7 +73,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"saturn": {
-		Distance:      1427.0,
 		BandwidthKbps: DSN_OUTER,
 		RateLimit:     60,
 		Moons: map[string]*CelestialBody{
@@ -110,7 +105,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"uranus": {
-		Distance:      2871.0,
 		BandwidthKbps: DSN_OUTER,
 		RateLimit:     30,
 		Moons: map[string]*CelestialBody{
@@ -143,7 +137,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"neptune": {
-		Distance:      4497.1,
 		BandwidthKbps: DSN_DISTANT,
 		RateLimit:     15,
 		Moons: map[string]*CelestialBody{
@@ -166,7 +159,6 @@ var solarSystem = map[string]*CelestialBody{
 	},
 
 	"pluto": {
-		Distance:      5913.0,
 		BandwidthKbps: DSN_DISTANT,
 		RateLimit:     10,
 		Moons: map[string]*CelestialBody{
@@ -192,37 +184,31 @@ var solarSystem = map[string]*CelestialBody{
 // Spacecraft and space station configurations
 var spacecraft = map[string]*CelestialBody{
 	"voyager1": {
-		Distance:      23000.0, // Approximate, changes constantly
 		BandwidthKbps: 32, // Very limited bandwidth
 		RateLimit:     5,
 	},
 
 	"voyager2": {
-		Distance:      19000.0, // Approximate, changes constantly
 		BandwidthKbps: 32,
 		RateLimit:     5,
 	},
 
 	"newhorizons": {
-		Distance:      7000.0, // Approximate, beyond Pluto
 		BandwidthKbps: 64,
 		RateLimit:     10,
 	},
 
 	"jwst": { // James Webb Space Telescope
-		Distance:      1.5, // At L2 point
 		BandwidthKbps: DSN_HIGH,
 		RateLimit:     600,
 	},
 
 	"iss": { // International Space Station
-		Distance:      0.0004, // ~400km orbit
 		BandwidthKbps: DSN_HIGH,
 		RateLimit:     1000,
 	},
 
 	"perseverance": { // Mars rover
-		Distance:      225.0, // On Mars
 		BandwidthKbps: DSN_MED,
 		RateLimit:     300,
 	},
