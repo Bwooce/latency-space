@@ -128,7 +128,8 @@ func (s *Server) Stop() {
 
 // handleHTTP processes HTTP requests with celestial body latency
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Path being accessed %s\n",r.URL.Path)
+	log.Printf("Path being accessed: %s",r.URL.Path)
+	fmt.Println("TEST HANDLER CALLED:", r.URL.Path)
 	// Special case for metrics endpoint
 	if r.URL.Path == "/metrics" {
 		promhttp.Handler().ServeHTTP(w, r)
@@ -336,7 +337,9 @@ func (s *Server) startHTTPServer() error {
 	}
 
 	log.Printf("Starting HTTP server on :80")
-	return s.httpServer.ListenAndServe()
+	err := s.httpServer.ListenAndServe()
+	log.Printf("HTTP server stopped: %v", err) // This will tell you if the server stops
+    return err
 }
 
 func (s *Server) startHTTPSServer() error {
