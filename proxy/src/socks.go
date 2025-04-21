@@ -181,7 +181,7 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	// Extract celestial body and apply latency
 	celestialBody, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
 	if celestialBody == nil {
-		celestialBody, bodyName = solarSystem["earth"], "earth"
+		_, bodyName = solarSystem["earth"], "earth"
 	}
 
 	// Calculate latency based on celestial distance
