@@ -459,7 +459,7 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 			name, distance, latency)
 			
 		// Print moons
-		for moonName, _ := range body.Moons {
+		for moonName := range body.Moons {
 			distance := getCurrentDistance(name+"."+moonName)
 			moonLatency := calculateLatency(distance * 1e6)
 			fmt.Fprintf(w, "  %s.%s: %.6f million km (one-way latency: %v)\n", 
@@ -469,7 +469,7 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	
 	// Print spacecraft
 	fmt.Fprintln(w, "\nSPACECRAFT:")
-	for name, _ := range spacecraft {
+	for name := range spacecraft {
 		distance := getCurrentDistance(name)
 		latency := calculateLatency(getCurrentDistance(name) * 1e6)
 		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
