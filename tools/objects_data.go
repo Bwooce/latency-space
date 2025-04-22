@@ -1,0 +1,1 @@
+../proxy/src/objects_data.go

@@ -509,13 +509,52 @@ func getCurrentDistance(bodyName string) float64 {
 
 func getMoons(bodyName string) []CelestialObject {
 	moons := make([]CelestialObject, 0)
-	casedName := strings.ToTitle(bodyName)
 	for _, obj := range celestialObjects {
-		if obj.Type == "moon" && obj.ParentName == casedName {
+		if obj.Type == "moon" && strings.EqualFold(obj.Name, bodyName) {
 			moons = append(moons, obj)
 		}
 	}
 	return moons
+}
+
+func getPlanets() []CelestialObject {
+	planets := make([]CelestialObject, 0)
+	for _, obj := range celestialObjects {
+		if obj.Type == "planet" {
+			planets = append(planets, obj)
+		}
+	}
+	return planets
+}
+
+func getSpacecraft() []CelestialObject {
+	spacecraft := make([]CelestialObject, 0)
+	for _, obj := range celestialObjects {
+		if obj.Type == "spacecraft" {
+			spacecraft = append(spacecraft, obj)
+		}
+	}
+	return spacecraft
+}
+
+func getDwarfPlanets() []CelestialObject {
+	dwarfs := make([]CelestialObject, 0)
+	for _, obj := range celestialObjects {
+		if obj.Type == "dwarf_planet" {
+			dwarfs = append(dwarfs, obj)
+		}
+	}
+	return dwarfs
+}
+
+func getAsteroids() []CelestialObject {
+	asteroids := make([]CelestialObject, 0)
+	for _, obj := range celestialObjects {
+		if obj.Type == "asteroid" {
+			asteroids = append(asteroids, obj)
+		}
+	}
+	return asteroids
 }
 
 // Display objects of a specific type
