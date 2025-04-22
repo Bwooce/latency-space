@@ -588,8 +588,8 @@ func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string)
 	}
 
 	fmt.Fprintf(w, "\n--- %s ---\n", typeName)
-	fmt.Fprintf(w, "%-15s | %-10s | %-18s | %-15s | %s\n",
-		"Name", "Type", "Distance (km)", "Distance", "Visibility")
+	fmt.Fprintf(w, "%-15s | %-10s | %-18s | %-15s | %s | %a\n",
+		"Name", "Type", "Distance (km)", "Distance", "RTT", "Visibility")
 	fmt.Fprintln(w, "--------------------------------------------------------------------------------------")
 
 	for _, entry := range filteredEntries {
@@ -598,11 +598,12 @@ func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string)
 			visibility = fmt.Sprintf("Occluded by %s", entry.OccludedBy.Name)
 		}
 
-		fmt.Fprintf(w, "%-15s | %-10s | %18.0f | %-15s | %s\n",
+		fmt.Fprintf(w, "%-15s | %-10s | %18.0f | %-15s | %-15s | %s\n",
 			entry.Object.Name,
 			entry.Object.Type,
 			entry.Distance,
 			FormatDistance(entry.Distance),
+			CalculateLatency(entry.Distance).String(),
 			visibility)
 	}
 }

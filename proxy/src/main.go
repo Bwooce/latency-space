@@ -175,7 +175,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// If there's no target URL, just display info about this celestial body
-	if targetURL == "" {
+	if targetURL == "" || targetURL == "/" {
 		s.displayCelestialInfo(w, celestialBody, bodyName, latency)
 		return
 	}
@@ -185,10 +185,10 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Forward the request to the target URL
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: latency * 2 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConns:    10,
-			IdleConnTimeout: 30 * time.Second,
+			IdleConnTimeout: latency * 2 * time.Second,
 		},
 	}
 
@@ -458,16 +458,10 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	fmt.Fprintln(w, "============================================")
 	fmt.Fprintf(w, "Current Time: %s\n\n", time.Now().Format(time.RFC3339))
 
-	// Print planets
-	fmt.Fprintln(w, "PLANETS:")
 	printObjectsByType(w, distanceEntries, "planet")
-	fmt.Fprintln(w, "\nDWARF PLANETS:")
-	printObjectsByType(w, distanceEntries, "dwarf_planet")
-	fmt.Fprintln(w, "\nMOONS:")
 	printObjectsByType(w, distanceEntries, "moon")
-	fmt.Fprintln(w, "\nASTEROIDS")
 	printObjectsByType(w, distanceEntries, "asteroid")
-	fmt.Fprintln(w, "\nSPACECRAFT:")
+	printObjectsByType(w, distanceEntries, "dwarf_planet")
 	printObjectsByType(w, distanceEntries, "spacecraft")
 
 }
