@@ -55,13 +55,13 @@ func isValidSubdomain(host string) bool {
 		if found {
 			return true
 		}
-		
+
 		// Check for moon format (domain.moon.planet.latency.space)
 		if len(parts) >= 4 {
 			moonName := parts[len(parts)-4]
 			planetName := parts[len(parts)-3]
 			moon, found := findObjectByName(celestialObjects, moonName)
-			if !found  || !strings.EqualFold(moon.ParentName,planetName) {
+			if !found || !strings.EqualFold(moon.ParentName, planetName) {
 				return false
 			}
 			return true

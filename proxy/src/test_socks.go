@@ -1,5 +1,5 @@
 // proxy/src/test_socks.go
-// +build ignore
+//go:build ignore
 
 package main
 
@@ -89,7 +89,7 @@ func testDNSFormat() {
 	// Connect to the proxy as mars.latency.space:1080
 	// Request www.example.com
 	proxyAddr := "mars.latency.space:1080"
-	
+
 	// Create a SOCKS5 dialer
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
@@ -103,7 +103,7 @@ func testDNSFormat() {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 	elapsed := time.Since(start)
-	
+
 	fmt.Printf("Connected to www.example.com via %s in %v\n", proxyAddr, elapsed)
 	conn.Close()
 }

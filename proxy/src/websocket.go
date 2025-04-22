@@ -3,7 +3,7 @@ package main
 
 import (
 	"net/http"
-	
+
 	"github.com/gorilla/websocket"
 )
 
@@ -18,10 +18,10 @@ var _ = websocket.Upgrader{
 
 // NOTE: WebSocket functionality is planned but not currently implemented.
 // The code below is a placeholder for future implementation.
-// 
+//
 // When implemented, this will handle WebSocket proxy connections with
 // celestial latency, similar to how HTTP requests are handled.
-// 
+//
 // Implementation requires:
 // - Proper connection handling
 // - Message proxying with latency simulation

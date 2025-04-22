@@ -33,12 +33,12 @@ func NewSecurityValidator() *SecurityValidator {
 		"netflix.com", "www.netflix.com",
 		"linkedin.com", "www.linkedin.com",
 	}
-	
+
 	allowedHosts := make(map[string]bool)
 	for _, host := range allowedHostsList {
 		allowedHosts[host] = true
 	}
-	
+
 	return &SecurityValidator{
 		allowedPorts: map[string]bool{
 			"80":   true,
@@ -90,22 +90,22 @@ func (s *SecurityValidator) IsAllowedHost(dest string) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// Extract the host without port
 	host := u.Hostname()
-	
+
 	// Check if it's in our allowed list
 	if s.allowedHosts[host] {
 		return true
 	}
-	
+
 	// Check for subdomains of allowed hosts
 	for allowedHost := range s.allowedHosts {
 		if strings.HasSuffix(host, "."+allowedHost) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -126,4 +126,3 @@ func (s *SecurityValidator) IsAllowedIP(ip string) bool {
 	// This can be enhanced in the future to implement rate limiting or IP blocklists
 	return true
 }
-
