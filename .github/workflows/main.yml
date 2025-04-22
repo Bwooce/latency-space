@@ -164,7 +164,8 @@ jobs:
         if: "${{ env.CF_API_TOKEN != '' }}"
         run: |
           cd tools
-          ln -fs ../proxy/src/config.go .
+          ln -fs ../proxy/src/calculatios.go .
+          ln -fs ../proxy/src/objects_data.go .
           ln -fs ../proxy/src/models.go .
           go run . -token $CF_API_TOKEN -ip $SERVER_IP
 
