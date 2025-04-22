@@ -588,7 +588,7 @@ func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string)
 	}
 
 	fmt.Fprintf(w, "\n--- %s ---\n", typeName)
-	fmt.Fprintf(w, "%-15s | %-10s | %-18s | %-15s | %s | %a\n",
+	fmt.Fprintf(w, "%-15s | %-10s | %-18s | %-15s | %s | %s\n",
 		"Name", "Type", "Distance (km)", "Distance", "RTT", "Visibility")
 	fmt.Fprintln(w, "--------------------------------------------------------------------------------------")
 
