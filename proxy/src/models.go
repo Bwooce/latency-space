@@ -1,60 +1,127 @@
 package main
 
 import (
-	"time"
+	"math"
 )
 
+// Astronomical constants
 const (
-	speedOfLight = 299792.458 // km/s
-
-	// Bandwidth tiers (kbps)
-	DSN_HIGH    = 2048 // 2 Mbps
-	DSN_MED     = 1024 // 1 Mbps
-	DSN_LOW     = 512  // 512 Kbps
-	DSN_OUTER   = 256  // 256 Kbps
-	DSN_DISTANT = 128  // 128 Kbps
+	SPEED_OF_LIGHT     = 299792.458 // km/s
+	AU                 = 149597870.7 // Astronomical unit in kilometers
+	EARTH_RADIUS       = 6378.137    // Earth radius in kilometers
+	SUN_RADIUS         = 695700.0    // Sun radius in kilometers
+	SECONDS_PER_DAY    = 86400.0     // Seconds in a day
+	DAYS_PER_CENTURY   = 36525.0     // Days in a Julian century (365.25 * 100)
+	J2000_EPOCH        = 2451545.0   // J2000 epoch in Julian days (January 1, 2000, 12:00 TT)
 )
 
-type CelestialBody struct {
-	Distance      float64 // used for moons only
-	BandwidthKbps int     // bandwidth limit in Kbps
-	RateLimit     int     // requests per minute
-	Moons         map[string]*CelestialBody
+// CelestialObject represents any object in the solar system (planet, moon, spacecraft, etc.)
+type CelestialObject struct {
+	Name       string
+	Type       string  // "planet", "dwarf_planet", "moon", "spacecraft", etc.
+	ParentName string  // Name of parent body (empty for Sun, planet name for moons)
+	Radius     float64 // Mean radius in km
+	
+	// Orbital elements for J2000 epoch
+	// For planets, dwarf planets: heliocentric elements (in AU and degrees)
+	// For moons: parent-centric elements (semi-major axis in km, angles in degrees)
+	// For spacecraft: mission-specific elements or fixed position
+	A    float64 // Semi-major axis (AU for heliocentric, km for moon/spacecraft orbits)
+	E    float64 // Eccentricity
+	I    float64 // Inclination (degrees)
+	L    float64 // Mean longitude (degrees)
+	LP   float64 // Longitude of perihelion (degrees)
+	N    float64 // Longitude of ascending node (degrees)
+	
+	// Century rates for orbital elements
+	dA    float64 // Rate of semi-major axis change per century
+	dE    float64 // Rate of eccentricity change per century
+	dI    float64 // Rate of inclination change per century
+	dL    float64 // Rate of mean longitude change per century
+	dLP   float64 // Rate of longitude of perihelion change per century
+	dN    float64 // Rate of longitude of ascending node change per century
+	
+	// Additional parameters for moons and spacecraft
+	W      float64 // Argument of perigee (degrees)
+	dW     float64 // Rate of argument of perigee change per century
+	Period float64 // Orbital period (days)
+	
+	// For perturbation calculations
+	b float64 // Orbital period (days) or other coefficient
+	c float64 // Eccentricity for perturbation terms
+	s float64 // Sin term coefficient
+	f float64 // Mean motion (degrees/day)
+	
+	// Physical properties
+	Mass   float64 // Mass in kg
+	
+	// Spacecraft specific parameters
+	TransmitterActive bool    // Whether the spacecraft is currently transmitting
+	LaunchDate        string  // Date of launch
+	FrequencyMHz      float64 // Transmission frequency in MHz
+	MissionStatus     string  // "active", "completed", "failed", etc.
 }
 
-func calculateLatency(distanceKm float64) time.Duration {
-	seconds := distanceKm / speedOfLight
-	return time.Duration(seconds * float64(time.Second))
+// Vector3 represents a 3D vector
+type Vector3 struct {
+	X, Y, Z float64
 }
 
-// SOCKS constants
-const (
-	SOCKS5_VERSION = 0x05
+// Add returns the sum of two vectors
+func (v Vector3) Add(other Vector3) Vector3 {
+	return Vector3{
+		X: v.X + other.X,
+		Y: v.Y + other.Y,
+		Z: v.Z + other.Z,
+	}
+}
 
-	// Authentication methods
-	SOCKS5_NO_AUTH                = 0x00
-	SOCKS5_AUTH_GSSAPI            = 0x01
-	SOCKS5_AUTH_USERNAME_PASSWORD = 0x02
-	SOCKS5_AUTH_NO_ACCEPTABLE     = 0xFF
+// Subtract returns the difference of two vectors
+func (v Vector3) Subtract(other Vector3) Vector3 {
+	return Vector3{
+		X: v.X - other.X,
+		Y: v.Y - other.Y,
+		Z: v.Z - other.Z,
+	}
+}
 
-	// Command types
-	SOCKS5_CMD_CONNECT      = 0x01
-	SOCKS5_CMD_BIND         = 0x02
-	SOCKS5_CMD_UDP_ASSOCIATE = 0x03
+// Scale returns the vector multiplied by a scalar
+func (v Vector3) Scale(factor float64) Vector3 {
+	return Vector3{
+		X: v.X * factor,
+		Y: v.Y * factor,
+		Z: v.Z * factor,
+	}
+}
 
-	// Address types
-	SOCKS5_ADDR_IPV4   = 0x01
-	SOCKS5_ADDR_DOMAIN = 0x03
-	SOCKS5_ADDR_IPV6   = 0x04
+// Magnitude returns the magnitude (length) of the vector
+func (v Vector3) Magnitude() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
+}
 
-	// Reply codes
-	SOCKS5_REP_SUCCESS            = 0x00
-	SOCKS5_REP_GENERAL_FAILURE    = 0x01
-	SOCKS5_REP_CONN_NOT_ALLOWED   = 0x02
-	SOCKS5_REP_NETWORK_UNREACHABLE = 0x03
-	SOCKS5_REP_HOST_UNREACHABLE    = 0x04
-	SOCKS5_REP_CONN_REFUSED       = 0x05
-	SOCKS5_REP_TTL_EXPIRED        = 0x06
-	SOCKS5_REP_CMD_NOT_SUPPORTED  = 0x07
-	SOCKS5_REP_ADDR_NOT_SUPPORTED = 0x08
-)
+// DotProduct returns the dot product of two vectors
+func (v Vector3) DotProduct(other Vector3) float64 {
+	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
+}
+
+// CrossProduct returns the cross product of two vectors
+func (v Vector3) CrossProduct(other Vector3) Vector3 {
+	return Vector3{
+		X: v.Y*other.Z - v.Z*other.Y,
+		Y: v.Z*other.X - v.X*other.Z,
+		Z: v.X*other.Y - v.Y*other.X,
+	}
+}
+
+// Normalize returns the normalized vector (unit length)
+func (v Vector3) Normalize() Vector3 {
+	mag := v.Magnitude()
+	if mag < 1e-10 {
+		return Vector3{0, 0, 0}
+	}
+	return Vector3{
+		X: v.X / mag,
+		Y: v.Y / mag,
+		Z: v.Z / mag,
+	}
+}

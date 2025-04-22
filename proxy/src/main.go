@@ -155,10 +155,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL, celestialBody, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
 	
 	// Check if celestial body exists
-	if celestialBody == nil {
+	if bodyName == "" {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
 	}
+
+	// update the distance cache, if required
+	calculateDistancesFromEarth(celestialObjects, time.Now());
 	
 	// Apply space latency
 	latency := calculateLatency(getCurrentDistance(bodyName) * 1e6)
@@ -235,7 +238,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // displayCelestialInfo shows information about the celestial body
-func (s *Server) displayCelestialInfo(w http.ResponseWriter, body *CelestialBody, name string, latency time.Duration) {
+func (s *Server) displayCelestialInfo(w http.ResponseWriter, body CelestialObject, name string, latency time.Duration) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	
@@ -245,8 +248,6 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, body *CelestialBody
 	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", getCurrentDistance(name))
 	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency)
 	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency)
-	fmt.Fprintf(w, "<p>Bandwidth limit: %d Kbps</p>", body.BandwidthKbps)
-	fmt.Fprintf(w, "<p>Rate limit: %d requests per minute</p>", body.RateLimit)
 	
 	fmt.Fprintf(w, "<h2>Usage</h2>")
 	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
@@ -260,12 +261,13 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, body *CelestialBody
 	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
 	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", name)
 	
-	if len(body.Moons) > 0 {
+	moons := getMoons(name)
+	if len(moons) > 0 {
 		fmt.Fprintf(w, "<h2>Moons</h2>")
 		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)
 		fmt.Fprintf(w, "<ul>")
-		for moon := range body.Moons {
-			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon, name, moon)
+		for _, moon := range moons {
+			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon.Name, name, moon.Name)
 		}
 		fmt.Fprintf(w, "</ul>")
 	}
@@ -274,7 +276,7 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, body *CelestialBody
 }
 
 // parseHostForCelestialBody extracts target URL and celestial body from request
-func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string, *CelestialBody, string) {
+func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string, CelestialObject, string) {
 	// Remove port from host if present
 	if idx := strings.Index(host, ":"); idx > 0 {
 		host = host[:idx]
@@ -282,20 +284,24 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	
 	// Check for debug endpoints which don't need celestial body processing
 	if strings.HasPrefix(reqURL.Path, "/_debug/") {
-		return "", solarSystem["earth"], "earth"
+		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
+		// Default to Earth
+		return reqURL.String(), celestialBody, celestialBody.Name
 	}
 	
 	// Not a latency.space domain
 	if !strings.HasSuffix(host, ".latency.space") {
+		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
 		// Default to Earth
-		return reqURL.String(), solarSystem["earth"], "earth"
+		return reqURL.String(), celestialBody, celestialBody.Name
 	}
 	
 	// Extract parts: [subdomain, latency, space]
 	parts := strings.Split(host, ".")
 	if len(parts) < 3 || parts[len(parts)-1] != "space" || parts[len(parts)-2] != "latency" {
+		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
 		// Not a proper latency.space domain
-		return reqURL.String(), solarSystem["earth"], "earth"
+		return reqURL.String(), celestialBody, celestialBody.Name
 	}
 
 	// If format is domain.body.latency.space
@@ -310,21 +316,25 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		
 		// Get the celestial body
 		bodyName := parts[bodyIndex]
-		celestialBody, bodyFullName := getCelestialBody(bodyName)
+		celestialBody, found := findObjectByName(celestialObjects, bodyName)
 		
-		if celestialBody != nil {
-			return targetDomain, celestialBody, bodyFullName
+		if found {
+			return targetDomain, celestialBody, celestialBody.Name
 		}
 	}
 
 	// Default behavior for standard celestial body subdomains
 	hostParts := strings.Split(host, ".")
 	if len(hostParts) > 0 {
-		body, bodyName := getCelestialBody(hostParts[0])
-		return "", body, bodyName
+		body, found := findObjectByName(celestialObjects, hostParts[0])
+		if(found) {
+			return "", body, body.Name
+		} else {
+			return "", body, ""
+		}
 	}
 
-	return "", nil, ""
+	return "", CelestialObject{}, ""
 }
 
 func (s *Server) startHTTPServer() error {
@@ -433,8 +443,6 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 	switch path {
 	case "distances":
 		s.printCelestialDistances(w)
-	case "bodies":
-		s.printCelestialBodies(w)
 	case "help":
 		s.printHelp(w)
 	default:
@@ -452,66 +460,16 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	
 	// Print planets
 	fmt.Fprintln(w, "PLANETS:")
-	for name, body := range solarSystem {
-		distance := getCurrentDistance(name)
-		latency := calculateLatency(distance * 1e6)
-		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
-			name, distance, latency)
-			
-		// Print moons
-		for moonName := range body.Moons {
-			distance := getCurrentDistance(name+"."+moonName)
-			moonLatency := calculateLatency(distance * 1e6)
-			fmt.Fprintf(w, "  %s.%s: %.6f million km (one-way latency: %v)\n", 
-				moonName, name, distance, moonLatency)
-		}
-	}
-	
-	// Print spacecraft
+	printObjectsByType(w,distanceEntries, "planet")
+	fmt.Fprintln(w, "\nDWARF PLANETS:")
+	printObjectsByType(w,distanceEntries, "dwarf_planet")
+	fmt.Fprintln(w, "\nMOONS:")
+	printObjectsByType(w,distanceEntries, "moon")
+	fmt.Fprintln(w, "\nASTEROIDS")
+	printObjectsByType(w,distanceEntries, "asteroid")
 	fmt.Fprintln(w, "\nSPACECRAFT:")
-	for name := range spacecraft {
-		distance := getCurrentDistance(name)
-		latency := calculateLatency(getCurrentDistance(name) * 1e6)
-		fmt.Fprintf(w, "%s: %.2f million km (one-way latency: %v)\n", 
-			name, distance, latency)
-	}
-}
+	printObjectsByType(w, distanceEntries, "spacecraft")
 
-// printCelestialBodies displays all celestial body info
-func (s *Server) printCelestialBodies(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/plain")
-	
-	fmt.Fprintln(w, "Latency Space - Celestial Body Configuration")
-	fmt.Fprintln(w, "===========================================")
-	
-	// Print planets
-	fmt.Fprintln(w, "PLANETS:")
-	for name, body := range solarSystem {
-		fmt.Fprintf(w, "%s:\n", name)
-		fmt.Fprintf(w, "  Distance: %.2f million km\n", getCurrentDistance(name))
-		fmt.Fprintf(w, "  Bandwidth: %d Kbps\n", body.BandwidthKbps)
-		fmt.Fprintf(w, "  Rate Limit: %d requests/minute\n", body.RateLimit)
-		fmt.Fprintf(w, "  Moons: %d\n", len(body.Moons))
-		
-		// Print moons
-		for moonName, moon := range body.Moons {
-			fmt.Fprintf(w, "  - %s:\n", moonName)
-			fmt.Fprintf(w, "    Distance: %.6f million km\n", getCurrentDistance(name+"."+moonName))
-			fmt.Fprintf(w, "    Bandwidth: %d Kbps\n", moon.BandwidthKbps)
-			fmt.Fprintf(w, "    Rate Limit: %d requests/minute\n", moon.RateLimit)
-		}
-		fmt.Fprintln(w)
-	}
-	
-	// Print spacecraft
-	fmt.Fprintln(w, "SPACECRAFT:")
-	for name, body := range spacecraft {
-		fmt.Fprintf(w, "%s:\n", name)
-		fmt.Fprintf(w, "  Distance: %.2f million km\n", getCurrentDistance(name))
-		fmt.Fprintf(w, "  Bandwidth: %d Kbps\n", body.BandwidthKbps)
-		fmt.Fprintf(w, "  Rate Limit: %d requests/minute\n", body.RateLimit)
-		fmt.Fprintln(w)
-	}
 }
 
 // printHelp displays usage information
@@ -538,7 +496,6 @@ func (s *Server) printHelp(w http.ResponseWriter) {
 	fmt.Fprintln(w, "Debug Endpoints:")
 	fmt.Fprintln(w, "---------------")
 	fmt.Fprintln(w, "/_debug/distances - Current distances and latencies")
-	fmt.Fprintln(w, "/_debug/bodies - Detailed celestial body configurations")
 	fmt.Fprintln(w, "/_debug/help - This help information")
 }
 

@@ -28,22 +28,20 @@ func isValidSubdomain(host string) bool {
 	// Check if it's a standard subdomain (e.g., mars.latency.space)
 	if len(parts) == 3 && parts[1] == "latency" && parts[2] == "space" {
 		// Verify it's a valid celestial body
-		if _, exists := solarSystem[parts[0]]; exists {
-			return true
-		}
-		if _, exists := spacecraft[parts[0]]; exists {
+		_, found := findObjectByName(celestialObjects, parts[0])
+		if found {
 			return true
 		}
 	}
 
 	// Check if it's a moon subdomain (e.g., enceladus.saturn.latency.space)
 	if len(parts) == 4 && parts[2] == "latency" && parts[3] == "space" {
-		planet, exists := solarSystem[parts[1]]
-		if !exists {
+		moon, found := findObjectByName(celestialObjects, parts[1])
+		if !found {
 			return false
 		}
 		// Verify the moon exists for this planet
-		if _, moonExists := planet.Moons[parts[0]]; moonExists {
+		if moon.ParentName == parts[0] {
 			return true
 		}
 	}
@@ -53,10 +51,8 @@ func isValidSubdomain(host string) bool {
 	if len(parts) >= 3 && parts[len(parts)-2] == "latency" && parts[len(parts)-1] == "space" {
 		bodyName := parts[len(parts)-3]
 		// Check if it's a valid celestial body
-		if _, exists := solarSystem[bodyName]; exists {
-			return true
-		}
-		if _, exists := spacecraft[bodyName]; exists {
+		_, found := findObjectByName(celestialObjects, bodyName)
+		if found {
 			return true
 		}
 		
@@ -64,11 +60,11 @@ func isValidSubdomain(host string) bool {
 		if len(parts) >= 4 {
 			moonName := parts[len(parts)-4]
 			planetName := parts[len(parts)-3]
-			if planet, exists := solarSystem[planetName]; exists {
-				if _, moonExists := planet.Moons[moonName]; moonExists {
-					return true
-				}
+			moon, found := findObjectByName(celestialObjects, moonName)
+			if !found  || !strings.EqualFold(moon.ParentName,planetName) {
+				return false
 			}
+			return true
 		}
 	}
 

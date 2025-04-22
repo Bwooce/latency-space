@@ -13,6 +13,38 @@ import (
 	"time"
 )
 
+// SOCKS constants
+const (
+	SOCKS5_VERSION = 0x05
+
+	// Authentication methods
+	SOCKS5_NO_AUTH                = 0x00
+	SOCKS5_AUTH_GSSAPI            = 0x01
+	SOCKS5_AUTH_USERNAME_PASSWORD = 0x02
+	SOCKS5_AUTH_NO_ACCEPTABLE     = 0xFF
+
+	// Command types
+	SOCKS5_CMD_CONNECT      = 0x01
+	SOCKS5_CMD_BIND         = 0x02
+	SOCKS5_CMD_UDP_ASSOCIATE = 0x03
+
+	// Address types
+	SOCKS5_ADDR_IPV4   = 0x01
+	SOCKS5_ADDR_DOMAIN = 0x03
+	SOCKS5_ADDR_IPV6   = 0x04
+
+	// Reply codes
+	SOCKS5_REP_SUCCESS            = 0x00
+	SOCKS5_REP_GENERAL_FAILURE    = 0x01
+	SOCKS5_REP_CONN_NOT_ALLOWED   = 0x02
+	SOCKS5_REP_NETWORK_UNREACHABLE = 0x03
+	SOCKS5_REP_HOST_UNREACHABLE    = 0x04
+	SOCKS5_REP_CONN_REFUSED       = 0x05
+	SOCKS5_REP_TTL_EXPIRED        = 0x06
+	SOCKS5_REP_CMD_NOT_SUPPORTED  = 0x07
+	SOCKS5_REP_ADDR_NOT_SUPPORTED = 0x08
+)
+
 // SOCKSHandler handles SOCKS protocol connections
 type SOCKSHandler struct {
 	conn     net.Conn
@@ -179,9 +211,9 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	}
 
 	// Extract celestial body and apply latency
-	celestialBody, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
-	if celestialBody == nil {
-		_, bodyName = solarSystem["earth"], "earth"
+	_, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
+	if bodyName == "" {
+		bodyName = "Earth"
 	}
 
 	// Calculate latency based on celestial distance
@@ -379,9 +411,9 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 		
 		// Get the celestial body name for logging
 		bodyName := parts[bodyIndex]
-		celestialBody, _ := getCelestialBody(bodyName)
+		_, found := findObjectByName(celestialObjects, bodyName)
 		
-		if celestialBody == nil {
+		if !found {
 			return "", fmt.Errorf("unknown celestial body: %s", bodyName)
 		}
 		
@@ -410,7 +442,7 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 }
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
-func getCelestialBodyFromConn(addr net.Addr) (*CelestialBody, string) {
+func getCelestialBodyFromConn(addr net.Addr) (CelestialObject, string) {
 	host := addr.String()
 	
 	// Extract the host part without port
@@ -428,11 +460,10 @@ func getCelestialBodyFromConn(addr net.Addr) (*CelestialBody, string) {
 			// The celestial body is the second-to-last part before "latency.space"
 			bodyIndex := len(parts) - 3
 			bodyName := parts[bodyIndex]
-			celestialBody, fullName := getCelestialBody(bodyName)
-			
-			if celestialBody != nil {
-				log.Printf("Using celestial body from domain: %s", fullName)
-				return celestialBody, fullName
+			celestialBody, found := findObjectByName(celestialObjects,bodyName)
+			if found {
+				log.Printf("Using celestial body from domain: %s", celestialBody.Name)
+				return celestialBody, celestialBody.Name
 			}
 		}
 	}
@@ -440,15 +471,15 @@ func getCelestialBodyFromConn(addr net.Addr) (*CelestialBody, string) {
 	// Check if the first part of the hostname is a celestial body
 	hostParts := strings.Split(host, ".")
 	if len(hostParts) > 0 {
-		body, bodyName := getCelestialBody(hostParts[0])
-		if body != nil {
-			log.Printf("Using celestial body from hostname: %s", bodyName)
-			return body, bodyName
+		body, found := findObjectByName(celestialObjects, hostParts[0])
+		if(found) {
+			log.Printf("Using celestial body from hostname: %s", body.Name)
+			return body, body.Name
 		}
 	}
 	
 	// For clients connecting directly via IP, use Earth with minimal latency for testing
 	log.Printf("No celestial body detected in hostname, using Earth for connection from %s", host)
-	// Default to Earth
-	return solarSystem["earth"], "earth"
+	body, _ := findObjectByName(celestialObjects, "Earth")
+	return body, body.Name
 }
