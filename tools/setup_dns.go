@@ -6,6 +6,7 @@ import (
 	"flag"
 	"github.com/cloudflare/cloudflare-go"
 	"log"
+    "strings"
 )
 
 // Use the same config from the symlinked config.go
@@ -40,7 +41,7 @@ func collectDomains() []string {
 
 	log.Printf("Processing spacecraft...")
 	for _, spacecraft := range GetSpacecraft() {
-		log.Printf("Adding spacecraft: %s", spacecraft.Name)
+		log.Printf("Adding spacecraft: %s", strings.ReplaceAll(spacecraft.Name," ","_"))
 		domains = append(domains, spacecraft.Name)
 	}
 
