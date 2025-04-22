@@ -164,7 +164,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	calculateDistancesFromEarth(celestialObjects, time.Now())
 
 	// Apply space latency
-	latency := calculateLatency(getCurrentDistance(bodyName) * 1e6)
+	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
 	log.Printf("Proxy request for %s via %s (latency: %v)", targetURL, bodyName, latency)
 	time.Sleep(latency)
 
@@ -505,6 +505,8 @@ func main() {
 	https := flag.Bool("https", true, "Enable HTTPS")
 
 	flag.Parse()
+
+	celestialObjects = InitSolarSystemObjects()
 
 	// Create and start the server
 	server := NewServer(*port, *https)

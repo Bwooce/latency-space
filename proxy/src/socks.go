@@ -217,7 +217,7 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	}
 
 	// Calculate latency based on celestial distance
-	latency := calculateLatency(getCurrentDistance(bodyName) * 1e6)
+	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks

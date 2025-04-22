@@ -11,11 +11,7 @@ import (
 
 var celestialObjects []CelestialObject
 
-func init() {
-	celestialObjects = InitSolarSystemObjects()
-}
-
-func calculateLatency(distanceKm float64) time.Duration {
+func CalculateLatency(distanceKm float64) time.Duration {
 	seconds := distanceKm / SPEED_OF_LIGHT
 	return time.Duration(seconds * float64(time.Second))
 }
