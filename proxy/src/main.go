@@ -261,7 +261,7 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, body CelestialObjec
 	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
 	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", name)
 
-	moons := getMoons(name)
+	moons := GetMoons(name)
 	if len(moons) > 0 {
 		fmt.Fprintf(w, "<h2>Moons</h2>")
 		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)

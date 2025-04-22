@@ -26,12 +26,12 @@ func collectDomains() []string {
 
 	log.Printf("Processing solar system bodies...")
 
-	for _, planet := range getPlanets() {
+	for _, planet := range GetPlanets() {
 		log.Printf("Adding planet: %s", planet.Name)
 		domains = append(domains, planet.Name)
 
 		// Add moons for each planet
-		for _, moon := range getMoons(planet.Name) {
+		for _, moon := range GetMoons(planet.Name) {
 			moonDomain := moon.Name + "." + planet.Name
 			log.Printf("Adding moon: %s", moonDomain)
 			domains = append(domains, moonDomain)
@@ -39,19 +39,19 @@ func collectDomains() []string {
 	}
 
 	log.Printf("Processing spacecraft...")
-	for _, spacecraft := range getSpacecraft() {
+	for _, spacecraft := range GetSpacecraft() {
 		log.Printf("Adding spacecraft: %s", spacecraft.Name)
 		domains = append(domains, spacecraft.Name)
 	}
 
 	log.Printf("Processing dwarf planets...")
-	for _, dwarf := range getDwarfPlanets() {
+	for _, dwarf := range GetDwarfPlanets() {
 		log.Printf("Adding spacecraft: %s", dwarf.Name)
 		domains = append(domains, dwarf.Name)
 	}
 
 	log.Printf("Processing asteroids...")
-	for _, asteroid := range getAsteroids() {
+	for _, asteroid := range GetAsteroids() {
 		log.Printf("Adding asteroid: %s", asteroid.Name)
 		domains = append(domains, asteroid.Name)
 	}

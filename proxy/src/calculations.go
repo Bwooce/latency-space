@@ -507,7 +507,7 @@ func getCurrentDistance(bodyName string) float64 {
 	return 0
 }
 
-func getMoons(bodyName string) []CelestialObject {
+func GetMoons(bodyName string) []CelestialObject {
 	moons := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
 		if obj.Type == "moon" && strings.EqualFold(obj.Name, bodyName) {
@@ -517,7 +517,7 @@ func getMoons(bodyName string) []CelestialObject {
 	return moons
 }
 
-func getPlanets() []CelestialObject {
+func GetPlanets() []CelestialObject {
 	planets := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
 		if obj.Type == "planet" {
@@ -527,7 +527,7 @@ func getPlanets() []CelestialObject {
 	return planets
 }
 
-func getSpacecraft() []CelestialObject {
+func GetSpacecraft() []CelestialObject {
 	spacecraft := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
 		if obj.Type == "spacecraft" {
@@ -537,7 +537,7 @@ func getSpacecraft() []CelestialObject {
 	return spacecraft
 }
 
-func getDwarfPlanets() []CelestialObject {
+func GetDwarfPlanets() []CelestialObject {
 	dwarfs := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
 		if obj.Type == "dwarf_planet" {
@@ -547,7 +547,7 @@ func getDwarfPlanets() []CelestialObject {
 	return dwarfs
 }
 
-func getAsteroids() []CelestialObject {
+func GetAsteroids() []CelestialObject {
 	asteroids := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
 		if obj.Type == "asteroid" {
