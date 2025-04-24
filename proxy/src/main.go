@@ -170,6 +170,12 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Apply space latency
 	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
 
+	// If there's no target URL, just display info about this celestial body
+	if targetURL == "" || targetURL == "/" {
+		s.displayCelestialInfo(w, celestialBody, bodyName, latency)
+		return
+	}
+
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
 	if latency < 1*time.Second {
@@ -187,12 +193,6 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		s.metrics.RecordRequest(bodyName, "http", time.Since(start))
 	}()
-
-	// If there's no target URL, just display info about this celestial body
-	if targetURL == "" || targetURL == "/" {
-		s.displayCelestialInfo(w, celestialBody, bodyName, latency)
-		return
-	}
 
 	// Apply bandwidth limiting
 	r.Header.Set("X-Celestial-Body", bodyName)
