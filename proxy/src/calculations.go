@@ -497,9 +497,8 @@ func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
 
 func getCurrentDistance(bodyName string) float64 {
 	calculateDistancesFromEarth(celestialObjects, time.Now()) // update if required
-	casedName := strings.ToTitle(bodyName)
 	for _, body := range distanceEntries {
-		if body.Object.Name == casedName {
+		if strings.EqualFold(body.Object.Name,bodyName) {
 			return body.Distance
 		}
 	}
