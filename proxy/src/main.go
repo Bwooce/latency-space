@@ -359,10 +359,12 @@ func (s *Server) startHTTPServer() error {
 }
 
 func (s *Server) startHTTPSServer() error {
+	nullLogger := log.New(io.Discard, "", 0)
 	s.httpsServer = &http.Server{
 		Addr:         ":443",
 		Handler:      http.HandlerFunc(s.handleHTTP),
 		TLSConfig:    setupTLS(),
+		ErrorLog: nullLogger, // don't really need these errors right now
 		ReadTimeout:  60 * time.Minute,  // Increased for distant celestial bodies
 		WriteTimeout: 60 * time.Minute,  // Increased for distant celestial bodies
 		IdleTimeout:  120 * time.Minute, // Allow long-lived connections
