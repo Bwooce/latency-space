@@ -296,24 +296,15 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		host = host[:idx]
 	}
 
-	// Check for debug endpoints which don't need celestial body processing
-	if strings.HasPrefix(reqURL.Path, "/_debug/") {
-		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
-		return reqURL.String(), celestialBody, celestialBody.Name
-	}
-
 	// Not a latency.space domain
 	if !strings.HasSuffix(host, ".latency.space") {
-		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
-		return reqURL.String(), celestialBody, celestialBody.Name
+		return "", CelestialObject{}, ""
 	}
 
 	// Extract parts: [subdomain, latency, space]
 	parts := strings.Split(host, ".")
 	if len(parts) < 3 || parts[len(parts)-1] != "space" || parts[len(parts)-2] != "latency" {
-		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
-		// Not a proper latency.space domain
-		return reqURL.String(), celestialBody, celestialBody.Name
+		return "", CelestialObject{}, ""
 	}
 
 	// If format is domain.body.latency.space
@@ -342,7 +333,7 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		if found {
 			return "", body, body.Name
 		} else {
-			return "", body, ""
+			return "", CelestialObject{}, ""
 		}
 	}
 
