@@ -160,7 +160,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Accessing for %s, via body %s", targetURL, bodyName)
+	log.Printf("Accessing for |%s|, via body |%s|", targetURL, bodyName)
 
 	if celestialObjects == nil {
 		log.Printf("Init celestial objects")
