@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"log"
 )
 
 var celestialObjects []CelestialObject
@@ -501,6 +502,7 @@ func getCurrentDistance(bodyName string) float64 {
 			return body.Distance
 		}
 	}
+	log.Printf("getCurrentDistance: invalid body %s", bodyName)
 	return 0
 }
 
