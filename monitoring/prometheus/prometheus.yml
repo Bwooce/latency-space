@@ -5,7 +5,7 @@ global:
 scrape_configs:
   - job_name: 'latency-proxy'
     static_configs:
-      - targets: ['172.18.0.4:9090']  # Using direct IP for proxy container
+      - targets: ['172.18.0.2:9090']  # Using direct IP for proxy container
 
   # Node exporter commented due to permission issues
   # - job_name: 'node'
