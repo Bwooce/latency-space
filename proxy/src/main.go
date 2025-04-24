@@ -129,7 +129,6 @@ func (s *Server) Stop() {
 // handleHTTP processes HTTP requests with celestial body latency
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Path being accessed: %s", r.URL.Path)
-	fmt.Println("TEST HANDLER CALLED:", r.URL.Path)
 
 	// Special case for metrics endpoint
 	if r.URL.Path == "/metrics" {
@@ -155,6 +154,8 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Process the host to determine if this is a celestial body request
 	targetURL, celestialBody, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
 
+	log.Printf("Accessing for %s, via body %s", targetURL, bodyName)
+
 	// Check if celestial body exists
 	if bodyName == "" {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
@@ -165,9 +166,6 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Init celestial objects")
 		celestialObjects = InitSolarSystemObjects()
 	}
-
-	// update the distance cache, if required
-	calculateDistancesFromEarth(celestialObjects, time.Now())
 
 	// Apply space latency
 	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
@@ -301,14 +299,12 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// Check for debug endpoints which don't need celestial body processing
 	if strings.HasPrefix(reqURL.Path, "/_debug/") {
 		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
-		// Default to Earth
 		return reqURL.String(), celestialBody, celestialBody.Name
 	}
 
 	// Not a latency.space domain
 	if !strings.HasSuffix(host, ".latency.space") {
 		celestialBody, _ := findObjectByName(celestialObjects, "Earth")
-		// Default to Earth
 		return reqURL.String(), celestialBody, celestialBody.Name
 	}
 
