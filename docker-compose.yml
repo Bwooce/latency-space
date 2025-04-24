@@ -1,27 +1,32 @@
 services:
   proxy:
-    build: 
+    build:
       context: ./proxy
       dockerfile: Dockerfile
     ports:
-      - "8080:80"      # Changed from 80:80 to avoid conflict with Nginx
-      - "8443:443"     # Changed from 443:443 to avoid conflict with Nginx
-      - "5355:53/udp"  # Changed from 53:53/udp to avoid conflict with system DNS
+      - "8080:80" # Changed from 80:80 to avoid conflict with Nginx
+      - "8443:443" # Changed from 443:443 to avoid conflict with Nginx
+      - "5355:53/udp" # Changed from 53:53/udp to avoid conflict with system DNS
       # Removed 5353:5353/udp as it's conflicting
-      - "1080:1080"     # SOCKS5 proxy
-      - "9090:9090"     # Prometheus metrics
+      - "1080:1080" # SOCKS5 proxy
+      - "9090:9090" # Prometheus metrics
     volumes:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
-      - proxy_certs:/app/certs  # For certificate persistence
+      - proxy_certs:/app/certs # For certificate persistence
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
     networks:
       - space-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   status:
-    build: 
+    build:
       context: ./status
       dockerfile: Dockerfile
     ports:
@@ -35,9 +40,14 @@ services:
       - space-net
     depends_on:
       - prometheus
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   prometheus:
-    build: 
+    build:
       context: ./monitoring/prometheus
       dockerfile: Dockerfile
     ports:
@@ -49,9 +59,14 @@ services:
     networks:
       - space-net
     user: "root" # Try running as root to avoid permission issues
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   grafana:
-    build: 
+    build:
       context: ./monitoring/grafana
       dockerfile: Dockerfile
     ports:
@@ -65,7 +80,11 @@ services:
       - space-net
     depends_on:
       - prometheus
-
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
   # Commented out node-exporter due to permission issues
   # node-exporter:
   #   image: prom/node-exporter:latest
