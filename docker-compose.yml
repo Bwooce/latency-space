@@ -59,7 +59,8 @@ services:
       # Use a copy command in Dockerfile instead of a bind mount
       # - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
-      - space-net
+      space-net:
+        ipv4_address: 172.18.0.3
     user: "root" # Try running as root to avoid permission issues
     logging:
       driver: "json-file"
@@ -79,7 +80,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     networks:
-      - space-net
+      space-net:
+        ipv4_address: 172.18.0.5
     depends_on:
       - prometheus
     logging:
