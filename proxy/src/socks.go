@@ -211,9 +211,10 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	}
 
 	// Extract celestial body and apply latency
-	_, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
-	if bodyName == "" {
-		bodyName = "Earth"
+	err, bodyName := getCelestialBodyFromConn(s.conn.RemoteAddr())
+	if err != nil {
+		log.Printf("No valid body found in %v, using Mars", s.conn.RemoteAddr())
+		bodyName = "Mars"
 	}
 
 	// Calculate latency based on celestial distance
@@ -442,7 +443,7 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 }
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
-func getCelestialBodyFromConn(addr net.Addr) (CelestialObject, string) {
+func getCelestialBodyFromConn(addr net.Addr) (error, string) {
 	host := addr.String()
 
 	// Extract the host part without port
@@ -463,7 +464,7 @@ func getCelestialBodyFromConn(addr net.Addr) (CelestialObject, string) {
 			celestialBody, found := findObjectByName(celestialObjects, bodyName)
 			if found {
 				log.Printf("Using celestial body from domain: %s", celestialBody.Name)
-				return celestialBody, celestialBody.Name
+				return nil, celestialBody.Name
 			}
 		}
 	}
@@ -474,12 +475,12 @@ func getCelestialBodyFromConn(addr net.Addr) (CelestialObject, string) {
 		body, found := findObjectByName(celestialObjects, hostParts[0])
 		if found {
 			log.Printf("Using celestial body from hostname: %s", body.Name)
-			return body, body.Name
+			return nil, body.Name
 		}
 	}
 
 	// For clients connecting directly via IP, use Earth with minimal latency for testing
-	log.Printf("No celestial body detected in hostname, using Earth for connection from %s", host)
-	body, _ := findObjectByName(celestialObjects, "Earth")
-	return body, body.Name
+	log.Printf("No celestial body detected in hostname, using Mars for connection from |%s|", host)
+	body, _ := findObjectByName(celestialObjects, "Mars")
+	return nil, body.Name
 }
