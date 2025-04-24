@@ -500,7 +500,7 @@ func getCurrentDistance(bodyName string) float64 {
 	calculateDistancesFromEarth(celestialObjects, time.Now()) // update if required
 	log.Printf("Size of distanceObjects: %d", len(distanceEntries))
 	for _, body := range distanceEntries {
-		log.Printf("body: %s, type: %s", body.Object.Name, body.Object.Type)
+		//log.Printf("body: %s, type: %s", body.Object.Name, body.Object.Type)
 		if strings.EqualFold(body.Object.Name,bodyName) {
 			return body.Distance
 		}
