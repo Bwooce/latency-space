@@ -128,7 +128,7 @@ func (s *Server) Stop() {
 
 // handleHTTP processes HTTP requests with celestial body latency
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Host %s, Path being accessed: %s", r.Host, r.URL.Path)
+	//log.Printf("Host %s, Path being accessed: %s", r.Host, r.URL.Path)
 
 	// Special case for metrics endpoint
 	if r.URL.Path == "/metrics" {
@@ -154,13 +154,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Process the host to determine if this is a celestial body request
 	targetURL, celestialBody, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
 
-	log.Printf("Accessing for %s, via body %s", targetURL, bodyName)
-
 	// Check if celestial body exists
 	if bodyName == "" {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("Accessing for %s, via body %s", targetURL, bodyName)
 
 	if celestialObjects == nil {
 		log.Printf("Init celestial objects")
