@@ -128,7 +128,7 @@ func (s *Server) Stop() {
 
 // handleHTTP processes HTTP requests with celestial body latency
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Path being accessed: %s", r.URL.Path)
+	log.Printf("Host %s, Path being accessed: %s", r.Host, r.URL.Path)
 
 	// Special case for metrics endpoint
 	if r.URL.Path == "/metrics" {
