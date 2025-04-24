@@ -152,7 +152,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the host to determine if this is a celestial body request
-	targetURL, celestialBody, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
+	targetURL, _, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
 
 	// Check if celestial body exists
 	if bodyName == "" {
@@ -167,14 +167,14 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		celestialObjects = InitSolarSystemObjects()
 	}
 
-	// Apply space latency
-	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
-
 	// If there's no target URL, just display info about this celestial body
 	if targetURL == "" || targetURL == "/" {
-		s.displayCelestialInfo(w, celestialBody, bodyName, latency)
+		s.displayCelestialInfo(w, bodyName)
 		return
 	}
+
+	// Apply space latency
+	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
@@ -252,14 +252,17 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // displayCelestialInfo shows information about the celestial body
-func (s *Server) displayCelestialInfo(w http.ResponseWriter, body CelestialObject, name string, latency time.Duration) {
+func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
+
+	distance := getCurrentDistance(name)
+	latency := CalculateLatency(distance * 1e6)
 
 	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
 	fmt.Fprintf(w, "<h1>%s</h1>", name)
 	fmt.Fprintf(w, "<p>You are accessing the Solar System through %s.</p>", name)
-	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", getCurrentDistance(name))
+	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance)
 	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency)
 	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency)
 

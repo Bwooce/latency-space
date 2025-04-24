@@ -111,7 +111,7 @@ func setupTLS() *tls.Config {
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			// Handle missing SNI
 			if hello.ServerName == "" {
-				log.Printf("Client from %s did not provide SNI", hello.Conn.RemoteAddr())
+				//log.Printf("Client from %s did not provide SNI", hello.Conn.RemoteAddr())
 				if defaultCert != nil {
 					return defaultCert, nil
 				}
