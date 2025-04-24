@@ -257,7 +257,7 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	w.WriteHeader(http.StatusOK)
 
 	distance := getCurrentDistance(name)
-	latency := CalculateLatency(distance * 1e6)
+	latency := CalculateLatency(distance)
 
 	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
 	fmt.Fprintf(w, "<h1>%s</h1>", name)
