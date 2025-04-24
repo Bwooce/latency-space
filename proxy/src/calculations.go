@@ -460,7 +460,8 @@ var distanceEntries []DistanceEntry // store the current distances
 // Calculate distances from Earth to all objects
 func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
 
-	if time.Since(lastDistanceUpdate) < time.Hour {
+	if distanceEntries == nil || time.Since(lastDistanceUpdate) < time.Hour {
+		log.Printf("No distances update required")
 		return
 	}
 

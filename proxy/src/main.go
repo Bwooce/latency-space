@@ -162,6 +162,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if celestialObjects == nil {
+		log.Printf("Init celestial objects")
 		celestialObjects = InitSolarSystemObjects()
 	}
 
