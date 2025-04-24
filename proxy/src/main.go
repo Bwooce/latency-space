@@ -174,7 +174,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply space latency
-	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
+	latency := CalculateLatency(getCurrentDistance(bodyName))
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
