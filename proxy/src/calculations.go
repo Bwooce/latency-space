@@ -462,7 +462,7 @@ func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
 
 	if distanceEntries == nil || time.Since(lastDistanceUpdate) < time.Hour {
 		log.Printf("No distances update required")
-		return
+		//return
 	}
 
 	// Find Earth
