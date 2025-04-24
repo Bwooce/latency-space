@@ -262,9 +262,9 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
 	fmt.Fprintf(w, "<h1>%s</h1>", name)
 	fmt.Fprintf(w, "<p>You are accessing the Solar System through %s.</p>", name)
-	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance)
-	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency)
-	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency)
+	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance / 1e6)
+	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency.Round(time.Minute))
+	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency.Round(time.Minute))
 
 	fmt.Fprintf(w, "<h2>Usage</h2>")
 	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
