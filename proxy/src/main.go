@@ -130,6 +130,7 @@ func (s *Server) Stop() {
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Path being accessed: %s", r.URL.Path)
 	fmt.Println("TEST HANDLER CALLED:", r.URL.Path)
+
 	// Special case for metrics endpoint
 	if r.URL.Path == "/metrics" {
 		promhttp.Handler().ServeHTTP(w, r)
@@ -158,6 +159,10 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	if bodyName == "" {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
+	}
+
+	if celestialObjects == nil {
+		celestialObjects = InitSolarSystemObjects()
 	}
 
 	// update the distance cache, if required
