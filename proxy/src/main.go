@@ -165,6 +165,16 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Apply space latency
 	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
+
+	// Anti-DDoS: Only allow bodies with significant latency (>1s)
+	// This prevents the proxy from being used for DDoS attacks
+	if latency < 1*time.Second {
+		log.Printf("Rejecting connection with insufficient latency: %s (%.2f ms)",
+			bodyName, latency.Seconds()*1000)
+		http.Error(w, "rejecting request with insufficient latency", http.StatusBadRequest)
+		return
+	}
+
 	log.Printf("Proxy request for %s via %s (latency: %v)", targetURL, bodyName, latency)
 	time.Sleep(latency)
 
