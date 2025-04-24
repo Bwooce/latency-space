@@ -609,7 +609,7 @@ func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string)
 			entry.Object.Type,
 			entry.Distance,
 			FormatDistance(entry.Distance),
-			CalculateLatency(entry.Distance*2).String(),
+			CalculateLatency(entry.Distance*2).Round(time.Second).String(),
 			visibility)
 	}
 }
