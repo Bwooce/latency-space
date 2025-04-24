@@ -18,7 +18,8 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     networks:
-      - space-net
+      - space-net:
+          ipv4_address: 172.18.0.2
     logging:
       driver: "json-file"
       options:
@@ -37,7 +38,8 @@ services:
       - PROMETHEUS_IP=prometheus
       - PROXY_IP=proxy
     networks:
-      - space-net
+      - space-net:
+          ipv4_address: 172.18.0.4
     depends_on:
       - prometheus
     logging:
@@ -108,6 +110,10 @@ services:
 networks:
   space-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
 
 volumes:
   prometheus_data:
