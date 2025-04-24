@@ -252,14 +252,14 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, body CelestialObjec
 	fmt.Fprintf(w, "<h2>Usage</h2>")
 	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
 	fmt.Fprintf(w, "<ul>")
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", name)
-	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", name)
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", name)
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", strings.ToLower(name))
+	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", strings.ToLower(name))
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", strings.ToLower(name))
 	fmt.Fprintf(w, "</ul>")
 
 	fmt.Fprintf(w, "<h2>SOCKS5 Proxy</h2>")
 	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
-	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", name)
+	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", strings.ToLower(name))
 
 	moons := GetMoons(name)
 	if len(moons) > 0 {
