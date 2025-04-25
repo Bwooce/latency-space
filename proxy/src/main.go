@@ -196,8 +196,33 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Find the target and Earth objects
+	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	if !targetFound {
+		log.Printf("Error: Target celestial body '%s' not found after host parsing.", bodyName)
+		http.Error(w, "Internal server error: Target body not found", http.StatusInternalServerError)
+		return
+	}
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	if !earthFound {
+		log.Printf("Error: Earth celestial object not found.")
+		http.Error(w, "Internal server error: Earth object configuration missing", http.StatusInternalServerError)
+		return
+	}
+
+	// Check for occlusion
+	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+	if occluded {
+		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+		log.Printf("HTTP connection to %s rejected: occluded by %s", bodyName, occluder.Name)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, "Connection refused: Target body '%s' is occluded by '%s'.", bodyName, occluder.Name)
+		return
+	}
+
 	// Apply space latency
-	latency := CalculateLatency(getCurrentDistance(bodyName))
+	distance := getCurrentDistance(bodyName) // Use the existing function for distance
+	latency := CalculateLatency(distance)
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
@@ -288,6 +313,28 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance / 1e6)
 	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency.Round(time.Second))
 	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency.Round(time.Second))
+
+	// --- Occlusion Check ---
+	targetObject, targetFound := findObjectByName(celestialObjects, name)
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+
+	if !targetFound {
+		log.Printf("Error: Target celestial body '%s' not found in displayCelestialInfo.", name)
+		// Don't write error to response, just log it, as basic info is already printed
+	} else if !earthFound {
+		log.Printf("Error: Earth celestial object not found in displayCelestialInfo.")
+		// Don't write error to response, just log it
+	} else {
+		occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+		if occluded {
+			// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluder.Name)
+		} else {
+			fmt.Fprintf(w, `<p style="color: green;">Status: Visible</p>`)
+		}
+	}
+	// --- End Occlusion Check ---
+
 
 	fmt.Fprintf(w, "<h2>Usage</h2>")
 	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)

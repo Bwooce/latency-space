@@ -214,10 +214,42 @@ func (s *SOCKSHandler) handleClientRequest() error {
 	bodyName, err := getCelestialBodyFromConn(s.conn.RemoteAddr())
 	if err != nil {
 		log.Printf("No valid body found in %v: %v", s.conn.RemoteAddr(), err)
+		// If no body is found, getCelestialBodyFromConn defaults to Mars, so proceed
 	}
 
+	// --- Occlusion Check ---
+	if celestialObjects == nil {
+		log.Printf("Error: celestialObjects not initialized during SOCKS request.")
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("internal server error: celestial objects not initialized")
+	}
+
+	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	if !targetFound {
+		log.Printf("Error: SOCKS: Target celestial body '%s' not found.", bodyName)
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("internal server error: target body '%s' not found", bodyName)
+	}
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	if !earthFound {
+		log.Printf("Error: SOCKS: Earth celestial object not found.")
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("internal server error: earth object configuration missing")
+	}
+
+	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+	if occluded {
+		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+		log.Printf("SOCKS connection to %s rejected: occluded by %s", bodyName, occluder.Name)
+		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0) // Host unreachable due to occlusion
+		// Return an error indicating the reason for rejection
+		return fmt.Errorf("SOCKS connection rejected: %s occluded by %s", bodyName, occluder.Name)
+	}
+	// --- End Occlusion Check ---
+
 	// Calculate latency based on celestial distance
-	latency := CalculateLatency(getCurrentDistance(bodyName) * 1e6)
+	distance := getCurrentDistance(bodyName) // Get distance for latency calc
+	latency := CalculateLatency(distance)
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
