@@ -336,8 +336,8 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	parts := strings.Split(host, ".")
 	numParts := len(parts)
 
-	// Basic validation (case-insensitive check for "latency" and "space")
-	if numParts < 3 || strings.ToLower(parts[numParts-1]) != "space" || strings.ToLower(parts[numParts-2]) != "latency" {
+	// Basic validation (using strings.EqualFold for case-insensitive checks)
+	if numParts < 3 || !strings.EqualFold(parts[numParts-1], "space") || !strings.EqualFold(parts[numParts-2], "latency") {
 		return "", CelestialObject{}, "" // Invalid format: doesn't end in .latency.space
 	}
 
