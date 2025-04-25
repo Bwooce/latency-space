@@ -238,8 +238,8 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Copy headers from original request
 	for name, values := range r.Header {
-		// Skip host header
-		if strings.ToLower(name) != "host" {
+		// Skip host header (case-insensitive check)
+		if !strings.EqualFold(name, "host") {
 			for _, value := range values {
 				proxyReq.Header.Add(name, value)
 			}
@@ -384,8 +384,8 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		potentialBodyName := parts[numParts-3]
 		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
 
-		// Check if body is found and is not a moon (to avoid conflict with moon.planet format)
-		if bodyFound && body.Type != "moon" {
+		// Check if body is found and is not a moon (case-insensitive check to avoid conflict with moon.planet format)
+		if bodyFound && !strings.EqualFold(body.Type, "moon") {
 			targetDomain := ""
 			if numParts >= 4 { // Only extract target if there are enough parts
 				targetDomain = strings.Join(parts[:numParts-3], ".")
