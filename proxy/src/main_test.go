@@ -150,9 +150,9 @@ func TestParseHostForCelestialBody(t *testing.T) {
 				t.Errorf("host '%s': expected target URL '%s', got '%s'", tc.host, tc.expectedURL, actualURL)
 			}
 
-			// Check body name (case-insensitive comparison for robustness, although findObjectByName should handle it)
-			if strings.ToLower(actualBodyName) != strings.ToLower(tc.expectedBodyName) {
-				t.Errorf("host '%s': expected body name '%s', got '%s'", tc.host, tc.expectedBodyName, actualBodyName)
+			// Check body name (case-insensitive comparison)
+			if !strings.EqualFold(actualBodyName, tc.expectedBodyName) {
+				t.Errorf("host '%s': expected body name '%s' (case-insensitive), got '%s'", tc.host, tc.expectedBodyName, actualBodyName)
 			}
 
 			// Check the returned CelestialObject itself (by comparing names as a proxy, assuming names are unique in test data)
