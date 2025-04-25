@@ -545,21 +545,38 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		distEntry, found := distanceEntries[obj.Name]
-		if !found {
-			log.Printf("Warning: Distance entry not found for %s in handleStatusData", obj.Name)
-			continue // Skip if no distance data (should not happen after calculateDistances)
+		// Find the corresponding distance entry by iterating through the slice
+		var distance float64
+		var occluded bool
+		var found bool // Flag to track if the entry was found
+
+		for _, entry := range distanceEntries {
+			// Compare names case-insensitively
+			if strings.EqualFold(entry.Object.Name, obj.Name) {
+				distance = entry.Distance
+				occluded = entry.Occluded
+				found = true
+				break // Found the matching entry, exit the inner loop
+			}
 		}
 
-		latency := CalculateLatency(distEntry.Distance)
+		// Check if the entry was found in the slice
+		if !found {
+			log.Printf("Warning: Distance entry not found for %s in handleStatusData slice lookup", obj.Name)
+			continue // Skip this object if no distance data is found
+		}
 
+		// Calculate latency using the found distance
+		latency := CalculateLatency(distance)
+
+		// Create the status entry using the found data
 		entry := StatusEntry{
 			Name:       obj.Name,
 			Type:       obj.Type,
 			ParentName: obj.ParentName,
-			Distance:   distEntry.Distance,
+			Distance:   distance,
 			Latency:    latency / time.Second, // Convert to seconds for JSON
-			Occluded:   distEntry.Occluded,
+			Occluded:   occluded,
 		}
 
 		// Group objects by type
