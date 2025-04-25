@@ -327,8 +327,8 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		celestialObjects = InitSolarSystemObjects()
 	}
 
-	// Check if it's a latency.space domain
-	if !strings.HasSuffix(host, ".latency.space") {
+	// Check if it's a latency.space domain (case-insensitive)
+	if !strings.HasSuffix(strings.ToLower(host), ".latency.space") {
 		return "", CelestialObject{}, ""
 	}
 
@@ -336,9 +336,9 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	parts := strings.Split(host, ".")
 	numParts := len(parts)
 
-	// Basic validation
-	if numParts < 3 || parts[numParts-1] != "space" || parts[numParts-2] != "latency" {
-		return "", CelestialObject{}, "" // Invalid format
+	// Basic validation (case-insensitive check for "latency" and "space")
+	if numParts < 3 || strings.ToLower(parts[numParts-1]) != "space" || strings.ToLower(parts[numParts-2]) != "latency" {
+		return "", CelestialObject{}, "" // Invalid format: doesn't end in .latency.space
 	}
 
 	// Case 1: [target].[moon].[planet].latency.space (>= 5 parts)
@@ -350,8 +350,25 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		moon, moonFound := findObjectByName(celestialObjects, potentialMoonName)
 		planet, planetFound := findObjectByName(celestialObjects, potentialPlanetName)
 
-		// Check if both are found and have the correct types and relationship
-		if moonFound && planetFound && moon.Type == "moon" && (planet.Type == "planet" || planet.Type == "dwarf_planet") && moon.ParentName == planet.Name {
+		// If both potential moon and planet are found, perform strict validation
+		if moonFound && planetFound {
+			// 1. Check if the identified 'moon' is actually a moon type
+			if moon.Type != "moon" {
+				// If not a moon, this format is invalid, return empty
+				return "", CelestialObject{}, ""
+			}
+			// 2. Check if the identified 'planet' is a valid parent type
+			if !(planet.Type == "planet" || planet.Type == "dwarf_planet") {
+				// If the parent is not a planet/dwarf_planet, invalid format
+                return "", CelestialObject{}, ""
+			}
+            // 3. Check if the moon's parent matches the identified planet (case-insensitive)
+            if !strings.EqualFold(moon.ParentName, planet.Name) {
+                // Invalid parent relationship, return empty
+                return "", CelestialObject{}, ""
+            }
+
+            // If all checks pass, proceed to extract target and return moon
 			targetDomain := ""
 			if numParts >= 5 { // Only extract target if there are enough parts
 				targetDomain = strings.Join(parts[:numParts-4], ".")
