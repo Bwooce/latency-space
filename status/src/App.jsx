@@ -33,13 +33,21 @@ export default function StatusDashboard() {
       setError(null);   // Clear previous errors
       try {
         const response = await fetch('/api/status-data');
+
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const errorText = await response.text(); // Read response body as text
+          throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
         }
-        const data = await response.json();
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error(`Expected application/json but received ${contentType}`);
+        }
+
+        const data = await response.json(); // Now safe to parse as JSON
         setStatusData(data);
       } catch (e) {
-        console.error("Failed to fetch status data:", e);
+        console.error("Failed to fetch status data:", e.message); // Log the more informative error
         setError(`Failed to load data: ${e.message}`);
       } finally {
         setLoading(false);
