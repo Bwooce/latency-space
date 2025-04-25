@@ -31,7 +31,7 @@ type StatusEntry struct {
 	Type       string        `json:"type"`
 	ParentName string        `json:"parentName,omitempty"` // Omit if empty
 	Distance   float64       `json:"distance_km"`
-	Latency    time.Duration `json:"latency_seconds"`
+	Latency    float64       `json:"latency_seconds"` // Changed type to float64
 	Occluded   bool          `json:"occluded"`
 }
 
@@ -641,7 +641,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 			Type:       obj.Type,
 			ParentName: obj.ParentName,
 			Distance:   distance,
-			Latency:    latency / time.Second, // Convert to seconds for JSON
+			Latency:    float64(latency / time.Second), // Explicitly convert to float64
 			Occluded:   occluded,
 		}
 
@@ -649,6 +649,9 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 		objectTypeKey := obj.Type + "s" // e.g., "planets", "moons"
 		response.Objects[objectTypeKey] = append(response.Objects[objectTypeKey], entry)
 	}
+
+	// Add debug log before marshaling
+	log.Printf("DEBUG: API Response data before marshaling: %+v\n", response)
 
 	// Marshal the response to JSON
 	jsonData, err := json.MarshalIndent(response, "", "  ") // Use Indent for readability
