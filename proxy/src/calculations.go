@@ -512,7 +512,7 @@ func getCurrentDistance(bodyName string) float64 {
 func GetMoons(bodyName string) []CelestialObject {
 	moons := make([]CelestialObject, 0)
 	for _, obj := range celestialObjects {
-		if obj.Type == "moon" && strings.EqualFold(obj.Name, bodyName) {
+		if obj.Type == "moon" && strings.EqualFold(obj.ParentName, bodyName) {
 			moons = append(moons, obj)
 		}
 	}
