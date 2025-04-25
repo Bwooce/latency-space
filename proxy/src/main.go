@@ -327,8 +327,10 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		celestialObjects = InitSolarSystemObjects()
 	}
 
-	// Check if it's a latency.space domain (case-insensitive)
-	if !strings.HasSuffix(strings.ToLower(host), ".latency.space") {
+	// Check if it's a latency.space domain (case-insensitive manual check)
+	suffix := ".latency.space"
+	if len(host) < len(suffix) || !strings.EqualFold(host[len(host)-len(suffix):], suffix) {
+		// Host does NOT end with ".latency.space" case-insensitively
 		return "", CelestialObject{}, ""
 	}
 
