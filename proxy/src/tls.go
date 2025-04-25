@@ -26,7 +26,7 @@ func isValidSubdomain(host string) bool {
 	}
 
 	// Check if it's a standard subdomain (e.g., mars.latency.space)
-	if len(parts) == 3 && parts[1] == "latency" && parts[2] == "space" {
+	if len(parts) == 3 && strings.EqualFold(parts[1], "latency") && strings.EqualFold(parts[2], "space") {
 		// Verify it's a valid celestial body
 		_, found := findObjectByName(celestialObjects, parts[0])
 		if found {
@@ -35,7 +35,7 @@ func isValidSubdomain(host string) bool {
 	}
 
 	// Check if it's a moon subdomain (e.g., enceladus.saturn.latency.space)
-	if len(parts) == 4 && parts[2] == "latency" && parts[3] == "space" {
+	if len(parts) == 4 && strings.EqualFold(parts[2], "latency") && strings.EqualFold(parts[3], "space") {
 		moon, found := findObjectByName(celestialObjects, parts[1])
 		if !found {
 			return false
@@ -48,7 +48,7 @@ func isValidSubdomain(host string) bool {
 
 	// Check if it's our domain.body.latency.space format
 	// Any domain followed by a valid celestial body and latency.space is valid
-	if len(parts) >= 3 && parts[len(parts)-2] == "latency" && parts[len(parts)-1] == "space" {
+	if len(parts) >= 3 && strings.EqualFold(parts[len(parts)-2], "latency") && strings.EqualFold(parts[len(parts)-1], "space") {
 		bodyName := parts[len(parts)-3]
 		// Check if it's a valid celestial body
 		_, found := findObjectByName(celestialObjects, bodyName)

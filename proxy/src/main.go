@@ -18,11 +18,28 @@ import (
 	"syscall"
 	"time"
 
+	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Ensure tls package is used - needed for TLS configuration
 var _ = tls.Config{}
+
+// StatusEntry represents the data for a single celestial object in the status API
+type StatusEntry struct {
+	Name       string        `json:"name"`
+	Type       string        `json:"type"`
+	ParentName string        `json:"parentName,omitempty"` // Omit if empty
+	Distance   float64       `json:"distance_km"`
+	Latency    time.Duration `json:"latency_seconds"`
+	Occluded   bool          `json:"occluded"`
+}
+
+// ApiResponse is the structure for the /api/status-data endpoint response
+type ApiResponse struct {
+	Timestamp time.Time              `json:"timestamp"`
+	Objects   map[string][]StatusEntry `json:"objects"` // Keyed by object type (e.g., "planets", "moons")
+}
 
 // Server is the main latency proxy server
 type Server struct {
@@ -136,14 +153,20 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// API endpoint for status data
+	if r.URL.Path == "/api/status-data" {
+		s.handleStatusData(w, r)
+		return
+	}
+
 	// Special case for debug endpoints
 	if strings.HasPrefix(r.URL.Path, "/_debug/") {
 		s.handleDebugEndpoint(w, r)
 		return
 	}
 
-	// Handle CORS preflight for debug endpoints
-	if r.Method == "OPTIONS" && strings.HasPrefix(r.URL.Path, "/_debug/") {
+	// Handle CORS preflight for API and debug endpoints
+	if r.Method == "OPTIONS" && (strings.HasPrefix(r.URL.Path, "/_debug/") || r.URL.Path == "/api/status-data") {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
@@ -215,8 +238,8 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Copy headers from original request
 	for name, values := range r.Header {
-		// Skip host header
-		if strings.ToLower(name) != "host" {
+		// Skip host header (case-insensitive check)
+		if !strings.EqualFold(name, "host") {
 			for _, value := range values {
 				proxyReq.Header.Add(name, value)
 			}
@@ -299,47 +322,92 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		host = host[:idx]
 	}
 
-	// Not a latency.space domain
-	if !strings.HasSuffix(host, ".latency.space") {
+	// Ensure celestial objects are initialized
+	if celestialObjects == nil {
+		celestialObjects = InitSolarSystemObjects()
+	}
+
+	// Check if it's a latency.space domain (case-insensitive manual check)
+	suffix := ".latency.space"
+	if len(host) < len(suffix) || !strings.EqualFold(host[len(host)-len(suffix):], suffix) {
+		// Host does NOT end with ".latency.space" case-insensitively
 		return "", CelestialObject{}, ""
 	}
 
-	// Extract parts: [subdomain, latency, space]
+	// Extract parts: [..., body, latency, space] or [..., moon, planet, latency, space]
 	parts := strings.Split(host, ".")
-	if len(parts) < 3 || parts[len(parts)-1] != "space" || parts[len(parts)-2] != "latency" {
-		return "", CelestialObject{}, ""
+	numParts := len(parts)
+
+	// Basic validation (using strings.EqualFold for case-insensitive checks)
+	if numParts < 3 || !strings.EqualFold(parts[numParts-1], "space") || !strings.EqualFold(parts[numParts-2], "latency") {
+		return "", CelestialObject{}, "" // Invalid format: doesn't end in .latency.space
 	}
 
-	// If format is domain.body.latency.space
-	// Extract the celestial body and target domain
-	if len(parts) >= 3 {
-		// The celestial body is the second-to-last part before "latency.space"
-		bodyIndex := len(parts) - 3
+	// Case 1: [target].[moon].[planet].latency.space (>= 5 parts)
+	// Case 2: [moon].[planet].latency.space (4 parts, target is empty)
+	if numParts >= 4 {
+		potentialMoonName := parts[numParts-4]
+		potentialPlanetName := parts[numParts-3]
 
-		// Everything before the celestial body is the target domain
-		targetParts := parts[:bodyIndex]
-		targetDomain := strings.Join(targetParts, ".")
+		moon, moonFound := findObjectByName(celestialObjects, potentialMoonName)
+		planet, planetFound := findObjectByName(celestialObjects, potentialPlanetName)
 
-		// Get the celestial body
-		bodyName := parts[bodyIndex]
-		celestialBody, found := findObjectByName(celestialObjects, bodyName)
+		// If both potential moon and planet are found, perform strict validation
+		if moonFound && planetFound {
+			// 1. Check if the identified 'moon' is actually a moon type
+			if moon.Type != "moon" {
+				// If not a moon, this format is invalid, return empty
+				return "", CelestialObject{}, ""
+			}
+			// 2. Check if the identified 'planet' is a valid parent type
+			if !(planet.Type == "planet" || planet.Type == "dwarf_planet") {
+				// If the parent is not a planet/dwarf_planet, invalid format
+                return "", CelestialObject{}, ""
+			}
+            // 3. Check if the moon's parent matches the identified planet (case-insensitive)
+            if !strings.EqualFold(moon.ParentName, planet.Name) {
+                // Invalid parent relationship, return empty
+                return "", CelestialObject{}, ""
+            }
 
-		if found {
-			return targetDomain, celestialBody, celestialBody.Name
+            // If all checks pass, proceed to extract target and return moon
+			targetDomain := ""
+			if numParts >= 5 { // Only extract target if there are enough parts
+				targetDomain = strings.Join(parts[:numParts-4], ".")
+			}
+			// Return the moon as the final body
+			return targetDomain, moon, moon.Name
 		}
 	}
 
-	// Default behavior for standard celestial body subdomains
-	hostParts := strings.Split(host, ".")
-	if len(hostParts) > 0 {
-		body, found := findObjectByName(celestialObjects, hostParts[0])
-		if found {
+	// Case 3: [target].[planet].latency.space (>= 4 parts)
+	// Case 4: [planet].latency.space (3 parts, target is empty)
+	if numParts >= 3 {
+		potentialBodyName := parts[numParts-3]
+		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
+
+		// Check if body is found and is not a moon (case-insensitive check to avoid conflict with moon.planet format)
+		if bodyFound && !strings.EqualFold(body.Type, "moon") {
+			targetDomain := ""
+			if numParts >= 4 { // Only extract target if there are enough parts
+				targetDomain = strings.Join(parts[:numParts-3], ".")
+			}
+			// Return the planet/other body
+			return targetDomain, body, body.Name
+		}
+	}
+
+	// If none of the specific formats match, try the simple [body].latency.space format
+	// This handles the case where someone just goes to mars.latency.space
+	if numParts == 3 {
+		potentialBodyName := parts[0]
+		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
+		if bodyFound {
 			return "", body, body.Name
-		} else {
-			return "", CelestialObject{}, ""
 		}
 	}
 
+	// If no valid format is found
 	return "", CelestialObject{}, ""
 }
 
@@ -472,6 +540,83 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	printObjectsByType(w, distanceEntries, "dwarf_planet")
 	printObjectsByType(w, distanceEntries, "spacecraft")
 
+}
+
+// handleStatusData provides celestial body status data as JSON
+func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
+	// Set CORS and Content-Type headers
+	w.Header().Set("Access-Control-Allow-Origin", "*") // Allow requests from any origin
+	w.Header().Set("Content-Type", "application/json")
+
+	// Ensure distance data is up-to-date
+	now := time.Now()
+	calculateDistancesFromEarth(celestialObjects, now) // Refresh cache
+
+	// Prepare the response structure
+	response := ApiResponse{
+		Timestamp: now,
+		Objects:   make(map[string][]StatusEntry),
+	}
+
+	// Populate the response data
+	for _, obj := range celestialObjects {
+		if obj.Type == "star" { // Skip the Sun for this endpoint
+			continue
+		}
+
+		// Find the corresponding distance entry by iterating through the slice
+		var distance float64
+		var occluded bool
+		var found bool // Flag to track if the entry was found
+
+		for _, entry := range distanceEntries {
+			// Compare names case-insensitively
+			if strings.EqualFold(entry.Object.Name, obj.Name) {
+				distance = entry.Distance
+				occluded = entry.Occluded
+				found = true
+				break // Found the matching entry, exit the inner loop
+			}
+		}
+
+		// Check if the entry was found in the slice
+		if !found {
+			log.Printf("Warning: Distance entry not found for %s in handleStatusData slice lookup", obj.Name)
+			continue // Skip this object if no distance data is found
+		}
+
+		// Calculate latency using the found distance
+		latency := CalculateLatency(distance)
+
+		// Create the status entry using the found data
+		entry := StatusEntry{
+			Name:       obj.Name,
+			Type:       obj.Type,
+			ParentName: obj.ParentName,
+			Distance:   distance,
+			Latency:    latency / time.Second, // Convert to seconds for JSON
+			Occluded:   occluded,
+		}
+
+		// Group objects by type
+		objectTypeKey := obj.Type + "s" // e.g., "planets", "moons"
+		response.Objects[objectTypeKey] = append(response.Objects[objectTypeKey], entry)
+	}
+
+	// Marshal the response to JSON
+	jsonData, err := json.MarshalIndent(response, "", "  ") // Use Indent for readability
+	if err != nil {
+		log.Printf("Error marshaling status data to JSON: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Write the JSON response
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(jsonData)
+	if err != nil {
+		log.Printf("Error writing JSON response for status data: %v", err)
+	}
 }
 
 // printHelp displays usage information
