@@ -239,13 +239,11 @@ func (s *SOCKSHandler) handleClientRequest() error {
 
 	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
 	if occluded {
-		occluderName := "Unknown"
-		if occluder != nil {
-			occluderName = occluder.Name
-		}
-		log.Printf("SOCKS connection to %s rejected: occluded by %s", bodyName, occluderName)
+		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+		log.Printf("SOCKS connection to %s rejected: occluded by %s", bodyName, occluder.Name)
 		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0) // Host unreachable due to occlusion
-		return nil                                               // Return nil as the rejection is handled, not an error in processing
+		// Return an error indicating the reason for rejection
+		return fmt.Errorf("SOCKS connection rejected: %s occluded by %s", bodyName, occluder.Name)
 	}
 	// --- End Occlusion Check ---
 

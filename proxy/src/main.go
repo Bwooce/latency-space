@@ -213,13 +213,10 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check for occlusion
 	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
 	if occluded {
-		occluderName := "Unknown"
-		if occluder != nil {
-			occluderName = occluder.Name
-		}
-		log.Printf("HTTP connection to %s rejected: occluded by %s", bodyName, occluderName)
+		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+		log.Printf("HTTP connection to %s rejected: occluded by %s", bodyName, occluder.Name)
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "Connection refused: Target body '%s' is occluded by '%s'.", bodyName, occluderName)
+		fmt.Fprintf(w, "Connection refused: Target body '%s' is occluded by '%s'.", bodyName, occluder.Name)
 		return
 	}
 
@@ -330,11 +327,8 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	} else {
 		occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
 		if occluded {
-			occluderName := "Unknown"
-			if occluder != nil {
-				occluderName = occluder.Name
-			}
-			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluderName)
+			// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluder.Name)
 		} else {
 			fmt.Fprintf(w, `<p style="color: green;">Status: Visible</p>`)
 		}
