@@ -23,7 +23,6 @@ func collectDomains() []string {
 	// Add essential system subdomains
 	log.Printf("Adding essential system subdomains...")
 	domains = append(domains, "status")
-	domains = append(domains, "docs")
 
 	log.Printf("Processing solar system bodies...")
 
@@ -42,7 +41,7 @@ func collectDomains() []string {
 	log.Printf("Processing spacecraft...")
 	for _, spacecraft := range GetSpacecraft() {
 		log.Printf("Adding spacecraft: %s", strings.ReplaceAll(spacecraft.Name," ","_"))
-		domains = append(domains, spacecraft.Name)
+		domains = append(domains, strings.ToLower(strings.ReplaceAll(spacecraft.Name, " ", "_")))
 	}
 
 	log.Printf("Processing dwarf planets...")
