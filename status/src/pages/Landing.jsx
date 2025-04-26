@@ -118,8 +118,8 @@ export default function LandingPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-16">
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-white mb-4">Experience Interplanetary Latency</h2>
-          <p className="text-xl text-gray-300">Simulate real-time communication delays across the solar system</p>
+          <h2 className="text-5xl font-bold text-white mb-4">latency.space: Real-Time Space Communication Delay Simulation</h2>
+          <p className="text-xl text-gray-300">Explore the vast distances of our solar system by experiencing the real communication delays to planets, moons, and spacecraft through HTTP and SOCKS5 proxies.</p>
         </div>
 
         {/* Current Distances Dashboard */}
@@ -397,15 +397,13 @@ export default function LandingPage() {
             <h3 className="text-xl font-bold text-white mb-4">System Features</h3>
             <ul className="list-disc list-inside space-y-3 text-gray-300">
               <li>Accurate astronomical calculations using Kepler's laws</li>
-              <li>Real-time orbital positions updated hourly</li>
+              <li>Real-time orbital positions based on JPL Horizons data</li>
               <li>Support for all planets, major moons, and spacecraft</li>
               <li>HTTP and SOCKS5 proxy interfaces</li>
-              <li>Realistic bandwidth limitations based on Deep Space Network capabilities</li>
-              <li>SSL/TLS support for secure communications</li>
               <li>Multi-level subdomains for compound latency effects</li>
               <li>Documentation and debugging endpoints</li>
-              <li>Rate limiting to prevent abuse</li>
               <li>Continuous integration and deployment</li>
+              <li>Open source project on GitHub</li>
             </ul>
           </div>
         </div>
@@ -415,17 +413,17 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-black/30 p-4 rounded-lg">
               <h4 className="font-bold text-white">Education</h4>
-              <p className="text-gray-300 text-sm mt-2">Demonstrate the challenges of space communication to students and enthusiasts. Experience first-hand why Mars rovers can't be joysticked in real-time.</p>
+              <p className="text-gray-300 text-sm mt-2">Visually demonstrate space communication challenges. Show students why real-time control of Mars rovers isn't possible.</p>
             </div>
 
             <div className="bg-black/30 p-4 rounded-lg">
               <h4 className="font-bold text-white">Software Testing</h4>
-              <p className="text-gray-300 text-sm mt-2">Test software behavior under extreme network conditions. Ensure applications can handle multi-minute or even hour-long latencies gracefully.</p>
+              <p className="text-gray-300 text-sm mt-2">Test application robustness under high-latency network conditions. Identify issues caused by multi-minute or hour-long delays.</p>
             </div>
 
             <div className="bg-black/30 p-4 rounded-lg">
               <h4 className="font-bold text-white">Research</h4>
-              <p className="text-gray-300 text-sm mt-2">Explore new protocols and communication strategies designed for high-latency environments. Test delay-tolerant networking concepts.</p>
+              <p className="text-gray-300 text-sm mt-2">Develop and evaluate new protocols and communication strategies for high-latency, delay-tolerant networks.</p>
             </div>
           </div>
         </div>
