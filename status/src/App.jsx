@@ -97,13 +97,13 @@ export default function StatusDashboard() {
                 // Optional: Sort objects within a type, e.g., by distance
                 .sort((a, b) => a.distance_km - b.distance_km)
                 .map((obj) => (
-                  <Card key={obj.Name} className={cn(
+                  <Card key={obj.name} className={cn(
                     "bg-white/10 text-white border",
                     obj.occluded ? "border-red-600/50" : "border-cyan-600/50"
                   )}>
                     <CardHeader>
                       <CardTitle className="flex justify-between items-center">
-                        <span>{obj.Name}</span>
+                        <span>{obj.name}</span>
                         <span className={cn(
                           "text-xs font-semibold px-2 py-0.5 rounded-full",
                           obj.occluded ? "bg-red-700" : "bg-green-700"
@@ -111,8 +111,8 @@ export default function StatusDashboard() {
                           {obj.occluded ? 'Occluded' : 'Visible'}
                         </span>
                       </CardTitle>
-                      {obj.ParentName && (
-                         <p className="text-xs text-gray-400 -mt-2">Orbiting {obj.ParentName}</p>
+                      {obj.parentName && (
+                         <p className="text-xs text-gray-400 -mt-2">Orbiting {obj.parentName}</p>
                       )}
                     </CardHeader>
                     <CardContent>
