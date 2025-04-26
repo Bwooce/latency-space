@@ -76,16 +76,33 @@ server {
     # Less strict rate limiting for main site
     limit_req zone=ip burst=20 nodelay;
     limit_conn addr 10;
-    
-    # Serve the main site content
-    root /opt/latency-space/static;
-    index index.html;
-    
-    # Try to serve static files, fallback to index.html for SPA
+
+    # Proxy root to the status service
     location / {
-        try_files \$uri \$uri/ /index.html;
+        # Explicitly exclude debug paths if they are handled by other servers/locations
+        # if (\$uri ~* "^/_debug") {
+        #     return 404; # Or handle appropriately
+        # }
+
+        # Proxy to the status service (using STATUS_IP variable)
+        proxy_pass http://${STATUS_IP}:80;
+
+        # Standard proxy headers (copied from status.latency.space block)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+
+        # Set timeouts (copied from status.latency.space block)
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
-    
+
     # Return 444 (no response) for suspicious requests
     location ~ \.(php|aspx|asp|cgi|jsp)$ {
         return 444;
@@ -168,7 +185,7 @@ server {
 
     location / {
         # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://${STATUS_IP}:80;
+        proxy_pass http://${STATUS_IP}:80/status; # Added /status path
         
         # Standard proxy headers
         proxy_http_version 1.1;
