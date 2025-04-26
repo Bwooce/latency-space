@@ -4,9 +4,37 @@ Simulate interplanetary network latency across the solar system with real-time o
 
 ## Quick Start
 
-1. Clone this repository
-2. Copy `config/example.env` to `.env` and configure
-3. Run `docker compose up -d`
+**Prerequisites:**
+- Docker: [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/)
+- Docker Compose: [https://docs.docker.com/compose/install/](https://docs.docker.com/compose/install/) (Included with Docker Desktop, may need separate install on Linux)
+
+**Steps:**
+
+1.  **Clone this repository:**
+    ```bash
+    git clone https://github.com/username/repo-name.git # Replace with the appropriate repository URL
+    cd repo-name
+    ```
+2.  **Configure Environment:**
+    - Copy the example configuration file:
+      ```bash
+      cp config/example.env .env
+      ```
+    - **Edit the `.env` file** with your specific settings. You'll need to provide:
+      - `SSL_EMAIL`: Your email address for Let's Encrypt SSL certificate generation.
+      - `GRAFANA_PASSWORD`: A secure password for the Grafana admin user.
+      - (Optional) `DEPLOY_HOST`, `DEPLOY_USER`, `DISCORD_WEBHOOK` if needed for deployment or notifications.
+3.  **Start the Services:**
+    Run the following command from the project's root directory:
+    ```bash
+    docker compose up -d
+    ```
+    *(Note: If you have an older version, you might need to use `docker-compose up -d`)*
+
+    This will build the necessary Docker images (if not already built) and start all the services defined in `docker-compose.yml` in detached mode.
+
+4.  **Access the Services:**
+    Once the containers are running, you can access the various endpoints and monitoring tools as described in the sections below.
 
 ## GitHub Actions Setup
 
@@ -21,7 +49,19 @@ To enable CI/CD with GitHub Actions for deployment, you need to configure the fo
 - `SSH_PRIVATE_KEY`: Private SSH key for authentication
 
 Optional:
-- `CLOUDFLARE_API_TOKEN`: If using Cloudflare for DNS, add your API token here
+- `CLOUDFLARE_API_TOKEN`: If using Cloudflare for DNS update in the main deployment workflow (`.github/workflows/main.yml`), add your API token here.
+
+*(Note: The above secrets have been verified against the workflow files in `.github/workflows/` as of the last update.)*
+
+## Deployment
+
+This project includes scripts and configurations to facilitate deployment to a server, primarily managed through Docker Compose. Deployment can be triggered automatically via GitHub Actions (on pushes to the `main` branch, see previous section) or performed manually.
+
+The `/deploy` directory contains various shell scripts (`.sh`) used for setting up the server environment, managing the Docker services, troubleshooting common issues (like DNS resolution or container restarts), and other deployment-related tasks.
+
+For detailed step-by-step instructions on manual deployment, server setup prerequisites, and troubleshooting guidance, please refer to the dedicated README within the deployment directory:
+
+➡️ **[Deployment Guide](./deploy/README.md)**
 
 ## Available Endpoints
 
@@ -29,9 +69,10 @@ Optional:
 
 Access websites with planetary latency:
 
-- mars.latency.space - Mars latency
-- jupiter.latency.space - Jupiter latency
-- [other celestial bodies]
+- `mars.latency.space` - Mars latency
+- `jupiter.latency.space` - Jupiter latency
+- `earth.latency.space` - Earth latency (minimal, useful for baseline)
+- etc. (any celestial body defined in the configuration)
 
 ### SOCKS5 Proxy
 
@@ -58,13 +99,58 @@ This works with both HTTP and SOCKS5 proxies.
 
 **Important SSL Certificate Note:**
 - First-level subdomains (mars.latency.space) support HTTPS with valid certificates
-- Multi-level subdomains (www.google.com.mars.latency.space) work over HTTP only
-  - This is because wildcard SSL certificates only cover one level of subdomains
+- Multi-level subdomains (e.g., `www.google.com.mars.latency.space`) work over **HTTP only**.
+  - This is a limitation of standard wildcard SSL certificates (`*.latency.space`), which cannot cover multiple subdomain levels. HTTPS connections to these multi-level domains will fail certificate validation.
+
+### API Endpoint: `/api/status-data`
+
+Provides real-time data about celestial bodies in JSON format, including distance from Earth, calculated one-way light-travel latency, and occlusion status.
+
+**Example Request:**
+
+```bash
+curl http://latency.space/api/status-data
+# Or access via a specific body (latency is not added to the API request itself)
+curl http://mars.latency.space/api/status-data
+```
+
+**Example JSON Response Snippet:**
+
+```json
+{
+  "timestamp": "2023-10-27T10:00:00Z",
+  "objects": {
+    "planets": [
+      {
+        "name": "Mars",
+        "type": "planet",
+        "distance_km": 225000000,
+        "latency_seconds": 750.5,
+        "occluded": false
+      },
+      // ... other planets
+    ],
+    "moons": [
+      {
+        "name": "Moon",
+        "type": "moon",
+        "parentName": "Earth",
+        "distance_km": 384400,
+        "latency_seconds": 1.28,
+        "occluded": false
+      },
+      // ... other moons
+    ]
+    // ... other object types (dwarf_planets, etc.)
+  }
+}
+```
+*(Note: The `latency.space` domain used in the `curl` example assumes the service is deployed and publicly accessible at that domain. If running locally or on a different domain, replace `latency.space` accordingly.)*
 
 ## Monitoring
 
 - Status page: http://localhost:3000
 - Prometheus: http://localhost:9092
-- Grafana: http://localhost:3002 (admin/admin by default)
+- Grafana: http://localhost:3002 (Default login: admin / `admin` or the password set in your `.env` file)
 
-See full documentation at [docs.latency.space](https://docs.latency.space)
+See full documentation at [docs.latency.space](https://docs.latency.space) *(Note: This documentation link may be outdated or inactive.)*
