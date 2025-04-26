@@ -53,9 +53,6 @@ fi
 
 blue "Creating Nginx configuration..."
 cat > "$NGINX_CONF" << EOF
-# Define rate limiting zones
-limit_req_zone \$binary_remote_addr zone=ip:10m rate=5r/m;
-limit_conn_zone \$binary_remote_addr zone=addr:10m;
 
 # Server for base domain latency.space
 server {
