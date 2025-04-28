@@ -2,13 +2,11 @@ package main
 
 import (
 	"bytes"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"strings"
-	"testing"
 	"testing"
 	"time"
 )
@@ -17,21 +15,22 @@ func setupTestEnvironment() {
 	// Initialize a minimal set of celestial objects for testing
 	// Need Earth for occlusion checks and a target body (e.g., Mars) for latency simulation context
 	// Assign the test objects to the global variable used by the main code
-	celestialObjects = []*CelestialObject{
+	// Corrected type to []CelestialObject as per build error
+	celestialObjects = []CelestialObject{
 		{
 			Name:   "Earth",
 			Type:   "planet",
 			Radius: EARTH_RADIUS,
 			// Simplified orbital elements (not used directly in this test, but needed for functions)
 			A: 1.0, E: 0.0167, I: 0.0, L: 100.46, LP: 102.94, N: 0.0,
-		},
+		}, // Removed &
 		{
 			Name:   "Mars",
 			Type:   "planet",
 			Radius: 3389.5,
 			// Simplified orbital elements
 			A: 1.5237, E: 0.0934, I: 1.85, L: 355.45, LP: 336.04, N: 49.58,
-		},
+		}, // Removed &
 		// Add other bodies if needed for specific tests
 	}
 	// Suppress log output during tests unless debugging
