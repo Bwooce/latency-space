@@ -194,7 +194,10 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 
 	// Read from Target UDP Listener
 	targetBuf := make([]byte, 1024)
-	targetUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
+	err = targetUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
+	if err != nil {
+		t.Fatalf("Failed to set read deadline for target listener: %v", err)
+	}
 	n, remoteAddr, err := targetUDPListener.ReadFrom(targetBuf)
 	if err != nil {
 		t.Fatalf("Target UDP listener failed to read: %v", err)
@@ -224,7 +227,10 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 
 	// Read from Client UDP Listener
 	clientBuf := make([]byte, 1024)
-	clientUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
+	err = clientUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
+	if err != nil {
+		t.Fatalf("Failed to set read deadline for client listener: %v", err)
+	}
 	n, remoteAddrClient, err := clientUDPListener.ReadFrom(clientBuf)
 	if err != nil {
 		t.Fatalf("Client UDP listener failed to read reply: %v", err)
@@ -278,7 +284,10 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 
 	// Try reading from Target UDP Listener - should timeout
-	targetUDPListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond)) // Short timeout
+	err = targetUDPListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond)) // Short timeout
+	if err != nil {
+		t.Fatalf("Failed to set read deadline for target listener (disallowed test): %v", err)
+	}
 	_, _, err = targetUDPListener.ReadFrom(targetBuf)
 	if err == nil {
 		t.Errorf("Target received UDP packet even when host was disallowed")
