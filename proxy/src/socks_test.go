@@ -2,23 +2,22 @@ package main
 
 import (
 	"bytes"
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
-	"log"
 	"net"
-	"strconv"
 	"strings"
+	"testing"
 	"testing"
 	"time"
 )
 
-// Global celestial objects for testing purposes
-var testCelestialObjects []*CelestialObject
-
 func setupTestEnvironment() {
 	// Initialize a minimal set of celestial objects for testing
 	// Need Earth for occlusion checks and a target body (e.g., Mars) for latency simulation context
-	testCelestialObjects = []*CelestialObject{
+	// Assign the test objects to the global variable used by the main code
+	celestialObjects = []*CelestialObject{
 		{
 			Name:   "Earth",
 			Type:   "planet",
@@ -35,11 +34,8 @@ func setupTestEnvironment() {
 		},
 		// Add other bodies if needed for specific tests
 	}
-	// Assign the test objects to the global variable used by the main code
-	celestialObjects = testCelestialObjects
-
 	// Suppress log output during tests unless debugging
-	// log.SetOutput(io.Discard)
+	// log.SetOutput(io.Discard) // Keep log suppression commented out for now
 }
 
 func TestSocksUDPAssociateAndRelay(t *testing.T) {
@@ -60,7 +56,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 	t.Cleanup(func() { tcpListener.Close() })
 	proxyTCPAddr := tcpListener.Addr().String()
-	proxyHost, _, _ := net.SplitHostPort(proxyTCPAddr) // Needed for getCelestialBodyFromConn logic
+	// proxyHost is unused
 
 	// Mock Target Server (UDP Listener)
 	targetUDPListener, err := net.ListenPacket("udp", "127.0.0.1:0")
@@ -76,7 +72,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 		t.Fatalf("Failed to start client UDP listener: %v", err)
 	}
 	t.Cleanup(func() { clientUDPListener.Close() })
-	clientUDPAddr := clientUDPListener.LocalAddr().(*net.UDPAddr)
+	// clientUDPAddr is unused by the test client itself
 
 	// 2. Run Mock SOCKS Server Logic in Goroutine
 	serverErrChan := make(chan error, 1)
@@ -304,56 +300,10 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 }
 
-// Helper function to get local IP for testing (replace with actual logic if needed)
-func getTestLocalIP() net.IP {
-	// This is a placeholder. In a real scenario, you might need to find a non-loopback IP.
-	// For this test, 127.0.0.1 is assumed and handled.
-	return net.ParseIP("127.0.0.1")
-}
-
-// FindObjectByName finds a celestial object by name (simplified for test)
-func findObjectByName(objects []*CelestialObject, name string) (*CelestialObject, bool) {
-	for _, obj := range objects {
-		// Case-insensitive comparison for robustness
-		if strings.EqualFold(obj.Name, name) {
-			return obj, true
-		}
-	}
-	return nil, false
-}
-
-// IsOccluded checks if the path between two objects is blocked (simplified)
-// Note: This needs the full list of celestialObjects to check against potential occluders
-func IsOccluded(obj1, obj2 *CelestialObject, allObjects []*CelestialObject, t time.Time) (bool, *CelestialObject) {
-    // Basic check: Can't be occluded by self or if one object is nil
-    if obj1 == nil || obj2 == nil || obj1 == obj2 {
-        return false, nil
-    }
-
-    // In a real test, you might implement simplified occlusion logic
-    // or mock this function to return specific values.
-    // For this basic test, assume no occlusion unless specifically testing it.
-    // log.Printf("Occlusion check between %s and %s - Skipping for basic test", obj1.Name, obj2.Name)
-    return false, nil
-}
-
-
-// getCurrentDistance returns the distance for a given body (simplified)
-func getCurrentDistance(bodyName string) float64 {
-	// Return a fixed distance for testing latency calculation
-	if strings.EqualFold(bodyName, "Mars") {
-		return 1.5 * AU // Approx distance to Mars in km
-	}
-	return 0.1 * AU // Default small distance
-}
-
-// CalculateLatency calculates latency based on distance (simplified)
-func CalculateLatency(distanceKm float64) time.Duration {
-	if distanceKm <= 0 {
-		return 0
-	}
-	// latency = distance / speed_of_light
-	latencySeconds := distanceKm / SPEED_OF_LIGHT
-	// Convert seconds to time.Duration (nanoseconds)
-	return time.Duration(latencySeconds * float64(time.Second))
-}
+// Removed local helper function redeclarations:
+// - getTestLocalIP
+// - findObjectByName
+// - IsOccluded
+// - getCurrentDistance
+// - CalculateLatency
+// The test will use the implementations from the main package.
