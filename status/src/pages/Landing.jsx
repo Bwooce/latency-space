@@ -110,7 +110,7 @@ export default function LandingPage() {
           <h1 className="text-2xl font-bold text-white">latency.space</h1>
           <div className="flex space-x-4">
             <a href="https://status.latency.space" className="text-white hover:text-blue-400">Status</a>
-            <a href="https://docs.latency.space" className="text-white hover:text-blue-400">Docs</a>
+            {/* Removed Docs link */}
             <a href="https://github.com/yourusername/latency-space" className="text-white hover:text-blue-400">GitHub</a>
           </div>
         </div>
@@ -289,11 +289,11 @@ export default function LandingPage() {
 
             <div>
               <h4 className="text-xl font-bold text-white mb-3">SOCKS5 Proxy</h4>
-              <p className="text-gray-300 mb-4">Use the SOCKS5 proxy for any TCP/IP application.</p>
+              <p className="text-gray-300 mb-4">Use the SOCKS5 proxy (port 1080) for TCP connections. UDP traffic is also supported via the `UDP ASSOCIATE` command on the same host/port.</p>
 
               <div className="space-y-4">
                 <div>
-                  <p className="text-gray-300 mb-2">1. Basic Usage:</p>
+                  <p className="text-gray-300 mb-2">1. Basic TCP Usage (SSH):</p>
                   <code className="block bg-black/30 p-4 rounded">
                     ssh -o ProxyCommand="nc -X 5 -x mars.latency.space:1080 %h %p" destination.server.com
                   </code>
@@ -301,15 +301,15 @@ export default function LandingPage() {
                 </div>
 
                 <div>
-                  <p className="text-gray-300 mb-2">2. With Curl:</p>
+                  <p className="text-gray-300 mb-2">2. TCP With Curl:</p>
                   <code className="block bg-black/30 p-4 rounded">
                     curl --socks5 neptune.latency.space:1080 https://example.com
                   </code>
-                  <p className="text-gray-400 text-sm mt-1">Experience Neptune's ~4 hour round-trip latency when accessing a website.</p>
+                  <p className="text-gray-400 text-sm mt-1">Experience Neptune's ~4 hour round-trip latency when accessing a website via TCP.</p>
                 </div>
 
                 <div>
-                  <p className="text-gray-300 mb-2">3. Browser Configuration:</p>
+                  <p className="text-gray-300 mb-2">3. Browser Configuration (TCP):</p>
                   <p className="text-gray-400">Configure your browser's SOCKS proxy settings:</p>
                   <ul className="list-disc list-inside text-gray-400 ml-4">
                     <li>Host: jupiter.latency.space</li>
@@ -319,11 +319,19 @@ export default function LandingPage() {
                 </div>
 
                 <div>
-                  <p className="text-gray-300 mb-2">4. Target Domain Format:</p>
+                  <p className="text-gray-300 mb-2">4. Target Domain Format (TCP):</p>
                   <code className="block bg-black/30 p-4 rounded">
                     ssh -o ProxyCommand="nc -X 5 -x example.com.mars.latency.space:1080 %h %p" destination.server.com
                   </code>
-                  <p className="text-gray-400 text-sm mt-1">Combined domain format also works with SOCKS proxy.</p>
+                  <p className="text-gray-400 text-sm mt-1">Combined domain format also works with SOCKS proxy for TCP.</p>
+                </div>
+
+                <div>
+                  <p className="text-gray-300 mb-2">5. UDP Example (using netcat):</p>
+                  <code className="block bg-black/30 p-4 rounded">
+                    echo "hello" | nc -u -X 5 -x mars.latency.space:1080 1.1.1.1 53
+                  </code>
+                  <p className="text-gray-400 text-sm mt-1">Send a UDP packet to 1.1.1.1:53 via Mars. Requires a netcat version supporting SOCKS5 UDP.</p>
                 </div>
               </div>
             </div>

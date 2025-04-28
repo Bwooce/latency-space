@@ -136,12 +136,23 @@ func (s *SOCKSHandler) handleClientRequest() error {
 		return fmt.Errorf("unsupported SOCKS version: %d", version)
 	}
 
-	// We only support CONNECT command
-	if cmd != SOCKS5_CMD_CONNECT {
+	// --- Handle different commands ---
+	switch cmd {
+	case SOCKS5_CMD_CONNECT:
+		return s.handleConnect(addrType)
+	case SOCKS5_CMD_UDP_ASSOCIATE:
+		return s.handleUDPAssociate(addrType)
+	// case SOCKS5_CMD_BIND: // BIND is not implemented
+	// 	s.sendReply(SOCKS5_REP_CMD_NOT_SUPPORTED, net.IPv4zero, 0)
+	// 	return fmt.Errorf("unsupported command: BIND")
+	default:
 		s.sendReply(SOCKS5_REP_CMD_NOT_SUPPORTED, net.IPv4zero, 0)
 		return fmt.Errorf("unsupported command: %d", cmd)
 	}
+}
 
+// handleConnect handles the SOCKS5 CONNECT command
+func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	// Read destination address based on address type
 	var dstAddr string
 	var err error
@@ -376,6 +387,371 @@ func (s *SOCKSHandler) handleClientRequest() error {
 
 	return nil
 }
+
+// handleUDPAssociate handles the SOCKS5 UDP ASSOCIATE command
+func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
+	log.Printf("SOCKS UDP ASSOCIATE request from %s", s.conn.RemoteAddr())
+
+	// Read and discard the client's requested address and port (they are ignored per RFC)
+	switch addrType {
+	case SOCKS5_ADDR_IPV4:
+		discard := make([]byte, 4+2) // IPv4 (4) + port (2)
+		if _, err := io.ReadFull(s.conn, discard); err != nil {
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read/discard UDP request address: %v", err)
+		}
+	case SOCKS5_ADDR_DOMAIN:
+		lenBuf := make([]byte, 1)
+		if _, err := io.ReadFull(s.conn, lenBuf); err != nil {
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read/discard UDP domain length: %v", err)
+		}
+		domainLen := int(lenBuf[0])
+		discard := make([]byte, domainLen+2) // Domain + port (2)
+		if _, err := io.ReadFull(s.conn, discard); err != nil {
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read/discard UDP domain address: %v", err)
+		}
+	case SOCKS5_ADDR_IPV6:
+		discard := make([]byte, 16+2) // IPv6 (16) + port (2)
+		if _, err := io.ReadFull(s.conn, discard); err != nil {
+			s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+			return fmt.Errorf("failed to read/discard UDP IPv6 address: %v", err)
+		}
+	default:
+		s.sendReply(SOCKS5_REP_ADDR_NOT_SUPPORTED, net.IPv4zero, 0)
+		return fmt.Errorf("unsupported address type in UDP ASSOCIATE: %d", addrType)
+	}
+
+	// Create UDP socket
+	udpConn, err := net.ListenPacket("udp", ":0") // Listen on any available port
+	if err != nil {
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("failed to create UDP socket: %v", err)
+	}
+	// Don't defer close here, handleUDPRelay will manage it
+
+	// Get the local address and port the UDP socket is bound to
+	udpAddr, ok := udpConn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		udpConn.Close() // Clean up the socket we just created
+		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
+		return fmt.Errorf("failed to get UDP local address")
+	}
+
+	log.Printf("SOCKS UDP relay listening on %s", udpAddr.String())
+
+	// Send success reply with the UDP socket's IP and port
+	// Use IPv4 address type for simplicity, as requested.
+	// If the bound IP is IPv6, we might need a more robust way to get an IPv4 address
+	// or send an IPv6 reply if the client supports it. For now, assume IPv4.
+	replyIP := udpAddr.IP.To4()
+	if replyIP == nil {
+		// If not an IPv4 address, try to find an IPv4 interface address
+		// This is a simplification; a robust server might need better handling
+		addrs, _ := net.InterfaceAddrs()
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					replyIP = ipnet.IP.To4()
+					log.Printf("Warning: UDP bound to IPv6, replying with local IPv4 %s", replyIP)
+					break
+				}
+			}
+		}
+		if replyIP == nil {
+			log.Printf("Warning: Could not find suitable IPv4 address for UDP reply, using 0.0.0.0")
+			replyIP = net.IPv4zero // Fallback
+		}
+	}
+	s.sendReply(SOCKS5_REP_SUCCESS, replyIP, uint16(udpAddr.Port))
+
+	// Start the UDP relay handler in a new goroutine
+	// Pass the UDP connection, the *original* client TCP address (for celestial body/latency calcs),
+	// security validator, and metrics collector.
+	clientTCPAddr := s.conn.RemoteAddr()
+	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics)
+
+	// Keep the TCP connection alive until it's closed or an error occurs
+	log.Printf("SOCKS UDP association established for %s. Keeping TCP connection alive.", clientTCPAddr)
+	// Simple blocking read to detect connection closure
+	buf := make([]byte, 1)
+	for {
+		_, err := s.conn.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				log.Printf("Error reading from client TCP connection (UDP associate): %v", err)
+			} else {
+				log.Printf("Client TCP connection closed (UDP associate): %s", clientTCPAddr)
+			}
+			// Close the UDP socket when the TCP connection closes
+			udpConn.Close()
+			break // Exit the loop and function
+		}
+		// We don't expect data here, just waiting for closure
+	}
+
+	return nil // TCP connection closed normally
+}
+
+// handleUDPRelay manages packet forwarding for a UDP association
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector) {
+	defer udpConn.Close() // Ensure UDP socket is closed when this goroutine exits
+
+	var clientUDPAddr net.Addr // Store the client's source UDP address once we receive the first packet
+	buffer := make([]byte, 65535) // Max UDP packet size
+
+	// Determine celestial body and latency based on the *initial* TCP connection
+	bodyName, err := getCelestialBodyFromConn(clientTCPAddr)
+	if err != nil {
+		log.Printf("UDP Relay: Error getting celestial body for %v: %v. Using default.", clientTCPAddr, err)
+		// getCelestialBodyFromConn defaults to Mars, proceed with that
+	}
+	distance := getCurrentDistance(bodyName)
+	latency := CalculateLatency(distance)
+	log.Printf("UDP Relay for %s (%s): Using body '%s', latency %v", clientTCPAddr, clientUDPAddr, bodyName, latency)
+
+
+	// Get Earth object for occlusion check (assuming Earth is the proxy location)
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	if !earthFound {
+		log.Printf("Error: UDP Relay: Earth celestial object not found. Occlusion checks disabled.")
+		// Proceed without occlusion checks if Earth object is missing
+	}
+	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	if !targetFound {
+		log.Printf("Error: UDP Relay: Target celestial body '%s' not found. Occlusion checks disabled.", bodyName)
+		// Proceed without occlusion checks if target object is missing
+	}
+
+
+	for {
+		n, remoteAddr, err := udpConn.ReadFrom(buffer)
+		if err != nil {
+			log.Printf("UDP Relay: Error reading from UDP socket: %v", err)
+			// If the error indicates the socket is closed (likely by the TCP handler), exit gracefully
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				log.Printf("UDP Relay: Socket closed, terminating for %s.", clientTCPAddr)
+				return
+			}
+			continue // Otherwise, log and try to continue reading
+		}
+
+		// First packet received? Identify the client's UDP source address.
+		// Compare host parts only, as ports might differ.
+		if clientUDPAddr == nil {
+			// Simple IP comparison (might fail for complex cases like NAT)
+			clientTCPHost, _, _ := net.SplitHostPort(clientTCPAddr.String())
+			remoteHost, _, _ := net.SplitHostPort(remoteAddr.String())
+			if clientTCPHost == remoteHost {
+				clientUDPAddr = remoteAddr
+				log.Printf("UDP Relay: Identified client UDP address for %s as %s", clientTCPAddr, clientUDPAddr)
+			} else {
+				// Packet from an unknown source before client sent anything? Drop it.
+				log.Printf("UDP Relay: Dropping packet from unexpected source %s before client %s (%s) sent data.", remoteAddr, clientTCPAddr, clientTCPHost)
+				continue
+			}
+		}
+
+
+		// Decide if the packet is from the client or an external target
+		if remoteAddr.String() == clientUDPAddr.String() {
+			// --- Packet from Client -> Target ---
+			log.Printf("UDP Relay: Received %d bytes from client %s", n, remoteAddr)
+
+			if n < 6 { // Minimum SOCKS UDP header size (VER+RSV+FRAG+ATYP+DST.ADDR(1)+DST.PORT(2))
+				log.Printf("UDP Relay: Packet from client too short (%d bytes), dropping.", n)
+				continue
+			}
+
+			// Parse SOCKS5 UDP Request Header (RFC 1928 Section 6)
+			// +----+------+------+----------+----------+----------+
+			// |RSV | FRAG | ATYP | DST.ADDR | DST.PORT |   DATA   |
+			// +----+------+------+----------+----------+----------+
+			// | 2  |  1   |  1   | Variable |    2     | Variable |
+			// +----+------+------+----------+----------+----------+
+			rsv := binary.BigEndian.Uint16(buffer[0:2])
+			frag := buffer[2]
+			addrType := buffer[3]
+
+			if rsv != 0 {
+				log.Printf("UDP Relay: RSV field is non-zero (%d), dropping packet.", rsv)
+				continue // Reserved field must be 0
+			}
+			if frag != 0 {
+				log.Printf("UDP Relay: Fragmentation not supported (FRAG=%d), dropping packet.", frag)
+				continue // We don't support fragmentation
+			}
+
+			var dstHost string
+			var dstPort uint16
+			var dataOffset int
+
+			switch addrType {
+			case SOCKS5_ADDR_IPV4:
+				if n < 4+4+2 { // Header(4) + IPv4(4) + Port(2)
+					log.Printf("UDP Relay: IPv4 packet from client too short (%d bytes), dropping.", n)
+					continue
+				}
+				dstHost = net.IP(buffer[4:8]).String()
+				dstPort = binary.BigEndian.Uint16(buffer[8:10])
+				dataOffset = 10
+			case SOCKS5_ADDR_DOMAIN:
+				if n < 4+1 { // Header(4) + DomainLen(1)
+					log.Printf("UDP Relay: Domain packet header from client too short (%d bytes), dropping.", n)
+					continue
+				}
+				domainLen := int(buffer[4])
+				if n < 4+1+domainLen+2 { // Header(4) + Len(1) + Domain(len) + Port(2)
+					log.Printf("UDP Relay: Domain packet from client too short (%d bytes for domain len %d), dropping.", n, domainLen)
+					continue
+				}
+				domain := string(buffer[5 : 5+domainLen])
+				dstPort = binary.BigEndian.Uint16(buffer[5+domainLen : 5+domainLen+2])
+				dataOffset = 5 + domainLen + 2
+
+				// Process domain (e.g., extract target from .latency.space)
+				var err error
+				dstHost, err = s.processDomainName(domain)
+				if err != nil {
+					log.Printf("UDP Relay: Failed to process domain name '%s': %v. Dropping packet.", domain, err)
+					continue
+				}
+				// Note: processDomainName might have returned the original domain if not special format
+				// We might need to resolve this domain to an IP here if WriteTo needs an IP.
+				// However, net.DialUDP which WriteTo uses often handles resolution. Let's try first.
+
+			case SOCKS5_ADDR_IPV6:
+				if n < 4+16+2 { // Header(4) + IPv6(16) + Port(2)
+					log.Printf("UDP Relay: IPv6 packet from client too short (%d bytes), dropping.", n)
+					continue
+				}
+				dstHost = net.IP(buffer[4:20]).String()
+				dstPort = binary.BigEndian.Uint16(buffer[20:22])
+				dataOffset = 22
+			default:
+				log.Printf("UDP Relay: Unsupported address type (%d) from client, dropping packet.", addrType)
+				continue
+			}
+
+			if dataOffset > n {
+				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d), dropping.", dataOffset, n)
+				continue // Should not happen if previous length checks passed, but safety first
+			}
+			payload := buffer[dataOffset:n]
+			dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
+
+			// --- Security Checks ---
+			// Use a dummy scheme for IsAllowedHost check
+			if !security.IsAllowedHost("http://" + dstHost) {
+				log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
+				continue
+			}
+			// Check port validity (using the same SOCKS validator logic)
+			if err := security.ValidateSocksDestination(dstHost, dstPort); err != nil {
+				log.Printf("UDP Relay: Destination port %d not allowed for host %s: %v, dropping packet.", dstPort, dstHost, err)
+				continue
+			}
+
+			// --- Occlusion Check ---
+			if earthFound && targetFound { // Only check if we found both Earth and the target body
+				occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+				if occluded {
+					log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
+					continue
+				}
+			} else {
+				// Log if occlusion check is skipped
+                // log.Printf("UDP Relay: Occlusion check skipped (EarthFound: %v, TargetFound: %v)", earthFound, targetFound)
+			}
+			// --- End Occlusion Check ---
+
+
+			log.Printf("UDP Relay: Relaying %d bytes from %s to %s (via %s, latency %v)",
+				len(payload), clientUDPAddr, dstAddrPort, bodyName, latency)
+
+			// Apply forward latency
+			time.Sleep(latency)
+
+			// Send payload to destination
+			targetUDPAddr, err := net.ResolveUDPAddr("udp", dstAddrPort)
+			if err != nil {
+				log.Printf("UDP Relay: Failed to resolve destination UDP address %s: %v", dstAddrPort, err)
+				continue
+			}
+
+			_, err = udpConn.WriteTo(payload, targetUDPAddr)
+			if err != nil {
+				log.Printf("UDP Relay: Error writing %d bytes to target %s: %v", len(payload), targetUDPAddr, err)
+				// Don't necessarily continue; could be a temporary error
+			}
+
+			// Record metrics (outgoing bandwidth from client perspective)
+			metrics.TrackBandwidth(bodyName, int64(len(payload)))
+
+		} else {
+			// --- Packet from External Target -> Client --- (Stateless approach)
+			log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
+			targetUDPAddr, ok := remoteAddr.(*net.UDPAddr)
+			if !ok {
+				log.Printf("UDP Relay: Received packet from non-UDP source %s? Dropping.", remoteAddr)
+				continue
+			}
+
+			if clientUDPAddr == nil {
+				log.Printf("UDP Relay: Received packet from target %s before client %s sent data. Dropping.", remoteAddr, clientTCPAddr)
+				continue // Don't know where to send it back
+			}
+
+
+			// Construct SOCKS5 UDP Header for the reply
+			var replyHeader []byte
+			var atyp byte
+			var addrBytes []byte
+
+			if targetUDPAddr.IP.To4() != nil {
+				atyp = SOCKS5_ADDR_IPV4
+				addrBytes = targetUDPAddr.IP.To4()
+			} else if targetUDPAddr.IP.To16() != nil {
+				atyp = SOCKS5_ADDR_IPV6
+				addrBytes = targetUDPAddr.IP.To16()
+			} else {
+				log.Printf("UDP Relay: Cannot determine address type for target reply source %s. Dropping packet.", targetUDPAddr.IP)
+				continue
+			}
+
+			replyHeader = []byte{
+				0x00, 0x00, // RSV
+				0x00, // FRAG
+				atyp, // Address Type
+			}
+			replyHeader = append(replyHeader, addrBytes...) // Target Address
+			portBytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(portBytes, uint16(targetUDPAddr.Port))
+			replyHeader = append(replyHeader, portBytes...) // Target Port
+
+			// Combine header and original payload
+			fullReply := append(replyHeader, buffer[:n]...) // n is the size of the payload received from target
+
+
+			log.Printf("UDP Relay: Relaying %d bytes from target %s back to client %s (via %s, latency %v)",
+						n, remoteAddr, clientUDPAddr, bodyName, latency)
+
+			// Apply return latency
+			time.Sleep(latency)
+
+			// Send the full SOCKS UDP packet back to the client
+			_, err = udpConn.WriteTo(fullReply, clientUDPAddr)
+			if err != nil {
+				log.Printf("UDP Relay: Error writing %d bytes back to client %s: %v", len(fullReply), clientUDPAddr, err)
+			}
+
+			// Record metrics (incoming packet to client perspective)
+			metrics.RecordUDPPacket(bodyName, int64(n))
+		}
+	}
+}
+
 
 // sendReply sends a SOCKS5 reply message
 func (s *SOCKSHandler) sendReply(rep byte, ip net.IP, port uint16) {

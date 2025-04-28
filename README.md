@@ -76,15 +76,23 @@ Access websites with planetary latency:
 
 ### SOCKS5 Proxy
 
-Connect to latency.space as a SOCKS5 proxy on port 1080:
+Connect to latency.space as a SOCKS5 proxy on port 1080 for TCP connections:
 
-```
-# Example with curl
+```bash
+# Example with curl for TCP (HTTPS)
 curl --socks5 mars.latency.space:1080 https://example.com
 
-# Configure browser to use the SOCKS5 proxy
+# Configure browser or application to use the SOCKS5 proxy
 Host: mars.latency.space
 Port: 1080
+```
+
+The proxy also supports UDP forwarding via the SOCKS5 `UDP ASSOCIATE` command. When you initiate a UDP association, the proxy sets up a UDP relay. Latency for relayed UDP packets (both outgoing and incoming) is applied based on the celestial body hostname used in the initial SOCKS5 connection (e.g., `mars.latency.space`).
+
+```bash
+# Example: Send a UDP packet (e.g., DNS query) to 1.1.1.1:53 via Mars
+# Requires a netcat version that supports SOCKS5 UDP (-X 5 and -x)
+echo "dns-query-data" | nc -u -X 5 -x mars.latency.space:1080 1.1.1.1 53
 ```
 
 ### Special DNS-style Routing
@@ -95,7 +103,7 @@ You can also proxy any domain through specific celestial bodies:
 - api.github.com.jupiter.latency.space - Access GitHub API through Jupiter
 - example.com.moon.earth.latency.space - Access example.com through Earth's Moon
 
-This works with both HTTP and SOCKS5 proxies.
+This works with both HTTP and SOCKS5 proxies (TCP only for SOCKS5 with this method).
 
 **Important SSL Certificate Note:**
 - First-level subdomains (mars.latency.space) support HTTPS with valid certificates
@@ -153,4 +161,4 @@ curl http://mars.latency.space/api/status-data
 - Prometheus: http://localhost:9092
 - Grafana: http://localhost:3002 (Default login: admin / `admin` or the password set in your `.env` file)
 
-See full documentation at [docs.latency.space](https://docs.latency.space) *(Note: This documentation link may be outdated or inactive.)*
+*(Note: The previous documentation link was removed.)*
