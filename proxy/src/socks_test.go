@@ -38,15 +38,16 @@ func setupTestEnvironment() {
 }
 
 func TestSocksUDPAssociateAndRelay(t *testing.T) {
-	setupTestEnvironment() // Initialize celestial objects, etc.
+	setupTestEnvironment() // Initialize celestial objects
 
-	// 1. Setup
+	// 1. Setup Test-Specific Validator and Metrics
 	security := NewSecurityValidator()
-	// Allow localhost for testing
-	security.allowedHosts["127.0.0.1"] = true
-	security.allowedPorts["0"] = true // Allow dynamic ports used in testing
+	metrics := NewMetricsCollector()
 
-	metrics := NewMetricsCollector() // Use real metrics collector
+	// Allow loopback host for testing SOCKS destination checks
+	security.allowedHosts["127.0.0.1"] = true
+	security.allowedHosts["localhost"] = true
+	// Port allowance will be added after the target listener is created
 
 	// Mock SOCKS Server (TCP Listener)
 	tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -64,6 +65,12 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 	t.Cleanup(func() { targetUDPListener.Close() })
 	targetUDPAddr := targetUDPListener.LocalAddr().(*net.UDPAddr)
+
+	// *** Allow the specific dynamic target port for this test run ***
+	targetPortStr := strconv.Itoa(targetUDPAddr.Port)
+	security.allowedPorts[targetPortStr] = true
+	t.Logf("Dynamically allowed target UDP port: %s", targetPortStr)
+
 
 	// Mock Client (UDP Listener) - for receiving replies
 	clientUDPListener, err := net.ListenPacket("udp", "127.0.0.1:0")
