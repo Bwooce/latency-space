@@ -660,10 +660,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 					log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
 					continue
 				}
-			} else {
-				// Log if occlusion check is skipped
-                // log.Printf("UDP Relay: Occlusion check skipped (EarthFound: %v, TargetFound: %v)", earthFound, targetFound)
-			}
+			} // Removed empty else block for occlusion check skip
 			// --- End Occlusion Check ---
 
 
