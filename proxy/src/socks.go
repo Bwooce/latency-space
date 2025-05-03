@@ -470,14 +470,21 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	// Pass the UDP connection, the *original* client TCP address (for celestial body/latency calcs),
 	// security validator, and metrics collector.
 	clientTCPAddr := s.conn.RemoteAddr() // Keep original addr for logging/body lookup
-	go s.handleUDPRelay(udpConn, s.conn, clientTCPAddr, s.security, s.metrics) // Pass s.conn
+	done := make(chan struct{})
+	go s.handleUDPRelay(udpConn, s.conn, clientTCPAddr, s.security, s.metrics, done) // Pass s.conn and done channel
+
+	// Wait for the UDP relay handler to finish (e.g., when the TCP connection closes)
+	<-done
+	log.Printf("UDP Relay finished for %s", clientTCPAddr)
 
 	return nil
 }
 
 // handleUDPRelay manages packet forwarding for a UDP association
 // It now takes the original TCP connection `tcpConn` to monitor its closure.
-func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, tcpConn net.Conn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector) {
+// It also takes a `done` channel which it closes upon exiting.
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, tcpConn net.Conn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, done chan struct{}) {
+	defer close(done) // Signal completion when this function returns
 	defer udpConn.Close() // Ensure UDP socket is closed when this goroutine exits
 
 	// Goroutine to monitor the client TCP connection
