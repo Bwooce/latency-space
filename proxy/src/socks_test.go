@@ -28,10 +28,20 @@ func setupTestEnvironment() {
 		{
 			Name:   "Mars",
 			Type:   "planet",
-			Radius: 3389.5,
-			// Simplified orbital elements
-			A: 1.5237, E: 0.0934, I: 1.85, L: 355.45, LP: 336.04, N: 49.58,
-		}, // Removed &
+			// Simplified orbital elements, copied from Earth's Moon to minimise latency
+			Radius:     1737.4,
+			A:          384399.0, // Semi-major axis in km
+			E:          0.0549,
+			I:          5.145,
+			L:          375.7,                        // Mean longitude at epoch
+			N:          125.08,                       // Longitude of ascending node
+			W:          318.15,                       // Argument of perigee
+			dL:         13.176358 * DAYS_PER_CENTURY, // Degrees per century
+			dN:         -0.05295 * DAYS_PER_CENTURY,
+			dW:         0.11140 * DAYS_PER_CENTURY,
+			Period:     27.321661,
+			Mass:       7.342e22, // kg
+		}, 
 		// Add other bodies if needed for specific tests
 	}
 	// Suppress log output during tests unless debugging
