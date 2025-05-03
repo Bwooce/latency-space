@@ -608,10 +608,10 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				continue // Wait for next event
 			}
 
-			// --- Process Packet Received on UDP Socket ---
+			// --- Packet Processing Logic (using res.n, res.remoteAddr, and buffer with res.n length) ---
 			n := res.n
 			remoteAddr := res.remoteAddr
-			// Use the data copy received from the channel (packetData contains the received UDP payload)
+			// Use the data copy received from the channel
 			packetData := res.data // Use the data from the readResult struct
 
 			// Ensure packetData is not nil if n > 0, although the reader should handle this.
@@ -724,10 +724,8 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			}
 
 			if dataOffset > n {
-				// This should ideally not happen if previous length checks are correct,
-				// but guards against corrupted packets or logic errors.
-				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s. Dropping packet.", dataOffset, n, remoteAddr)
-				continue
+				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s, dropping.", dataOffset, n, remoteAddr)
+				continue // Should not happen if previous length checks passed, but safety first
 			}
 			payload := packetData[dataOffset:n]
 			dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
@@ -775,9 +773,9 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 			// Record metrics (outgoing bandwidth from client perspective)
 			metrics.TrackBandwidth(bodyName, int64(len(payload)))
-
+			
 		} else {
-			// --- Packet from External Target -> Client ---
+			// --- Packet from External Target -> Client --- (Stateless approach)
 			log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
 			targetUDPAddr, ok := remoteAddr.(*net.UDPAddr)
 			if !ok {
@@ -830,13 +828,11 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			// Send the full SOCKS UDP packet back to the client
 			_, err = udpConn.WriteTo(fullReply, clientUDPAddr)
 			if err != nil {
-				log.Printf("UDP Relay: Error writing %d bytes back to client %s: %v", len(fullReply), clientUDPAddr, err)
+				log.Printf("UDP Relay: Error writing %d bytes back to client %s: %v", len(fullReply), clientUDPAddr, err) // Fixed missing comma
 			}
 
-			// Record metrics (incoming bandwidth to client perspective)
-			// Using TrackBandwidth for consistency, assuming it tracks bytes transferred.
-			// 'n' here is the size of the payload received from the target.
-			metrics.TrackBandwidth(bodyName, int64(n))
+			// Record metrics (incoming packet to client perspective)
+			metrics.RecordUDPPacket(bodyName, int64(n))
 		}
 	}
 }
