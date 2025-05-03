@@ -439,5 +439,3 @@ export default function LandingPage() {
     </div>
   );
 }
-// status/src/pages/Landing.jsx
-// This entire file block is removed as it's replaced by the new code above.
