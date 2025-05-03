@@ -535,7 +535,7 @@ func InitSolarSystemObjects() []CelestialObject {
 			Mass:       1.586e21, // kg
 		},
 
-		// SPACECRAFT
+		// Spacecraft
 		// Active deep space missions with transmitters
 		{
 			Name:              "Voyager 1",

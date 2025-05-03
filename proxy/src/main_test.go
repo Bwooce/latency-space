@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Mock celestial objects for testing parseHostForCelestialBody
+// testCelestialObjects provides a simplified list of objects for testing parseHostForCelestialBody.
 var testCelestialObjects = []CelestialObject{
 	{Name: "Earth", Type: "planet"},
 	{Name: "Mars", Type: "planet"},
@@ -23,12 +23,13 @@ var testCelestialObjects = []CelestialObject{
 }
 
 func TestParseHostForCelestialBody(t *testing.T) {
-	// Override the global celestialObjects with our test data for this test
+	// Override global celestialObjects with test data for this specific test.
 	originalCelestialObjects := celestialObjects
 	celestialObjects = testCelestialObjects
-	defer func() { celestialObjects = originalCelestialObjects }() // Restore original data after test
+	defer func() { celestialObjects = originalCelestialObjects }() // Restore original celestialObjects data after the test completes.
 
-	dummyURL, _ := url.Parse("http://example.com") // Dummy URL, path doesn't matter
+	// dummyURL is used as a placeholder for the URL argument, as it's not used by the function.
+	dummyURL, _ := url.Parse("http://example.com")
 
 	testCases := []struct {
 		name         string
@@ -141,26 +142,25 @@ func TestParseHostForCelestialBody(t *testing.T) {
         },
 	}
 
-	// Instantiate the server struct to call the method
-	// We don't need metrics or security for this test
+	// Instantiate a Server to call the method under test.
 	s := &Server{}
 
 	for _, tc := range testCases {
-		// Use t.Run to create sub-tests for each case
+		// Use t.Run for better test organization and output.
 		t.Run(tc.name, func(t *testing.T) {
 			actualURL, actualBody, actualBodyName := s.parseHostForCelestialBody(tc.host, dummyURL)
 
-			// Check target URL
+			// Assert the extracted target URL.
 			if actualURL != tc.expectedURL {
 				t.Errorf("host '%s': expected target URL '%s', got '%s'", tc.host, tc.expectedURL, actualURL)
 			}
 
-			// Check body name (case-insensitive comparison)
+			// Assert the extracted body name (case-insensitive).
 			if !strings.EqualFold(actualBodyName, tc.expectedBodyName) {
 				t.Errorf("host '%s': expected body name '%s' (case-insensitive), got '%s'", tc.host, tc.expectedBodyName, actualBodyName)
 			}
 
-			// Check the returned CelestialObject itself (by comparing names as a proxy, assuming names are unique in test data)
+			// Assert the correct CelestialObject was returned (using Name as identifier).
 			if actualBody.Name != tc.expectedBody.Name {
                  t.Errorf("host '%s': expected body object name '%s', got '%s'", tc.host, tc.expectedBody.Name, actualBody.Name)
             }
@@ -168,9 +168,9 @@ func TestParseHostForCelestialBody(t *testing.T) {
 	}
 }
 
-// Add a separate test for findObjectByName for robustness
+// TestFindObjectByName tests the helper function directly.
 func TestFindObjectByName(t *testing.T) {
-	// Use the same test data
+	// Use the same test object data.
 	originalCelestialObjects := celestialObjects
 	celestialObjects = testCelestialObjects
 	defer func() { celestialObjects = originalCelestialObjects }()
@@ -216,88 +216,79 @@ func TestFindObjectByName(t *testing.T) {
     }
 }
 
-
-// TestDisplayCelestialInfoTemplate tests the rendering of the info page template
+// TestDisplayCelestialInfoTemplate tests the rendering of the info page HTML template.
 func TestDisplayCelestialInfoTemplate(t *testing.T) {
-	// 1. Initialize necessary state
-	celestialObjects = InitSolarSystemObjects() // Use real data
-	// Check if initialization succeeded using the required len(slice) > 0 pattern.
-	if len(celestialObjects) > 0 {
-		// Proceed with the test only if initialization was successful
-
-		// Ensure distance cache is populated (needed by getCurrentDistance)
-		// Use a fixed time for potentially reproducible distances, though actual values depend on the library
-		calculateDistancesFromEarth(celestialObjects, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
-
-		// Parse the template (relative path from within proxy/src)
-		var err error
-		infoTemplate, err = template.ParseFiles("templates/info_page.html")
-		if err != nil {
-			t.Fatalf("Failed to parse info_page.html template: %v", err)
-		}
-
-		// 2. Create mock http.ResponseWriter
-		recorder := httptest.NewRecorder()
-
-		// 3. Create a Server instance (needed to call the method)
-		s := NewServer(80, false) // Port and HTTPS setting don't matter here
-
-		// 4. Call the function under test
-		testBodyName := "Mars"
-		s.displayCelestialInfo(recorder, testBodyName)
-
-		// 5. Assert status code
-		if recorder.Code != http.StatusOK {
-			t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
-		}
-
-		// 6. Assert response body content
-		body := recorder.Body.String()
-
-		// Check for specific HTML elements/text
-		expectedTitle := fmt.Sprintf("<title>%s - Latency Space Proxy</title>", testBodyName)
-		if !strings.Contains(body, expectedTitle) {
-			t.Errorf("Response body does not contain expected title: %s", expectedTitle)
-		}
-
-		expectedH1 := fmt.Sprintf("<h1>%s Proxy</h1>", testBodyName)
-		if !strings.Contains(body, expectedH1) {
-			t.Errorf("Response body does not contain expected H1: %s", expectedH1)
-		}
-
-		if !strings.Contains(body, "Distance from Earth:") {
-			t.Errorf("Response body does not contain 'Distance from Earth:'")
-		}
-
-		if !strings.Contains(body, "Status:") {
-			t.Errorf("Response body does not contain 'Status:'")
-		}
-
-		// Check for expected domain in usage section
-		expectedDomain := fmt.Sprintf("<code>%s.latency.space</code>", strings.ToLower(testBodyName))
-		if !strings.Contains(body, expectedDomain) {
-			t.Errorf("Response body does not contain expected domain code block: %s", expectedDomain)
-		}
-
-		// Optionally, check for moon links if the body has moons (Mars has Phobos/Deimos)
-		if testBodyName == "Mars" {
-			if !strings.Contains(body, `<li><a href="http://phobos.mars.latency.space/">Phobos</a></li>`) {
-				t.Errorf("Response body for Mars does not contain Phobos link")
-			}
-			if !strings.Contains(body, `<li><a href="http://deimos.mars.latency.space/">Deimos</a></li>`) {
-				t.Errorf("Response body for Mars does not contain Deimos link")
-			}
-		}
-
-		// Check content type header
-		expectedContentType := "text/html; charset=utf-8"
-		actualContentType := recorder.Header().Get("Content-Type")
-		if actualContentType != expectedContentType {
-			t.Errorf("Expected Content-Type '%s', got '%s'", expectedContentType, actualContentType)
-		}
-
-	} else {
-		// Fail the test if initialization did not produce a non-empty slice
+	// Initialize real celestial objects data.
+	celestialObjects = InitSolarSystemObjects()
+	// Ensure celestialObjects were loaded.
+	if len(celestialObjects) == 0 {
 		t.Fatal("Failed to initialize celestialObjects (slice is nil or empty)")
+	}
+
+	// Populate the distance cache.
+	calculateDistancesFromEarth(celestialObjects, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	// Parse the HTML template.
+	var err error
+	infoTemplate, err = template.ParseFiles("templates/info_page.html")
+	if err != nil {
+		t.Fatalf("Failed to parse info_page.html template: %v", err)
+	}
+
+	// Create a mock HTTP response recorder.
+	recorder := httptest.NewRecorder()
+
+	// Create a Server instance.
+	s := NewServer(80, false) // Port/HTTPS don't matter for this test
+
+	// Call the function being tested.
+	testBodyName := "Mars"
+	s.displayCelestialInfo(recorder, testBodyName)
+
+	// Assert the HTTP status code is OK.
+	if recorder.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
+	}
+
+	// Assert the rendered HTML content.
+	body := recorder.Body.String()
+
+	// Check for key elements and text in the HTML output.
+	expectedTitle := fmt.Sprintf("<title>%s - Latency Space Proxy</title>", testBodyName)
+	if !strings.Contains(body, expectedTitle) {
+		t.Errorf("Response body does not contain expected title: %s", expectedTitle)
+	}
+	expectedH1 := fmt.Sprintf("<h1>%s Proxy</h1>", testBodyName)
+	if !strings.Contains(body, expectedH1) {
+		t.Errorf("Response body does not contain expected H1: %s", expectedH1)
+	}
+	if !strings.Contains(body, "Distance from Earth:") {
+		t.Errorf("Response body does not contain 'Distance from Earth:'")
+	}
+	if !strings.Contains(body, "Status:") {
+		t.Errorf("Response body does not contain 'Status:'")
+	}
+
+	// Check if the correct domain is shown in the usage examples.
+	expectedDomain := fmt.Sprintf("<code>%s.latency.space</code>", strings.ToLower(testBodyName))
+	if !strings.Contains(body, expectedDomain) {
+		t.Errorf("Response body does not contain expected domain code block: %s", expectedDomain)
+	}
+
+	// Check for moon links if applicable (Mars has moons).
+	if testBodyName == "Mars" {
+		if !strings.Contains(body, `<li><a href="http://phobos.mars.latency.space/">Phobos</a></li>`) {
+			t.Errorf("Response body for Mars does not contain Phobos link")
+		}
+		if !strings.Contains(body, `<li><a href="http://deimos.mars.latency.space/">Deimos</a></li>`) {
+			t.Errorf("Response body for Mars does not contain Deimos link")
+		}
+	}
+
+	// Assert the Content-Type header.
+	expectedContentType := "text/html; charset=utf-8"
+	actualContentType := recorder.Header().Get("Content-Type")
+	if actualContentType != expectedContentType {
+		t.Errorf("Expected Content-Type '%s', got '%s'", expectedContentType, actualContentType)
 	}
 }

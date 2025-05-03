@@ -118,7 +118,7 @@ export default function LandingPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-16">
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-white mb-4">latency.space: Real-Time Space Communication Delay Simulation</h2>
+          <h2 className="text-5xl font-bold text-white mb-4">latency.space: Simulating Real-Time Space Communication Delays</h2>
           <p className="text-xl text-gray-300">Explore the vast distances of our solar system by experiencing the real communication delays to planets, moons, and spacecraft through HTTP and SOCKS5 proxies.</p>
         </div>
 
