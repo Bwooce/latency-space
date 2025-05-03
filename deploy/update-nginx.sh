@@ -92,6 +92,51 @@ server {
         proxy_read_timeout 30s;
     }
 
+    # API status data requests - Proxy to backend Go service
+    location /api/status-data {
+        # Using the PROXY_IP variable defined in the script
+        proxy_pass http://$PROXY_IP:80;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host; # Keep consistency
+        proxy_set_header X-Real-IP \$remote_addr; # Use X-Real-IP like other API/status blocks
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; # Use combined forwarded-for
+        proxy_set_header X-Forwarded-Proto \$scheme; # Include scheme
+        proxy_cache_bypass \$http_upgrade;
+
+        # Use timeouts similar to other API calls
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+
+    # Debug endpoints with higher priority (merged from separate server block)
+    location = /_debug/metrics {
+        proxy_pass http://$PROXY_IP:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location = /_debug/distances {
+        proxy_pass http://$PROXY_IP:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location = /_debug/status {
+        proxy_pass http://$PROXY_IP:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
     # Proxy root to the status service
     location / {
         # Explicitly exclude debug paths if they are handled by other servers/locations
@@ -216,37 +261,6 @@ server {
         proxy_connect_timeout 30s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
-    }
-}
-
-# Server for _debug endpoints
-server {
-    listen 80;
-    server_name latency.space;
-    
-    # Debug endpoints with higher priority
-    location = /_debug/metrics {
-        proxy_pass http://$PROXY_IP:80;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-    
-    location = /_debug/distances {
-        proxy_pass http://$PROXY_IP:80;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-    
-    location = /_debug/status {
-        proxy_pass http://$PROXY_IP:80;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
 EOF
