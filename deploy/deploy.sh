@@ -67,6 +67,15 @@ else
   exit 1
 fi
 
+# Update Nginx config with container IPs
+echo "Updating Nginx configuration with container IPs..."
+if sudo /opt/latency-space/deploy/update-nginx.sh; then
+  echo "Nginx configuration updated successfully."
+else
+  echo "WARNING: Failed to update Nginx configuration."
+  # Optionally add further error handling here if needed
+fi
+
 # Verify deployment
 echo "Verifying services..."
 sleep 10  # Wait for services to start
