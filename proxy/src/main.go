@@ -328,13 +328,14 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 
 	var occluded bool
 	var occluderName string
-	var occluder *CelestialObject // Changed from occludingBody to occluder for clarity
+	var occluder CelestialObject // Use struct type to match IsOccluded return type
 	targetObject, targetFound := findObjectByName(celestialObjects, name)
 	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
 
 	if targetFound && earthFound {
 		occluded, occluder = IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
-		if occluded && occluder != nil {
+		// Check if an actual occluding object was returned (Name will be non-empty)
+		if occluded && occluder.Name != "" {
 			occluderName = occluder.Name
 		}
 	} else {
@@ -751,7 +752,7 @@ func main() {
 
 	// Create and start the server
 	server := NewServer(*port, *https)
-	err := server.Start()
+	err = server.Start() // Use = instead of := as err is already declared
 	if err != nil {
 		log.Fatalf("Server error: %v", err)
 	}

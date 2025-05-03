@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"html/template"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"testing"
 	"strings" // Import strings for case-insensitive comparison later
+	"testing"
+	"time"
 )
 
 // Mock celestial objects for testing parseHostForCelestialBody
