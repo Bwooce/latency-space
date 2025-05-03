@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"bytes" // Added for template execution
+	"html/template" // Added for HTML templates
 	"os/signal"
 	"strings"
 	"sync"
@@ -299,67 +301,104 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// displayCelestialInfo shows information about the celestial body
-func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
+// InfoPageData holds the data for the info page template
+type InfoPageData struct {
+	Name              string
+	DistanceMkm       string // Formatted distance
+	LatencySec        string // Formatted latency in seconds
+	LatencyFriendly   string // Formatted latency in minutes/hours
+	RoundTripFriendly string // Formatted round-trip latency
+	OccludedStatus    string
+	OccludedClass     string
+	Domain            string
+	MoonsHTML         template.HTML // Use template.HTML to prevent escaping
+}
 
+// formatDuration formats a duration into a user-friendly string (minutes, hours, days)
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%.1f seconds", d.Seconds())
+	} else if d < time.Hour {
+		return fmt.Sprintf("%.1f minutes", d.Minutes())
+	} else if d < 24*time.Hour {
+		return fmt.Sprintf("%.1f hours", d.Hours())
+	} else {
+		return fmt.Sprintf("%.1f days", d.Hours()/24)
+	}
+}
+
+// displayCelestialInfo shows information about the celestial body using an HTML template
+func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
+	// Calculate data
 	distance := getCurrentDistance(name)
 	latency := CalculateLatency(distance)
+	roundTripLatency := 2 * latency
 
-	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
-	fmt.Fprintf(w, "<h1>%s</h1>", name)
-	fmt.Fprintf(w, "<p>You are simulating communications from Earth to %s.</p>", name)
-	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance / 1e6)
-	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency.Round(time.Second))
-	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency.Round(time.Second))
+	// Format data for template
+	data := InfoPageData{
+		Name:              name,
+		DistanceMkm:       fmt.Sprintf("%.2f", distance/1e6),
+		LatencySec:        fmt.Sprintf("%.2f", latency.Seconds()),
+		LatencyFriendly:   formatDuration(latency),
+		RoundTripFriendly: formatDuration(roundTripLatency),
+		Domain:            fmt.Sprintf("%s.latency.space", strings.ToLower(name)),
+	}
 
-	// --- Occlusion Check ---
+	// Occlusion Check
 	targetObject, targetFound := findObjectByName(celestialObjects, name)
 	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
 
 	if !targetFound {
 		log.Printf("Error: Target celestial body '%s' not found in displayCelestialInfo.", name)
-		// Don't write error to response, just log it, as basic info is already printed
+		data.OccludedStatus = "Error: Target data unavailable"
+		data.OccludedClass = "status-occluded" // Use occluded class for errors too
 	} else if !earthFound {
 		log.Printf("Error: Earth celestial object not found in displayCelestialInfo.")
-		// Don't write error to response, just log it
+		data.OccludedStatus = "Error: Earth data unavailable"
+		data.OccludedClass = "status-occluded"
 	} else {
 		occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
 		if occluded {
-			// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
-			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluder.Name)
+			data.OccludedStatus = fmt.Sprintf("Occluded by %s", occluder.Name)
+			data.OccludedClass = "status-occluded"
 		} else {
-			fmt.Fprintf(w, `<p style="color: green;">Status: Visible</p>`)
+			data.OccludedStatus = "Visible"
+			data.OccludedClass = "status-visible"
 		}
 	}
-	// --- End Occlusion Check ---
 
-
-	fmt.Fprintf(w, "<h2>Usage</h2>")
-	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
-	fmt.Fprintf(w, "<ul>")
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "</ul>")
-
-	fmt.Fprintf(w, "<h2>SOCKS5 Proxy</h2>")
-	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
-	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", strings.ToLower(name))
-
+	// Moons List
 	moons := GetMoons(name)
 	if len(moons) > 0 {
-		fmt.Fprintf(w, "<h2>Moons</h2>")
-		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)
-		fmt.Fprintf(w, "<ul>")
+		var moonsHTML bytes.Buffer
 		for _, moon := range moons {
-			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon.Name, name, moon.Name)
+			// Generate the link carefully, ensuring names are lowercase for the domain
+			moonDomain := fmt.Sprintf("%s.%s.latency.space", strings.ToLower(moon.Name), strings.ToLower(name))
+			// Use fmt.Fprintf to write HTML to the buffer
+			fmt.Fprintf(&moonsHTML, `<li><a href="http://%s/">%s</a></li>`, moonDomain, moon.Name)
 		}
-		fmt.Fprintf(w, "</ul>")
+		data.MoonsHTML = template.HTML(moonsHTML.String()) // Convert buffer to template.HTML
 	}
 
-	fmt.Fprintf(w, "</body></html>")
+	// Parse and execute the template
+	tmpl, err := template.ParseFiles("proxy/src/templates/info_page.html")
+	if err != nil {
+		log.Printf("Error parsing template: %v", err)
+		http.Error(w, "Internal Server Error: Could not load page template.", http.StatusInternalServerError)
+		return
+	}
+
+	// Set content type before writing response body
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK) // Set status after header modifications
+
+	// Execute the template
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		// Log the error, but the header/status might have already been sent
+		log.Printf("Error executing template for %s: %v", name, err)
+		// Avoid writing another error message if headers are already sent
+	}
 }
 
 // parseHostForCelestialBody extracts target URL and celestial body from request
@@ -393,8 +432,21 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// Case 1: [target].[moon].[planet].latency.space (>= 5 parts)
 	// Case 2: [moon].[planet].latency.space (4 parts, target is empty)
 	if numParts >= 4 {
-		potentialMoonName := parts[numParts-4]
-		potentialPlanetName := parts[numParts-3]
+		potentialMoonNameEncoded := parts[numParts-4]
+		potentialPlanetNameEncoded := parts[numParts-3]
+
+		// Decode potential URL-encoded names
+		potentialMoonName, errMoon := url.PathUnescape(potentialMoonNameEncoded)
+		if errMoon != nil {
+			log.Printf("Warning: Failed to unescape potential moon name '%s': %v", potentialMoonNameEncoded, errMoon)
+			potentialMoonName = potentialMoonNameEncoded // Use original if unescaping fails
+		}
+		potentialPlanetName, errPlanet := url.PathUnescape(potentialPlanetNameEncoded)
+		if errPlanet != nil {
+			log.Printf("Warning: Failed to unescape potential planet name '%s': %v", potentialPlanetNameEncoded, errPlanet)
+			potentialPlanetName = potentialPlanetNameEncoded // Use original if unescaping fails
+		}
+
 
 		moon, moonFound := findObjectByName(celestialObjects, potentialMoonName)
 		planet, planetFound := findObjectByName(celestialObjects, potentialPlanetName)
@@ -430,7 +482,14 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// Case 3: [target].[planet].latency.space (>= 4 parts)
 	// Case 4: [planet].latency.space (3 parts, target is empty)
 	if numParts >= 3 {
-		potentialBodyName := parts[numParts-3]
+		potentialBodyNameEncoded := parts[numParts-3]
+		// Decode potential URL-encoded name
+		potentialBodyName, errBody := url.PathUnescape(potentialBodyNameEncoded)
+		if errBody != nil {
+			log.Printf("Warning: Failed to unescape potential body name '%s': %v", potentialBodyNameEncoded, errBody)
+			potentialBodyName = potentialBodyNameEncoded // Use original if unescaping fails
+		}
+
 		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
 
 		// Check if body is found and is not a moon (case-insensitive check to avoid conflict with moon.planet format)
@@ -447,9 +506,17 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// If none of the specific formats match, try the simple [body].latency.space format
 	// This handles the case where someone just goes to mars.latency.space
 	if numParts == 3 {
-		potentialBodyName := parts[0]
+		potentialBodyNameEncoded := parts[0]
+        // Decode potential URL-encoded name
+		potentialBodyName, errBody := url.PathUnescape(potentialBodyNameEncoded)
+		if errBody != nil {
+			log.Printf("Warning: Failed to unescape potential body name '%s': %v", potentialBodyNameEncoded, errBody)
+			potentialBodyName = potentialBodyNameEncoded // Use original if unescaping fails
+		}
+
 		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
 		if bodyFound {
+			// Ensure we return the *original* name from the body struct, not the potentially modified input
 			return "", body, body.Name
 		}
 	}
