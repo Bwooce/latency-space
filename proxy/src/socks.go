@@ -525,6 +525,9 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	}
  	buffer := make([]byte, 65535) // Max UDP packet size
 	var clientUDPAddr net.Addr    // Store the client's source UDP address
+	var n int                     // Declare n before the loop
+	var remoteAddr net.Addr       // Declare remoteAddr before the loop
+	var readErr error             // Declare readErr before the loop
 
 	for {
 		// Set a reasonable read deadline on the UDP connection to ensure the select doesn't block indefinitely if stopRelay is never closed.
@@ -550,7 +553,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 		default:
 			// Non-blocking check for stop signal before attempting read
 			// Try reading from UDP socket
-			n, remoteAddr, readErr := udpConn.ReadFrom(buffer)
+			n, remoteAddr, readErr = udpConn.ReadFrom(buffer)
 
 			if readErr != nil {
 				// Check if the error is due to timeout
