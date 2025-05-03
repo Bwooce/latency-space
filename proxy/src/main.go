@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"bytes" // Added for MoonsHTML generation
+	"html/template" // Added for HTML templating
 	"sync"
 	"syscall"
 	"time"
@@ -21,6 +23,9 @@ import (
 	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// Global template variable
+var infoTemplate *template.Template
 
 // Ensure tls package is used - needed for TLS configuration
 var _ = tls.Config{}
@@ -299,10 +304,218 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// displayCelestialInfo shows information about the celestial body
+// InfoPageData holds data for the info page template
+type InfoPageData struct {
+	Name            string
+	DistanceMkm     string // Formatted string
+	LatencySec      string // Formatted string
+	LatencyFriendly string // Formatted string (e.g., "X minutes Y seconds")
+	RoundTripFriendly string // Formatted string
+	OccludedStatus  string // "Visible" or "Occluded by ..."
+	OccludedClass   string // "status-visible" or "status-occluded"
+	Domain          string // e.g., "mars.latency.space"
+	MoonsHTML       template.HTML // Use template.HTML to prevent escaping
+}
+
+// formatDurationFriendly converts duration to a string like "X minutes Y.Z seconds"
+func formatDurationFriendly(d time.Duration) string {
+	totalSeconds := d.Seconds()
+	if totalSeconds < 0 {
+		return "N/A"
+	}
+
+	if totalSeconds < 60 {
+		return fmt.Sprintf("%.2f seconds", totalSeconds)
+	}
+
+	minutes := int(totalSeconds / 60)
+	seconds := totalSeconds - float64(minutes*60)
+
+	if minutes < 60 {
+		return fmt.Sprintf("%d minutes %.2f seconds", minutes, seconds)
+	}
+
+	hours := minutes / 60
+	minutes = minutes % 60
+	return fmt.Sprintf("%d hours %d minutes %.2f seconds", hours, minutes, seconds)
+
+}
+
+// displayCelestialInfo shows information about the celestial body using the template
 func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
+	// Find the celestial body
+	body := findBody(name) // Use the helper function
+	if body == nil {
+		log.Printf("Error: Celestial body '%s' not found in displayCelestialInfo.", name)
+		http.Error(w, "Celestial body not found", http.StatusNotFound)
+		return
+	}
+
+	// Calculate distance and latency
+	distanceKm := getCurrentDistance(name) // In km
+	latency := CalculateLatency(distanceKm)
+
+	// Occlusion Check
+	occludedStatus := "Visible"
+	occludedClass := "status-visible"
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	if !earthFound {
+		log.Printf("Error: Earth celestial object not found in displayCelestialInfo.")
+		// Proceed without occlusion info, but log it
+		occludedStatus = "Unknown (Earth data missing)"
+		occludedClass = ""
+	} else {
+		occludedBy, isOccluded := checkOcclusion(body) // Use simplified checkOcclusion
+		if isOccluded {
+			occludedStatus = fmt.Sprintf("Occluded by %s", occludedBy.Name)
+			occludedClass = "status-occluded"
+		}
+	}
+
+	// Prepare data for the template
+	data := InfoPageData{
+		Name:            body.Name,
+		DistanceMkm:     fmt.Sprintf("%.2f", distanceKm/1e6),
+		LatencySec:      fmt.Sprintf("%.2f", latency.Seconds()),
+		LatencyFriendly: formatDurationFriendly(latency),
+		RoundTripFriendly: formatDurationFriendly(latency * 2),
+		OccludedStatus:  occludedStatus,
+		OccludedClass:   occludedClass,
+		Domain:          fmt.Sprintf("%s.latency.space", strings.ToLower(name)), // Construct domain
+	}
+
+	// Generate Moons HTML
+	moons := GetMoons(name)
+	if len(moons) > 0 {
+		var moonsBuffer bytes.Buffer
+		// Removed <ul> tag generation - will be handled in template
+		for _, moon := range moons {
+			// Ensure moon and parent names are lowercase for the URL
+			moonNameLower := strings.ToLower(moon.Name)
+			parentNameLower := strings.ToLower(name) // Parent is the current body 'name'
+			// Link format: moon.planet.latency.space
+			moonDomain := fmt.Sprintf("%s.%s.latency.space", moonNameLower, parentNameLower)
+			// Generate link correctly
+			fmt.Fprintf(&moonsBuffer, `<li><a href="http://%s/">%s</a></li>`, moonDomain, moon.Name)
+		}
+		// Removed </ul> tag generation
+		data.MoonsHTML = template.HTML(moonsBuffer.String())
+	}
+
+	// Execute the template
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	err := infoTemplate.Execute(w, data)
+	if err != nil {
+		log.Printf("Error executing template for %s: %v", name, err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	/* --- Old fmt.Fprintf code removed ---
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
+
+	distance := getCurrentDistance(name)
+	latency := CalculateLatency(distance)
+
+	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
+	fmt.Fprintf(w, "<h1>%s</h1>", name)
+	fmt.Fprintf(w, "<p>You are simulating communications from Earth to %s.</p>", name)
+	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance / 1e6)
+	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency.Round(time.Second))
+	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency.Round(time.Second))
+
+	// --- Occlusion Check ---
+	targetObject, targetFound := findObjectByName(celestialObjects, name)
+	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+
+	if !targetFound {
+		log.Printf("Error: Target celestial body '%s' not found in displayCelestialInfo.", name)
+		// Don't write error to response, just log it, as basic info is already printed
+	} else if !earthFound {
+		log.Printf("Error: Earth celestial object not found in displayCelestialInfo.")
+		// Don't write error to response, just log it
+	} else {
+		occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+		if occluded {
+			// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
+			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluder.Name)
+		} else {
+			fmt.Fprintf(w, `<p style="color: green;">Status: Visible</p>`)
+		}
+	}
+	// --- End Occlusion Check ---
+
+
+	fmt.Fprintf(w, "<h2>Usage</h2>")
+	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
+	fmt.Fprintf(w, "<ul>")
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", strings.ToLower(name))
+	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", strings.ToLower(name))
+	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", strings.ToLower(name))
+	fmt.Fprintf(w, "</ul>")
+
+	fmt.Fprintf(w, "<h2>SOCKS5 Proxy</h2>")
+	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
+	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", strings.ToLower(name))
+
+	moons := GetMoons(name)
+	if len(moons) > 0 {
+		fmt.Fprintf(w, "<h2>Moons</h2>")
+		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)
+		fmt.Fprintf(w, "<ul>")
+		for _, moon := range moons {
+			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon.Name, name, moon.Name)
+		}
+		fmt.Fprintf(w, "</ul>")
+	}
+
+	fmt.Fprintf(w, "</body></html>")
+	*/
+}
+
+// InfoPageData holds data for the info page template
+type InfoPageData struct {
+    Name            string
+    DistanceMkm     string
+    LatencySec      string
+    LatencyFriendly string
+    RoundTripFriendly string
+    OccludedStatus  string
+    OccludedClass   string
+    Domain          string
+    MoonsHTML       template.HTML
+}
+
+// formatDurationFriendly converts duration to a human-readable string
+func formatDurationFriendly(d time.Duration) string {
+    d = d.Round(time.Second)
+    days := d / (24 * time.Hour)
+    d -= days * 24 * time.Hour
+    hours := d / time.Hour
+    d -= hours * time.Hour
+    minutes := d / time.Minute
+    d -= minutes * time.Minute
+    seconds := d / time.Second
+
+    var parts []string
+    if days > 0 {
+        parts = append(parts, fmt.Sprintf("%d days", days))
+    }
+    if hours > 0 {
+        parts = append(parts, fmt.Sprintf("%d hours", hours))
+    }
+    if minutes > 0 {
+        parts = append(parts, fmt.Sprintf("%d minutes", minutes))
+    }
+    if seconds > 0 || len(parts) == 0 { // Always show seconds if no other parts or if it's zero total
+        parts = append(parts, fmt.Sprintf("%d seconds", seconds))
+    }
+    return strings.Join(parts, " ")
+}
+
+// parseHostForCelestialBody extracts target URL and celestial body from request
+func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string, CelestialObject, string) {
 
 	distance := getCurrentDistance(name)
 	latency := CalculateLatency(distance)
