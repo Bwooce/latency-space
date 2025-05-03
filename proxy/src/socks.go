@@ -474,7 +474,6 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	clientTCPAddr := s.conn.RemoteAddr() // Keep original addr for logging/body lookup
 	
 	stopRelay := make(chan struct{})
-	defer close(stopRelay) // Ensure stopRelay is closed when handleUDPAssociate returns
 
 	// Launch the relay goroutine
 	wg.Add(1)
@@ -492,10 +491,14 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 			log.Printf("SOCKS UDP Associate: Error reading from control TCP connection %s: %v", clientTCPAddr, err)
 		}
 	}
-	// Closure of stopRelay (via defer) will signal handleUDPRelay to terminate.
-	log.Printf("SOCKS UDP Associate: Finished for %s", clientTCPAddr)
-	// Wait for the relay goroutine to finish before returning and closing the TCP conn implicitly
+	log.Printf("SOCKS UDP Associate: Finished monitoring TCP connection for %s", clientTCPAddr)
+
+	log.Printf("SOCKS UDP Associate: Closing stopRelay channel for %s", clientTCPAddr) // DEBUG
+	close(stopRelay) // Close channel *before* waiting
+
+	log.Printf("SOCKS UDP Associate: Waiting for UDP relay goroutine to finish for %s", clientTCPAddr) // DEBUG
 	wg.Wait()
+	log.Printf("SOCKS UDP Associate: UDP relay goroutine finished for %s", clientTCPAddr) // DEBUG
 
 	return nil
 }
@@ -567,16 +570,6 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 					// Timeout occurred, loop again to check stopRelay or wait for next packet
 					// log.Printf("UDP Relay: Read deadline exceeded for %s, continuing loop.", clientTCPAddr) // Optional: logging timeouts can be noisy
 					continue
-				}
-
-				// Check if stopRelay was signaled concurrently with the read error
-				select {
-				case <-stopRelay:
-					log.Printf("UDP Relay: Terminating due to read error during shutdown for %s.", clientTCPAddr)
-					log.Printf("UDP Relay: Exiting via concurrent read error/shutdown check for %s", clientTCPAddr) // DEBUG
-					return // Exit handleUDPRelay
-				default:
-					// stopRelay not closed yet, continue with other error checks
 				}
 
 				// Check if the error is due to the connection being closed (e.g., by stopRelay causing return)
