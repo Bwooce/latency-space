@@ -483,12 +483,13 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	log.Printf("SOCKS UDP Associate: Monitoring control TCP connection %s for relay termination", clientTCPAddr)
 	buf := make([]byte, 1) // Small buffer, we just need to detect closure
 	_, err = s.conn.Read(buf) // Block here until TCP connection closes or errors
-		if err != nil {
-			if err == io.EOF {
-				log.Printf("SOCKS UDP Associate: Control TCP connection %s closed by client.", clientTCPAddr)
-			} else {
-				log.Printf("SOCKS UDP Associate: Error reading from control TCP connection %s: %v", clientTCPAddr, err)
-			}
+	if err != nil {
+		if err == io.EOF {
+			log.Printf("SOCKS UDP Associate: Control TCP connection %s closed by client.", clientTCPAddr)
+		} else {
+			log.Printf("SOCKS UDP Associate: Error reading from control TCP connection %s: %v", clientTCPAddr, err)
+		}
+	}
 	// Closure of stopRelay (via defer) will signal handleUDPRelay to terminate.
 	log.Printf("SOCKS UDP Associate: Finished for %s", clientTCPAddr)
 
