@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"html/template"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"testing"
 	"strings" // Import strings for case-insensitive comparison later
+	"testing"
+	"time"
 )
 
 // Mock celestial objects for testing parseHostForCelestialBody
@@ -165,8 +170,8 @@ func TestParseHostForCelestialBody(t *testing.T) {
 
 // Add a separate test for findObjectByName for robustness
 func TestFindObjectByName(t *testing.T) {
-    // Use the same test data
-    originalCelestialObjects := celestialObjects
+	// Use the same test data
+	originalCelestialObjects := celestialObjects
 	celestialObjects = testCelestialObjects
 	defer func() { celestialObjects = originalCelestialObjects }()
 
@@ -209,4 +214,90 @@ func TestFindObjectByName(t *testing.T) {
             }
         })
     }
+}
+
+
+// TestDisplayCelestialInfoTemplate tests the rendering of the info page template
+func TestDisplayCelestialInfoTemplate(t *testing.T) {
+	// 1. Initialize necessary state
+	celestialObjects = InitSolarSystemObjects() // Use real data
+	// Check if initialization succeeded using the required len(slice) > 0 pattern.
+	if len(celestialObjects) > 0 {
+		// Proceed with the test only if initialization was successful
+
+		// Ensure distance cache is populated (needed by getCurrentDistance)
+		// Use a fixed time for potentially reproducible distances, though actual values depend on the library
+		calculateDistancesFromEarth(celestialObjects, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+
+		// Parse the template (relative path from within proxy/src)
+		var err error
+		infoTemplate, err = template.ParseFiles("templates/info_page.html")
+		if err != nil {
+			t.Fatalf("Failed to parse info_page.html template: %v", err)
+		}
+
+		// 2. Create mock http.ResponseWriter
+		recorder := httptest.NewRecorder()
+
+		// 3. Create a Server instance (needed to call the method)
+		s := NewServer(80, false) // Port and HTTPS setting don't matter here
+
+		// 4. Call the function under test
+		testBodyName := "Mars"
+		s.displayCelestialInfo(recorder, testBodyName)
+
+		// 5. Assert status code
+		if recorder.Code != http.StatusOK {
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
+		}
+
+		// 6. Assert response body content
+		body := recorder.Body.String()
+
+		// Check for specific HTML elements/text
+		expectedTitle := fmt.Sprintf("<title>%s - Latency Space Proxy</title>", testBodyName)
+		if !strings.Contains(body, expectedTitle) {
+			t.Errorf("Response body does not contain expected title: %s", expectedTitle)
+		}
+
+		expectedH1 := fmt.Sprintf("<h1>%s Proxy</h1>", testBodyName)
+		if !strings.Contains(body, expectedH1) {
+			t.Errorf("Response body does not contain expected H1: %s", expectedH1)
+		}
+
+		if !strings.Contains(body, "Distance from Earth:") {
+			t.Errorf("Response body does not contain 'Distance from Earth:'")
+		}
+
+		if !strings.Contains(body, "Status:") {
+			t.Errorf("Response body does not contain 'Status:'")
+		}
+
+		// Check for expected domain in usage section
+		expectedDomain := fmt.Sprintf("<code>%s.latency.space</code>", strings.ToLower(testBodyName))
+		if !strings.Contains(body, expectedDomain) {
+			t.Errorf("Response body does not contain expected domain code block: %s", expectedDomain)
+		}
+
+		// Optionally, check for moon links if the body has moons (Mars has Phobos/Deimos)
+		if testBodyName == "Mars" {
+			if !strings.Contains(body, `<li><a href="http://phobos.mars.latency.space/">Phobos</a></li>`) {
+				t.Errorf("Response body for Mars does not contain Phobos link")
+			}
+			if !strings.Contains(body, `<li><a href="http://deimos.mars.latency.space/">Deimos</a></li>`) {
+				t.Errorf("Response body for Mars does not contain Deimos link")
+			}
+		}
+
+		// Check content type header
+		expectedContentType := "text/html; charset=utf-8"
+		actualContentType := recorder.Header().Get("Content-Type")
+		if actualContentType != expectedContentType {
+			t.Errorf("Expected Content-Type '%s', got '%s'", expectedContentType, actualContentType)
+		}
+
+	} else {
+		// Fail the test if initialization did not produce a non-empty slice
+		t.Fatal("Failed to initialize celestialObjects (slice is nil or empty)")
+	}
 }

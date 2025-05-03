@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net"
@@ -21,6 +22,9 @@ import (
 	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// Global variable to hold the parsed info page template
+var infoTemplate *template.Template
 
 // Ensure tls package is used - needed for TLS configuration
 var _ = tls.Config{}
@@ -39,6 +43,19 @@ type StatusEntry struct {
 type ApiResponse struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Objects   map[string][]StatusEntry `json:"objects"` // Keyed by object type (e.g., "planets", "moons")
+}
+
+// InfoPageData holds the data needed to render the celestial body info page template
+type InfoPageData struct {
+	Name              string
+	DistanceMkm       float64 // Distance in millions of kilometers
+	LatencySec        float64 // One-way latency in seconds
+	LatencyFriendly   string  // Human-readable latency (e.g., "5 minutes")
+	RoundTripFriendly string  // Human-readable round-trip time
+	OccludedClass     string  // CSS class for occlusion status ("status-visible" or "status-occluded")
+	OccludedStatus    string  // Textual description of occlusion status
+	MoonsHTML         template.HTML // Pre-rendered HTML for the moons list (if any)
+	Domain            string  // The domain name for this body (e.g., "mars.latency.space")
 }
 
 // Server is the main latency proxy server
@@ -299,67 +316,85 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// displayCelestialInfo shows information about the celestial body
+// displayCelestialInfo renders the information page for a celestial body using the template
 func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
+	// 5. Set Content-Type Header
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	distance := getCurrentDistance(name)
+	// 2. Calculate Data
+	distance := getCurrentDistance(name) // km
 	latency := CalculateLatency(distance)
 
-	fmt.Fprintf(w, "<html><head><title>%s - Latency Space</title></head><body>", name)
-	fmt.Fprintf(w, "<h1>%s</h1>", name)
-	fmt.Fprintf(w, "<p>You are simulating communications from Earth to %s.</p>", name)
-	fmt.Fprintf(w, "<p>Current distance from Earth: %.2f million km</p>", distance / 1e6)
-	fmt.Fprintf(w, "<p>One-way latency: %v</p>", latency.Round(time.Second))
-	fmt.Fprintf(w, "<p>Round-trip latency: %v</p>", 2*latency.Round(time.Second))
-
-	// --- Occlusion Check ---
+	var occluded bool
+	var occluderName string
+	var occluder CelestialObject // Use struct type to match IsOccluded return type
 	targetObject, targetFound := findObjectByName(celestialObjects, name)
 	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
 
-	if !targetFound {
-		log.Printf("Error: Target celestial body '%s' not found in displayCelestialInfo.", name)
-		// Don't write error to response, just log it, as basic info is already printed
-	} else if !earthFound {
-		log.Printf("Error: Earth celestial object not found in displayCelestialInfo.")
-		// Don't write error to response, just log it
-	} else {
-		occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
-		if occluded {
-			// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
-			fmt.Fprintf(w, `<p style="color: red;">Status: Occluded by %s</p>`, occluder.Name)
-		} else {
-			fmt.Fprintf(w, `<p style="color: green;">Status: Visible</p>`)
+	if targetFound && earthFound {
+		occluded, occluder = IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+		// Check if an actual occluding object was returned (Name will be non-empty)
+		if occluded && occluder.Name != "" {
+			occluderName = occluder.Name
 		}
+	} else {
+		log.Printf("Warning: Could not perform occlusion check for %s (targetFound: %v, earthFound: %v)", name, targetFound, earthFound)
+		// Proceed without occlusion data if objects aren't found
 	}
-	// --- End Occlusion Check ---
-
-
-	fmt.Fprintf(w, "<h2>Usage</h2>")
-	fmt.Fprintf(w, "<p>To browse a website through %s, use one of these formats:</p>", name)
-	fmt.Fprintf(w, "<ul>")
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/http://example.com</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "<li><code>http://example.com.%s.latency.space/</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "<li><code>http://%s.latency.space/?url=http://example.com</code></li>", strings.ToLower(name))
-	fmt.Fprintf(w, "</ul>")
-
-	fmt.Fprintf(w, "<h2>SOCKS5 Proxy</h2>")
-	fmt.Fprintf(w, "<p>For SOCKS5 proxy access through %s:</p>", name)
-	fmt.Fprintf(w, "<pre>Host: %s.latency.space\nPort: 1080\nType: SOCKS5</pre>", strings.ToLower(name))
 
 	moons := GetMoons(name)
+
+	// 3. Populate InfoPageData
+	var moonsHTML template.HTML
 	if len(moons) > 0 {
-		fmt.Fprintf(w, "<h2>Moons</h2>")
-		fmt.Fprintf(w, "<p>%s has the following moons available:</p>", name)
-		fmt.Fprintf(w, "<ul>")
+		var htmlBuilder strings.Builder
 		for _, moon := range moons {
-			fmt.Fprintf(w, "<li><a href=\"http://%s.%s.latency.space/\">%s</a></li>", moon.Name, name, moon.Name)
+			// Construct the moon's domain (e.g., phobos.mars.latency.space)
+			// Ensure both moon and planet names are lowercase for domain consistency
+			moonDomain := fmt.Sprintf("%s.%s.latency.space", strings.ToLower(moon.Name), strings.ToLower(name))
+			// Create the list item HTML, linking to the root of the moon's proxy domain
+			htmlBuilder.WriteString(fmt.Sprintf(`<li><a href="http://%s/">%s</a></li>`, moonDomain, moon.Name))
 		}
-		fmt.Fprintf(w, "</ul>")
+		moonsHTML = template.HTML(htmlBuilder.String()) // Convert final string to template.HTML
 	}
 
-	fmt.Fprintf(w, "</body></html>")
+	data := InfoPageData{
+		Name:              name,                                        // Use the original case name for display
+		DistanceMkm:       distance / 1e6,                              // Convert km to million km
+		LatencySec:        latency.Seconds(),                           // One-way latency in seconds
+		LatencyFriendly:   latency.Round(time.Second).String(),         // Friendly one-way latency
+		RoundTripFriendly: (2 * latency).Round(time.Second).String(), // Friendly round-trip latency
+		Domain:            fmt.Sprintf("%s.latency.space", strings.ToLower(name)), // Lowercase domain
+		MoonsHTML:         moonsHTML,                                   // Assign generated HTML
+	}
+
+	// Set occlusion status and class based on calculated data
+	if occluded {
+		data.OccludedClass = "status-occluded"
+		if occluderName != "" {
+			data.OccludedStatus = fmt.Sprintf("Occluded by %s", occluderName)
+		} else {
+			data.OccludedStatus = "Occluded (Unknown Occluder)" // Fallback if occluder name is missing
+			log.Printf("Warning: Occlusion detected for %s but occluder name is empty.", name)
+		}
+	} else {
+		data.OccludedClass = "status-visible"
+		data.OccludedStatus = "Visible"
+	}
+
+	// 4. Execute Template
+	// Use the globally parsed infoTemplate
+	err := infoTemplate.Execute(w, data)
+	if err != nil {
+		// Log the error
+		log.Printf("Error executing info page template for %s: %v", name, err)
+		// Attempt to send an error to the client, but only if headers haven't been written.
+		// The template engine might have already started writing, so this might fail silently
+		// or cause a "superfluous response.WriteHeader call" log, which is acceptable here.
+		http.Error(w, "Failed to render information page", http.StatusInternalServerError)
+		return // Stop further processing
+	}
+	// Note: No need to call w.WriteHeader(http.StatusOK) as Execute does this implicitly on success.
 }
 
 // parseHostForCelestialBody extracts target URL and celestial body from request
@@ -706,11 +741,18 @@ func main() {
 
 	flag.Parse()
 
+	// Parse the info page template at startup
+	var err error
+	infoTemplate, err = template.ParseFiles("proxy/src/templates/info_page.html")
+	if err != nil {
+		log.Fatalf("Failed to parse info page template: %v", err)
+	}
+
 	celestialObjects = InitSolarSystemObjects()
 
 	// Create and start the server
 	server := NewServer(*port, *https)
-	err := server.Start()
+	err = server.Start() // Use = instead of := as err is already declared
 	if err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
