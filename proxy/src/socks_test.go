@@ -354,11 +354,3 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	    t.Log("Verified no SOCKS server goroutine errors, continuing")
 	}
 }
-
-// Removed local helper function redeclarations:
-// - getTestLocalIP
-// - findObjectByName
-// - IsOccluded
-// - getCurrentDistance
-// - CalculateLatency
-// The test will use the implementations from the main package.
