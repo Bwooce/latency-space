@@ -571,7 +571,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				continue
 			}
 		}
-	}
+	
 
 
 		// Decide if the packet is from the client or an external target
@@ -768,7 +768,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 		}
 	}
 }
-
+}
 
 // sendReply sends a SOCKS5 reply message
 func (s *SOCKSHandler) sendReply(rep byte, ip net.IP, port uint16) {
