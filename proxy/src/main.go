@@ -571,7 +571,7 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 	case "help":
 		s.printHelp(w)
 	default:
-		http.Error(w, "Unknown debug command %s", http.StatusNotFound, path)
+		http.Error(w, "Unknown debug command: " + path, http.StatusNotFound)
 	}
 }
 
