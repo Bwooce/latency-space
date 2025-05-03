@@ -599,14 +599,14 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/_debug/")
 
 	switch path {
-case "metrics": // Add this case
-	promhttp.Handler().ServeHTTP(w, r)
+	case "metrics": 
+		promhttp.Handler().ServeHTTP(w, r)
 	case "distances":
 		s.printCelestialDistances(w)
 	case "help":
 		s.printHelp(w)
 	default:
-		http.Error(w, "Unknown debug command", http.StatusNotFound)
+		http.Error(w, "Unknown debug command: " + path, http.StatusNotFound)
 	}
 }
 
@@ -635,6 +635,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 	// Ensure distance data is up-to-date
 	now := time.Now()
 	calculateDistancesFromEarth(celestialObjects, now) // Refresh cache
+	log.Printf("DEBUG: distanceEntries after calculation: %+v\n", distanceEntries)
 
 	// Prepare the response structure
 	response := ApiResponse{
@@ -665,7 +666,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 
 		// Check if the entry was found in the slice
 		if !found {
-			log.Printf("Warning: Distance entry not found for %s in handleStatusData slice lookup", obj.Name)
+			log.Printf("Warning: Failed to find distance entry for obj.Name='%s' in distanceEntries lookup. Skipping object.", obj.Name)
 			continue // Skip this object if no distance data is found
 		}
 
