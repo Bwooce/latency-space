@@ -173,11 +173,44 @@ server {
     }
 }
 
-# Server for all other .latency.space subdomains
+# Server block for HTTP -> HTTPS redirect for subdomains
 server {
     listen 80;
+    listen [::]:80;
     server_name ~^[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.[^.]+\.latency\.space$;
-    
+
+    # Handle Let's Encrypt validation challenges by proxying to the backend Go app
+    location /.well-known/acme-challenge/ {
+        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Redirect all other HTTP requests to HTTPS
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+
+# Server for all other .latency.space subdomains
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ~^[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.[^.]+\.latency\.space$;
+
+    ssl_certificate /etc/letsencrypt/live/latency.space/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/latency.space/privkey.pem;
+    # Include recommended settings from certbot/nginx guide (or similar standard practice)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
     # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
         proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
