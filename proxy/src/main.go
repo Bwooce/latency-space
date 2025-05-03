@@ -564,14 +564,14 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/_debug/")
 
 	switch path {
-case "metrics": // Add this case
-	promhttp.Handler().ServeHTTP(w, r)
+	case "metrics": 
+		promhttp.Handler().ServeHTTP(w, r)
 	case "distances":
 		s.printCelestialDistances(w)
 	case "help":
 		s.printHelp(w)
 	default:
-		http.Error(w, "Unknown debug command", http.StatusNotFound)
+		http.Error(w, "Unknown debug command %s", http.StatusNotFound, path)
 	}
 }
 
