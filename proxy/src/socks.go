@@ -588,6 +588,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				continue
 			}
 		}
+	}
 
 
 		// Decide if the packet is from the client or an external target
