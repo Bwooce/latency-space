@@ -44,6 +44,14 @@ echo "Updating code from repository..."
 git fetch --all
 git reset --hard origin/main
 
+# Ensure ACME challenge directory exists and has correct permissions
+echo "Ensuring ACME challenge directory exists and has correct permissions..."
+sudo mkdir -p /var/www/html/.well-known/acme-challenge
+# Note: Using 777 is simple but potentially insecure.
+# Consider adjusting ownership/group if the container runs as non-root.
+sudo chmod 777 /var/www/html/.well-known/acme-challenge
+echo "ACME challenge directory setup complete."
+
 # Check if docker and docker-compose are installed
 if ! command -v docker &> /dev/null; then
   echo "Docker not found. Please install Docker first."

@@ -59,9 +59,13 @@ server {
     listen 80;
     server_name latency.space www.latency.space;
     
-    # Handle Let's Encrypt validation challenges
+    # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
-        root /var/www/html;
+        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
     
     # Allow direct access to diagnostic pages
@@ -174,9 +178,13 @@ server {
     listen 80;
     server_name ~^[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.latency\.space$ ~^[^.]+\.[^.]+\.[^.]+\.latency\.space$;
     
-    # Handle Let's Encrypt validation challenges
+    # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
-        root /var/www/html;
+        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
     
     # Global rate limiting - very strict

@@ -14,6 +14,9 @@ services:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
       - proxy_certs:/app/certs # For certificate persistence
+      - type: bind # Add the new volume mapping for acme challenge
+        source: /var/www/html
+        target: /var/www/html
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
