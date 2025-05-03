@@ -392,6 +392,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 // handleUDPAssociate handles the SOCKS5 UDP ASSOCIATE command
 func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	log.Printf("SOCKS UDP ASSOCIATE request from %s", s.conn.RemoteAddr())
+	var wg sync.WaitGroup
 
 	// Read and discard the client's requested address and port (they are ignored per RFC)
 	switch addrType {
@@ -476,7 +477,8 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	defer close(stopRelay) // Ensure stopRelay is closed when handleUDPAssociate returns
 
 	// Launch the relay goroutine
-	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, stopRelay)
+	wg.Add(1)
+	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, stopRelay, &wg)
 
 	// Keep the TCP connection alive to manage the UDP relay's lifecycle.
 	// Read minimally from the TCP connection; its closure (or error) signals shutdown.
@@ -492,14 +494,17 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	}
 	// Closure of stopRelay (via defer) will signal handleUDPRelay to terminate.
 	log.Printf("SOCKS UDP Associate: Finished for %s", clientTCPAddr)
+	// Wait for the relay goroutine to finish before returning and closing the TCP conn implicitly
+	wg.Wait()
 
 	return nil
 }
 
 // handleUDPRelay manages packet forwarding for a UDP association.
 // It listens on the stopRelay channel to know when to shut down.
-func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, stopRelay <-chan struct{}) {
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, stopRelay <-chan struct{}, wg *sync.WaitGroup) {
 	defer udpConn.Close() // Ensure UDP socket is closed when this goroutine exits
+	defer wg.Done()       // Signal that this goroutine has finished
 	log.Printf("UDP Relay started for %s, listening on %s", clientTCPAddr, udpConn.LocalAddr())
 
 	// Determine celestial body and latency based on the *initial* TCP connection
