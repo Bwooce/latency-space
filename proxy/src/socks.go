@@ -537,7 +537,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	var readErr error             // Declare readErr before the loop
 
 	for {
-			// log.Printf("UDP Relay: Attempting to read from UDP socket for %s", clientTCPAddr) // DEBUG - can be noisy
+			log.Printf("UDP Relay: Attempting to read from UDP socket for %s", clientTCPAddr) // DEBUG - can be noisy
 			// Read from the UDP socket. This will block until a packet arrives or the connection is closed.
 			n, remoteAddr, readErr = udpConn.ReadFrom(buffer)
 
