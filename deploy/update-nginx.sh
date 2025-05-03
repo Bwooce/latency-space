@@ -77,7 +77,7 @@ server {
     # API requests - Proxy to backend Go service
     location /api/ {
         # Using the PROXY_IP variable defined in the script
-        proxy_pass http://\${PROXY_IP}:80; 
+        proxy_pass http://$PROXY_IP:80; 
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -100,7 +100,7 @@ server {
         # }
 
         # Proxy to the status service (using STATUS_IP variable)
-        proxy_pass http://${STATUS_IP}:80;
+        proxy_pass http://$STATUS_IP:80;
 
         # Standard proxy headers (copied from status.latency.space block)
         proxy_http_version 1.1;
@@ -146,7 +146,7 @@ server {
         }
         
         # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://${PROXY_IP}:80;
+        proxy_pass http://$PROXY_IP:80;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -180,7 +180,7 @@ server {
     # New location block for /api/status-data
     location /api/status-data {
         # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://${PROXY_IP}:80; # Target PROXY_IP
+        proxy_pass http://$PROXY_IP:80; # Target PROXY_IP
 
         # Standard proxy headers (copied from existing location /)
         proxy_http_version 1.1;
@@ -200,7 +200,7 @@ server {
 
     location / {
         # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://${STATUS_IP}:80/status; # Added /status path
+        proxy_pass http://$STATUS_IP:80/status; # Added /status path
         
         # Standard proxy headers
         proxy_http_version 1.1;
@@ -226,7 +226,7 @@ server {
     
     # Debug endpoints with higher priority
     location = /_debug/metrics {
-        proxy_pass http://${PROXY_IP}:80;
+        proxy_pass http://$PROXY_IP:80;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -234,7 +234,7 @@ server {
     }
     
     location = /_debug/distances {
-        proxy_pass http://${PROXY_IP}:80;
+        proxy_pass http://$PROXY_IP:80;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -242,7 +242,7 @@ server {
     }
     
     location = /_debug/status {
-        proxy_pass http://${PROXY_IP}:80;
+        proxy_pass http://$PROXY_IP:80;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
