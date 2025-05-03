@@ -393,6 +393,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	log.Printf("SOCKS UDP ASSOCIATE request from %s", s.conn.RemoteAddr())
 	var wg sync.WaitGroup
+	done := make(chan struct{}) // Channel to signal UDP relay termination
 
 	// Read and discard the client's requested address and port (they are ignored per RFC)
 	switch addrType {
@@ -473,9 +474,9 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	// and metrics collector.
 	clientTCPAddr := s.conn.RemoteAddr() // Keep original addr for logging/body lookup
 
-	// Launch the relay goroutine
+	// Launch the relay goroutine, passing the done channel
 	wg.Add(1)
-	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, &wg)
+	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, &wg, done)
 
 	// Keep the TCP connection alive to manage the UDP relay's lifecycle.
 	// Read minimally from the TCP connection; its closure (or error) signals shutdown.
@@ -491,21 +492,25 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	}
 	log.Printf("SOCKS UDP Associate: Finished monitoring TCP connection for %s", clientTCPAddr)
 
-	log.Printf("SOCKS UDP Associate: Closing UDP relay socket (%s) for %s", udpConn.LocalAddr(), clientTCPAddr) // DEBUG Add log
-	udpConn.Close() // Close UDP socket to signal relay goroutine
+	// Signal the UDP relay goroutine to terminate *before* closing the socket
+	log.Printf("SOCKS UDP Associate: Signaling UDP relay termination for %s", clientTCPAddr)
+	close(done)
 
-	log.Printf("SOCKS UDP Associate: Waiting for UDP relay goroutine to finish for %s", clientTCPAddr) // DEBUG
-	wg.Wait()
+	// Now close the UDP socket. This might interrupt the ReadFrom in the relay's reader goroutine.
+	log.Printf("SOCKS UDP Associate: Closing UDP relay socket (%s) for %s", udpConn.LocalAddr(), clientTCPAddr)
+	udpConn.Close()
+
+	log.Printf("SOCKS UDP Associate: Waiting for UDP relay goroutine to finish for %s", clientTCPAddr)
+	wg.Wait() // Wait for the relay goroutine to fully exit
 	log.Printf("SOCKS UDP Associate: UDP relay goroutine finished for %s", clientTCPAddr) // DEBUG
 
 	return nil
 }
 
 // handleUDPRelay manages packet forwarding for a UDP association.
-// It terminates when the udpConn is closed.
-func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, wg *sync.WaitGroup) {
-	// NOTE: Do not call udpConn.Close() here. The caller (handleUDPAssociate) is responsible
-	// for closing the connection to signal termination.
+// It terminates when the done channel is closed or the udpConn is closed.
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, wg *sync.WaitGroup, done <-chan struct{}) {
+	// NOTE: Do not call udpConn.Close() here. The caller (handleUDPAssociate) is responsible.
 	defer wg.Done() // Signal that this goroutine has finished
 	log.Printf("UDP Relay started for %s, listening on %s", clientTCPAddr, udpConn.LocalAddr())
 
@@ -532,30 +537,95 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	}
  	buffer := make([]byte, 65535) // Max UDP packet size
 	var clientUDPAddr net.Addr    // Store the client's source UDP address
-	var n int                     // Declare n before the loop
-	var remoteAddr net.Addr       // Declare remoteAddr before the loop
-	var readErr error             // Declare readErr before the loop
 
-	for {
-			log.Printf("UDP Relay: Attempting to read from UDP socket for %s", clientTCPAddr) // DEBUG - can be noisy
-			// Read from the UDP socket. This will block until a packet arrives or the connection is closed.
-			n, remoteAddr, readErr = udpConn.ReadFrom(buffer)
+	// Channel to receive results (including data copy) from the reading goroutine
+	type readResult struct {
+		n          int
+		remoteAddr net.Addr
+		err        error
+		data       []byte // Holds the copy of the data read
+	}
+	readResults := make(chan readResult, 1) // Buffer 1 to avoid blocking reader
 
-			if readErr != nil {
-				// Check if the error is due to the connection being closed.
-				if isNetClosingErr(readErr) {
-					log.Printf("UDP Relay: Connection closed, terminating for %s. Error: %v", clientTCPAddr, readErr)
-					return // Exit the relay loop and goroutine
+	// Start the goroutine to read from the UDP socket
+	go func() {
+		// This goroutine will exit when ReadFrom returns an error (e.g., due to udpConn.Close())
+		defer log.Printf("UDP Relay Reader Goroutine: Exiting for %s", clientTCPAddr)
+		for {
+			// Use a separate buffer owned by this goroutine to avoid races with the main loop processing
+			readBuf := make([]byte, 65535)
+			n, remoteAddr, err := udpConn.ReadFrom(readBuf)
+			// Create a copy of the data read to send over the channel
+			// This is crucial because the main loop might still be processing the previous packet
+			// when ReadFrom overwrites readBuf in the next iteration.
+			var dataCopy []byte
+			if n > 0 {
+				dataCopy = make([]byte, n)
+				copy(dataCopy, readBuf[:n])
 			}
-			
-			// Log other read errors and potentially continue or break
-			log.Printf("UDP Relay: Error reading from UDP socket for %s: %v", clientTCPAddr, readErr)
-			// Depending on the error, we might want to continue, but if it's persistent,
-			// we might risk a busy-loop. For now, let's continue.
-			continue
-		}
 
-		// --- Packet Processing Logic ---
+			// Send result (including data copy) or error back to the main relay loop
+			select {
+			case readResults <- readResult{n: n, remoteAddr: remoteAddr, err: err, data: dataCopy}: // Send dataCopy here
+				// log.Printf("UDP Relay Reader Goroutine: Sent read result (n=%d, err=%v) for %s", n, err, clientTCPAddr) // DEBUG - Can be too noisy
+				if err != nil {
+					if isNetClosingErr(err) {
+						log.Printf("UDP Relay Reader Goroutine: Detected closing error, stopping read loop for %s: %v", clientTCPAddr, err)
+						return // Exit goroutine on closing error
+					}
+					// Log other errors but keep trying to read unless it's a closing error
+					log.Printf("UDP Relay Reader Goroutine: Read error for %s: %v", clientTCPAddr, err)
+				}
+			case <-done: // If the main loop signals done first, stop reading
+				log.Printf("UDP Relay Reader Goroutine: Received done signal, stopping read loop for %s", clientTCPAddr)
+				return
+			}
+		}
+	}()
+
+
+	// Main relay loop using select
+	log.Printf("UDP Relay: Entering main select loop for %s", clientTCPAddr)
+	for {
+		select {
+		case <-done:
+			// Termination signal received from handleUDPAssociate (TCP connection closed)
+			log.Printf("UDP Relay: Received termination signal via done channel for %s. Exiting.", clientTCPAddr)
+			// No need to close udpConn here, handleUDPAssociate does that
+			return
+
+		case res := <-readResults:
+			// Received data or error from the reading goroutine
+			log.Printf("UDP Relay: Received result from reader channel for %s (n=%d, err=%v)", clientTCPAddr, res.n, res.err) // DEBUG
+			if res.err != nil {
+				// Check if the error is due to the connection being closed.
+				if isNetClosingErr(res.err) {
+					log.Printf("UDP Relay: Read error indicates connection closed, terminating for %s: %v", clientTCPAddr, res.err)
+					return // Exit the relay loop and goroutine
+				}
+							// Log other read errors and continue waiting for packets or done signal
+				log.Printf("UDP Relay: Error reading from UDP socket reported by reader for %s: %v", clientTCPAddr, res.err)
+				continue // Wait for next event
+			}
+
+			// --- Packet Processing Logic (using res.n, res.remoteAddr, and buffer with res.n length) ---
+			n := res.n
+			remoteAddr := res.remoteAddr
+			// Use the data copy received from the channel
+			packetData := res.data // Use the data from the readResult struct
+
+			// Ensure packetData is not nil if n > 0, although the reader should handle this.
+			// It's possible to get n=0, err=nil in some UDP scenarios.
+			if n > 0 && packetData == nil {
+				log.Printf("UDP Relay: Received n=%d but packetData is nil. Skipping.", n)
+				continue
+			}
+			// If n == 0 and err == nil, just continue waiting.
+			if n == 0 {
+				log.Printf("UDP Relay: Received 0 bytes from reader for %s. Continuing.", clientTCPAddr) // DEBUG
+				continue
+			}
+
 		// First packet received? Identify the client's UDP source address.
 		// Compare host parts only, as ports might differ.
 		if clientUDPAddr == nil {
@@ -573,12 +643,13 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 		}
 
 		// Decide if the packet is from the client or an external target
-		if remoteAddr.String() == clientUDPAddr.String() {
+		// Make sure clientUDPAddr is set before comparing
+		if clientUDPAddr != nil && remoteAddr.String() == clientUDPAddr.String() {
 			// --- Packet from Client -> Target ---
-			log.Printf("UDP Relay: Received %d bytes from client %s", n, remoteAddr)
+			log.Printf("UDP Relay: Processing %d bytes from client %s", n, remoteAddr)
 
 			if n < 6 { // Minimum SOCKS UDP header size (VER+RSV+FRAG+ATYP+DST.ADDR(1)+DST.PORT(2))
-				log.Printf("UDP Relay: Packet from client too short (%d bytes), dropping.", n)
+				log.Printf("UDP Relay: Packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
 				continue
 			}
 
@@ -588,16 +659,16 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			// +----+------+------+----------+----------+----------+
 			// | 2  |  1   |  1   | Variable |    2     | Variable |
 			// +----+------+------+----------+----------+----------+
-			rsv := binary.BigEndian.Uint16(buffer[0:2])
-			frag := buffer[2]
-			addrType := buffer[3]
+			rsv := binary.BigEndian.Uint16(packetData[0:2])
+			frag := packetData[2]
+			addrType := packetData[3]
 
 			if rsv != 0 {
-				log.Printf("UDP Relay: RSV field is non-zero (%d), dropping packet.", rsv)
+				log.Printf("UDP Relay: RSV field is non-zero (%d) in packet from client %s, dropping.", rsv, remoteAddr)
 				continue // Reserved field must be 0
 			}
 			if frag != 0 {
-				log.Printf("UDP Relay: Fragmentation not supported (FRAG=%d), dropping packet.", frag)
+				log.Printf("UDP Relay: Fragmentation not supported (FRAG=%d) in packet from client %s, dropping.", frag, remoteAddr)
 				continue // We don't support fragmentation
 			}
 
@@ -608,24 +679,24 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			switch addrType {
 			case SOCKS5_ADDR_IPV4:
 				if n < 4+4+2 { // Header(4) + IPv4(4) + Port(2)
-					log.Printf("UDP Relay: IPv4 packet from client too short (%d bytes), dropping.", n)
+					log.Printf("UDP Relay: IPv4 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
 					continue
 				}
-				dstHost = net.IP(buffer[4:8]).String()
-				dstPort = binary.BigEndian.Uint16(buffer[8:10])
+				dstHost = net.IP(packetData[4:8]).String()
+				dstPort = binary.BigEndian.Uint16(packetData[8:10])
 				dataOffset = 10
 			case SOCKS5_ADDR_DOMAIN:
 				if n < 4+1 { // Header(4) + DomainLen(1)
-					log.Printf("UDP Relay: Domain packet header from client too short (%d bytes), dropping.", n)
+					log.Printf("UDP Relay: Domain packet header from client %s too short (%d bytes), dropping.", remoteAddr, n)
 					continue
 				}
-				domainLen := int(buffer[4])
+				domainLen := int(packetData[4])
 				if n < 4+1+domainLen+2 { // Header(4) + Len(1) + Domain(len) + Port(2)
 					log.Printf("UDP Relay: Domain packet from client too short (%d bytes for domain len %d), dropping.", n, domainLen)
 					continue
 				}
-				domain := string(buffer[5 : 5+domainLen])
-				dstPort = binary.BigEndian.Uint16(buffer[5+domainLen : 5+domainLen+2])
+				domain := string(packetData[5 : 5+domainLen])
+				dstPort = binary.BigEndian.Uint16(packetData[5+domainLen : 5+domainLen+2])
 				dataOffset = 5 + domainLen + 2
 
 				// Process domain (e.g., extract target from .latency.space)
@@ -641,22 +712,22 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 			case SOCKS5_ADDR_IPV6:
 				if n < 4+16+2 { // Header(4) + IPv6(16) + Port(2)
-					log.Printf("UDP Relay: IPv6 packet from client too short (%d bytes), dropping.", n)
+					log.Printf("UDP Relay: IPv6 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
 					continue
 				}
-				dstHost = net.IP(buffer[4:20]).String()
-				dstPort = binary.BigEndian.Uint16(buffer[20:22])
+				dstHost = net.IP(packetData[4:20]).String()
+				dstPort = binary.BigEndian.Uint16(packetData[20:22])
 				dataOffset = 22
 			default:
-				log.Printf("UDP Relay: Unsupported address type (%d) from client, dropping packet.", addrType)
+				log.Printf("UDP Relay: Unsupported address type (%d) from client %s, dropping packet.", addrType, remoteAddr)
 				continue
 			}
 
 			if dataOffset > n {
-				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d), dropping.", dataOffset, n)
+				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s, dropping.", dataOffset, n, remoteAddr)
 				continue // Should not happen if previous length checks passed, but safety first
 			}
-			payload := buffer[dataOffset:n]
+			payload := buffer[packetData:n]
 			dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
 
 			// --- Security Checks ---
@@ -681,8 +752,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			} // Removed empty else block for occlusion check skip
 			// --- End Occlusion Check ---
 
-
-			log.Printf("UDP Relay: Relaying %d bytes from %s to %s (via %s, latency %v)",
+			log.Printf("UDP Relay: Relaying %d bytes from client %s to %s (via %s, latency %v)",
 				len(payload), clientUDPAddr, dstAddrPort, bodyName, latency)
 
 			// Apply forward latency
@@ -746,7 +816,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 			replyHeader = append(replyHeader, portBytes...) // Target Port
 
 			// Combine header and original payload
-			fullReply := append(replyHeader, buffer[:n]...) // n is the size of the payload received from target
+			fullReply := append(replyHeader, packetData[:n]...) // n is the size of the payload received from target
 
 
 			log.Printf("UDP Relay: Relaying %d bytes from target %s back to client %s (via %s, latency %v)",
@@ -876,8 +946,13 @@ func isNetClosingErr(err error) bool {
         // Check for common string patterns (less ideal but often necessary)
         // Use ToLower to make the check case-insensitive
         errString := strings.ToLower(err.Error())
-        if strings.Contains(errString, "use of closed network connection") ||
-           strings.Contains(errString, "broken pipe") { // Add other relevant patterns if observed
+	// Common errors across different OSes when a connection is closed
+	if strings.Contains(errString, "use of closed network connection") || // Go's standard error
+		strings.Contains(errString, "closed connection") || // Sometimes seen
+		strings.Contains(errString, "broken pipe") || // Often on write after close (client->target)
+		strings.Contains(errString, "connection reset by peer") || // Remote side closed forcefully
+		strings.Contains(errString, "forcibly closed by the remote host") || // Windows specific
+		strings.Contains(errString, "operation on closed file") { // Can happen with UDP sockets too
                 return true
         }
         return false
