@@ -16,18 +16,35 @@ func setupTestEnvironment() {
 	// Initialize a minimal set of celestial objects for testing
 	// Need Earth for occlusion checks and a target body (e.g., Mars) for latency simulation context
 	// Assign the test objects to the global variable used by the main code
-	// Corrected type to []CelestialObject as per build error
 	celestialObjects = []CelestialObject{
 		{
 			Name:   "Earth",
 			Type:   "planet",
-			Radius: EARTH_RADIUS,
 			// Simplified orbital elements (not used directly in this test, but needed for functions)
-			A: 1.0, E: 0.0167, I: 0.0, L: 100.46, LP: 102.94, N: 0.0,
+			ParentName: "Sun",
+			Radius:     6378.137,
+			A:          1.00000261,
+			E:          0.01671123,
+			I:          -0.00001531,
+			L:          100.46457166,
+			LP:         102.93768193,
+			N:          0.0,
+			dA:         0.00000562,
+			dE:         -0.00004392,
+			dI:         -0.01294668,
+			dL:         35999.37306329,
+			dLP:        0.32327364,
+			dN:         0.0,
+			b:          365.256,  // Orbital period (days)
+			c:          0.0167,   // Eccentricity for perturbation terms
+			s:          0.0148,   // Sin term coefficient
+			f:          0.9856,   // Mean motion (degrees/day)
+			Mass:       5.972e24, // kg
 		}, // Removed &
 		{
 			Name:   "Mars",
-			Type:   "planet",
+			Type:   "moon",
+			ParentName: "Earth",
 			// Simplified orbital elements, copied from Earth's Moon to minimise latency
 			Radius:     1737.4,
 			A:          384399.0, // Semi-major axis in km
