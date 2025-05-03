@@ -727,7 +727,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s, dropping.", dataOffset, n, remoteAddr)
 				continue // Should not happen if previous length checks passed, but safety first
 			}
-			payload := buffer[packetData:n]
+			payload := packetData[dataOffset:n]
 			dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
 
 			// --- Security Checks ---
