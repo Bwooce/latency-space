@@ -600,6 +600,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 	// Ensure distance data is up-to-date
 	now := time.Now()
 	calculateDistancesFromEarth(celestialObjects, now) // Refresh cache
+	log.Printf("DEBUG: distanceEntries after calculation: %+v\n", distanceEntries)
 
 	// Prepare the response structure
 	response := ApiResponse{
@@ -630,7 +631,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 
 		// Check if the entry was found in the slice
 		if !found {
-			log.Printf("Warning: Distance entry not found for %s in handleStatusData slice lookup", obj.Name)
+			log.Printf("Warning: Failed to find distance entry for obj.Name='%s' in distanceEntries lookup. Skipping object.", obj.Name)
 			continue // Skip this object if no distance data is found
 		}
 
