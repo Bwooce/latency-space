@@ -773,7 +773,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 			// Record metrics (outgoing bandwidth from client perspective)
 			metrics.TrackBandwidth(bodyName, int64(len(payload)))
-
+			}
 		} else {
 			// --- Packet from External Target -> Client --- (Stateless approach)
 			log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
