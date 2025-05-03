@@ -535,6 +535,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	var readErr error             // Declare readErr before the loop
 
 	for {
+		log.Printf("UDP Relay: Entering select loop for %s", clientTCPAddr) // DEBUG
 		// Set a reasonable read deadline on the UDP connection to ensure the select doesn't block indefinitely if stopRelay is never closed.
 		// A deadline slightly longer than expected latency + processing time.
 		// Let's use 5 seconds for now, can be adjusted.
@@ -566,6 +567,16 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 					// Timeout occurred, loop again to check stopRelay or wait for next packet
 					// log.Printf("UDP Relay: Read deadline exceeded for %s, continuing loop.", clientTCPAddr) // Optional: logging timeouts can be noisy
 					continue
+				}
+
+				// Check if stopRelay was signaled concurrently with the read error
+				select {
+				case <-stopRelay:
+					log.Printf("UDP Relay: Terminating due to read error during shutdown for %s.", clientTCPAddr)
+					log.Printf("UDP Relay: Exiting via concurrent read error/shutdown check for %s", clientTCPAddr) // DEBUG
+					return // Exit handleUDPRelay
+				default:
+					// stopRelay not closed yet, continue with other error checks
 				}
 
 				// Check if the error is due to the connection being closed (e.g., by stopRelay causing return)
