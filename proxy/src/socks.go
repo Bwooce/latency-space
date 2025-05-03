@@ -469,34 +469,37 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	// Start the UDP relay handler in a new goroutine
 	// Pass the UDP connection, the *original* client TCP address (for celestial body/latency calcs),
 	// security validator, and metrics collector.
-	clientTCPAddr := s.conn.RemoteAddr()
-	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics)
+	clientTCPAddr := s.conn.RemoteAddr() // Keep original addr for logging/body lookup
+	go s.handleUDPRelay(udpConn, s.conn, clientTCPAddr, s.security, s.metrics) // Pass s.conn
 
-	// Keep the TCP connection alive until it's closed or an error occurs
-	log.Printf("SOCKS UDP association established for %s. Keeping TCP connection alive.", clientTCPAddr)
-	// Simple blocking read to detect connection closure
-	buf := make([]byte, 1)
-	for {
-		_, err := s.conn.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				log.Printf("Error reading from client TCP connection (UDP associate): %v", err)
-			} else {
-				log.Printf("Client TCP connection closed (UDP associate): %s", clientTCPAddr)
-			}
-			// Close the UDP socket when the TCP connection closes
-			udpConn.Close()
-			break // Exit the loop and function
-		}
-		// We don't expect data here, just waiting for closure
-	}
-
-	return nil // TCP connection closed normally
+	return nil
 }
 
 // handleUDPRelay manages packet forwarding for a UDP association
-func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector) {
+// It now takes the original TCP connection `tcpConn` to monitor its closure.
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, tcpConn net.Conn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector) {
 	defer udpConn.Close() // Ensure UDP socket is closed when this goroutine exits
+
+	// Goroutine to monitor the client TCP connection
+	go func() {
+		defer log.Printf("Stopped monitoring TCP connection for UDP relay: %s", tcpConn.RemoteAddr())
+		buf := make([]byte, 1) // Small
+	for {
+		_, err := tcpConn.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				log.Printf("Error reading from client TCP connection (UDP relay monitor) for %s: %v", tcpConn.RemoteAddr(), err)
+			} else {
+				log.Printf("Client TCP connection closed (UDP relay monitor): %s", tcpConn.RemoteAddr())
+			}
+			// Close the UDP connection to signal the main relay loop to exit
+			log.Printf("Closing UDP relay socket %s due to TCP connection closure for %s", udpConn.LocalAddr(), tcpConn.RemoteAddr())
+			udpConn.Close()
+				return // Exit the monitoring goroutine
+			}
+			// No data expected, just loop until error/closure
+		}
+	}()
 
 	var clientUDPAddr net.Addr // Store the client's source UDP address once we receive the first packet
 	buffer := make([]byte, 65535) // Max UDP packet size
