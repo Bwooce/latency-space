@@ -470,14 +470,12 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 
 	// Start the UDP relay handler in a new goroutine
 	// Pass the UDP connection, the *original* client TCP address (for celestial body/latency calcs),
-	// security validator, and metrics collector, and the stop channel.
+	// and metrics collector.
 	clientTCPAddr := s.conn.RemoteAddr() // Keep original addr for logging/body lookup
-	
-	stopRelay := make(chan struct{})
 
 	// Launch the relay goroutine
 	wg.Add(1)
-	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, stopRelay, &wg)
+	go s.handleUDPRelay(udpConn, clientTCPAddr, s.security, s.metrics, &wg)
 
 	// Keep the TCP connection alive to manage the UDP relay's lifecycle.
 	// Read minimally from the TCP connection; its closure (or error) signals shutdown.
@@ -493,8 +491,8 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 	}
 	log.Printf("SOCKS UDP Associate: Finished monitoring TCP connection for %s", clientTCPAddr)
 
-	log.Printf("SOCKS UDP Associate: Closing stopRelay channel for %s", clientTCPAddr) // DEBUG
-	close(stopRelay) // Close channel *before* waiting
+	log.Printf("SOCKS UDP Associate: Closing UDP relay socket (%s) for %s", udpConn.LocalAddr(), clientTCPAddr) // DEBUG Add log
+	udpConn.Close() // Close UDP socket to signal relay goroutine
 
 	log.Printf("SOCKS UDP Associate: Waiting for UDP relay goroutine to finish for %s", clientTCPAddr) // DEBUG
 	wg.Wait()
@@ -504,10 +502,11 @@ func (s *SOCKSHandler) handleUDPAssociate(addrType byte) error {
 }
 
 // handleUDPRelay manages packet forwarding for a UDP association.
-// It listens on the stopRelay channel to know when to shut down.
-func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, stopRelay <-chan struct{}, wg *sync.WaitGroup) {
-	defer udpConn.Close() // Ensure UDP socket is closed when this goroutine exits
-	defer wg.Done()       // Signal that this goroutine has finished
+// It terminates when the udpConn is closed.
+func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.Addr, security *SecurityValidator, metrics *MetricsCollector, wg *sync.WaitGroup) {
+	// NOTE: Do not call udpConn.Close() here. The caller (handleUDPAssociate) is responsible
+	// for closing the connection to signal termination.
+	defer wg.Done() // Signal that this goroutine has finished
 	log.Printf("UDP Relay started for %s, listening on %s", clientTCPAddr, udpConn.LocalAddr())
 
 	// Determine celestial body and latency based on the *initial* TCP connection
@@ -538,50 +537,22 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	var readErr error             // Declare readErr before the loop
 
 	for {
-		log.Printf("UDP Relay: Entering select loop for %s", clientTCPAddr) // DEBUG
-		// Set a reasonable read deadline on the UDP connection to ensure the select doesn't block indefinitely if stopRelay is never closed.
-		// A deadline slightly longer than expected latency + processing time.
-		// Let's use 5 seconds for now, can be adjusted.
-		err := udpConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			// Log error if setting deadline fails, might indicate connection is already closed
-			log.Printf("UDP Relay: Error setting read deadline: %v", err)
-			// Potentially return here if the error is fatal
-			if isNetClosingErr(err) { // Use helper here too
-				log.Printf("UDP Relay: Socket closed while setting deadline, terminating for %s.", clientTCPAddr)
-				return // Exit handleUDPRelay
-			}
-			// Otherwise, maybe continue, or maybe return depending on error type
-		}
-
-		select {
-		case <-stopRelay:
-			log.Printf("UDP Relay: Termination signal received for %s. Stopping relay.", clientTCPAddr)
-			return // Exit handleUDPRelay
-
-		default:
-			// Non-blocking check for stop signal before attempting read
-			// Try reading from UDP socket
+			// log.Printf("UDP Relay: Attempting to read from UDP socket for %s", clientTCPAddr) // DEBUG - can be noisy
+			// Read from the UDP socket. This will block until a packet arrives or the connection is closed.
 			n, remoteAddr, readErr = udpConn.ReadFrom(buffer)
 
 			if readErr != nil {
-				// Check if the error is due to timeout
-				if netErr, ok := readErr.(net.Error); ok && netErr.Timeout() {
-					// Timeout occurred, loop again to check stopRelay or wait for next packet
-					// log.Printf("UDP Relay: Read deadline exceeded for %s, continuing loop.", clientTCPAddr) // Optional: logging timeouts can be noisy
-					continue
-				}
-
-				// Check if the error is due to the connection being closed (e.g., by stopRelay causing return)
-				// Use IsNetClosingErr for a more robust check
+				// Check if the error is due to the connection being closed.
 				if isNetClosingErr(readErr) {
-					log.Printf("UDP Relay: Socket closed, terminating for %s.", clientTCPAddr)
-					return // Exit handleUDPRelay
+					log.Printf("UDP Relay: Connection closed, terminating for %s. Error: %v", clientTCPAddr, readErr)
+					return // Exit the relay loop and goroutine
 			}
 			
-				// Log other read errors and continue
-				log.Printf("UDP Relay: Error reading from UDP socket: %v", readErr)
-				continue // Or potentially return depending on the error
+			// Log other read errors and potentially continue or break
+			log.Printf("UDP Relay: Error reading from UDP socket for %s: %v", clientTCPAddr, readErr)
+			// Depending on the error, we might want to continue, but if it's persistent,
+			// we might risk a busy-loop. For now, let's continue.
+			continue
 		}
 
 		// --- Packet Processing Logic ---
