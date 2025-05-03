@@ -335,22 +335,25 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	security.allowedHosts["127.0.0.1"] = true
 
 
-	// 7. Cleanup (Handled by t.Cleanup)
+	// 7. Cleanup (Handled by t.Cleanup, including clientTCPConn.Close())
+	t.Logf("Client closing TCP connection (via defer)...")
 
-	// Check for server-side errors
-	if err := <-serverErrChan; err != nil {
-		t.Fatalf("SOCKS server goroutine error: %v", err)
+	// Wait for the server-side SOCKS handler goroutine to complete
+	t.Logf("Waiting for SOCKS server handler goroutine to finish...")
+	serverErr, ok := <-serverErrChan // Blocking read
+	if !ok {
+		// This case implies the channel was closed without sending a value.
+		// In our server goroutine, we always send nil on success or an error on failure before closing.
+		// So, !ok suggests an unexpected state, possibly the goroutine panicked or exited abnormally
+		// without sending to the channel, although the close(serverErrChan) should still run.
+		// It could also happen if the channel buffer was 1 and nil was sent *then* closed.
+		t.Logf("SOCKS server handler finished (channel closed, no error value received).")
+	} else if serverErr != nil {
+		// An error was explicitly sent by the server goroutine.
+		t.Fatalf("SOCKS server handler goroutine returned an error: %v", serverErr)
+	} else {
+	    // A nil value was received, indicating successful completion.
+		t.Logf("SOCKS server handler finished successfully.")
 	}
-	select {
-	case err := <-serverErrChan:
-	    if err != nil {
-		t.Fatalf("SOCKS server goroutine error: %v", err)
-	    } else {
-		t.Log("Verified no SOCKS server goroutine errors")
-	    }
-	case <-time.After(5 * time.Second): // Timeout after 5 seconds
-	    t.Log("SOCKS server goroutine did not respond in 5s, continuing")
-	default:
-	    t.Log("Verified no SOCKS server goroutine errors, continuing")
-	}
+	// No more select with timeout needed here. The blocking read ensures we wait.
 }
