@@ -15,17 +15,6 @@ const (
 	J2000_EPOCH      = 2451545.0   // J2000 epoch in Julian days (January 1, 2000, 12:00 TT)
 )
 
-// Astronomical constants used in calculations.
-const (
-	SPEED_OF_LIGHT   = 299792.458  // km/s
-	AU               = 149597870.7 // Astronomical unit in kilometers
-	EARTH_RADIUS     = 6378.137    // Earth radius in kilometers
-	SUN_RADIUS       = 695700.0    // Sun radius in kilometers
-	SECONDS_PER_DAY  = 86400.0     // Seconds in a day
-	DAYS_PER_CENTURY = 36525.0     // Days in a Julian century (365.25 * 100)
-	J2000_EPOCH      = 2451545.0   // J2000 epoch in Julian days (January 1, 2000, 12:00 TT)
-)
-
 // CelestialObject defines the structure for storing data about any object in the solar system.
 type CelestialObject struct {
 	Name       string
