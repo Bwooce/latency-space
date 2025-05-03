@@ -63,6 +63,8 @@ docker ps -aq | xargs -r docker stop || true
 echo "🔄 Restarting all containers..."
 cd /opt/latency-space
 docker compose down
+echo "🏗️ Building proxy image..."
+docker compose build --no-cache proxy
 docker compose up -d
 if [ $? -eq 0 ]; then
   echo "✅ All containers restarted successfully"
