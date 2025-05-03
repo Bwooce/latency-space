@@ -140,7 +140,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to dial proxy TCP: %v", err)
 	}
-	t.Cleanup(func() { clientTCPConn.Close() })
+	defer clientTCPConn.Close()
 
 	// Send Greeting
 	greeting := []byte{SOCKS5_VERSION, 0x01, SOCKS5_NO_AUTH}
