@@ -64,12 +64,12 @@ if command -v docker compose &> /dev/null; then
   # Docker Compose v2
   docker compose down
   docker compose pull
-  docker compose up -d
+  docker compose up -d --force-recreate
 elif command -v docker-compose &> /dev/null; then
   # Legacy Docker Compose
   docker-compose down
   docker-compose pull
-  docker-compose up -d
+  docker-compose up -d --force-recreate
 else
   echo "Neither docker compose nor docker-compose found. Please install Docker Compose."
   exit 1
