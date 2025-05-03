@@ -74,6 +74,24 @@ server {
     limit_req zone=ip burst=20 nodelay;
     limit_conn addr 10;
 
+    # API requests - Proxy to backend Go service
+    location /api/ {
+        # Using the PROXY_IP variable defined in the script
+        proxy_pass http://\${PROXY_IP}:80; 
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_cache_bypass \$http_upgrade;
+
+        # Set reasonable timeouts for API calls
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+
     # Proxy root to the status service
     location / {
         # Explicitly exclude debug paths if they are handled by other servers/locations
