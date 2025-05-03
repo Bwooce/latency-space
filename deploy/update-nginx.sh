@@ -141,6 +141,15 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 
+    # Add a generic /_debug/ catch-all pointing to PROXY_IP
+    location ^~ /_debug/ {
+         proxy_pass http://${PROXY_IP}:80;
+         proxy_http_version 1.1;
+         proxy_set_header Host \$host;
+         proxy_set_header X-Real-IP \$remote_addr;
+         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
     # Proxy root to the status service
     location / {
         # Explicitly exclude debug paths if they are handled by other servers/locations
