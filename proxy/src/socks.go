@@ -749,7 +749,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 					log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
 					continue
 				}
-			} // Removed empty else block for occlusion check skip
+			} 
 			// --- End Occlusion Check ---
 
 			log.Printf("UDP Relay: Relaying %d bytes from client %s to %s (via %s, latency %v)",
@@ -773,7 +773,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 			// Record metrics (outgoing bandwidth from client perspective)
 			metrics.TrackBandwidth(bodyName, int64(len(payload)))
-			}
+			
 		} else {
 			// --- Packet from External Target -> Client --- (Stateless approach)
 			log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
