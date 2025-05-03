@@ -883,6 +883,25 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 	return allowed
 }
 
+// isNetClosingErr checks if an error indicates a closed network connection.
+func isNetClosingErr(err error) bool {
+        if err == nil {
+                return false
+        }
+        // Check for specific sentinel errors
+        if errors.Is(err, net.ErrClosed) {
+                return true
+        }
+        // Check for common string patterns (less ideal but often necessary)
+        // Use ToLower to make the check case-insensitive
+        errString := strings.ToLower(err.Error())
+        if strings.Contains(errString, "use of closed network connection") ||
+           strings.Contains(errString, "broken pipe") { // Add other relevant patterns if observed
+                return true
+        }
+        return false
+}
+
 // getCelestialBodyFromConn extracts the celestial body from the connection
 func getCelestialBodyFromConn(addr net.Addr) (string, error) {
 	host := addr.String()
