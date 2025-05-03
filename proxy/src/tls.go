@@ -13,169 +13,204 @@ import (
 	"strings"
 )
 
+// isValidSubdomain checks if a hostname is valid for ACME certificate issuance
+// based on defined patterns (base domain, body.domain, moon.planet.domain).
+// It performs case-insensitive checks.
 func isValidSubdomain(host string) bool {
-	// Check if it's the base domain
-	if host == "latency.space" {
+	lowerHost := strings.ToLower(host)
+
+	// Allow the base domain and www subdomain
+	if lowerHost == "latency.space" || lowerHost == "www.latency.space" {
 		return true
 	}
 
-	// Split the host into parts
-	parts := strings.Split(host, ".")
-	if len(parts) < 2 {
-		return false
+	// Split hostname by dots.
+	parts := strings.Split(lowerHost, ".")
+	numParts := len(parts)
+
+	// Check for the required suffix ".latency.space"
+	if numParts < 3 || parts[numParts-1] != "space" || parts[numParts-2] != "latency" {
+		return false // Doesn't end correctly
 	}
 
-	// Check if it's a standard subdomain (e.g., mars.latency.space)
-	if len(parts) == 3 && strings.EqualFold(parts[1], "latency") && strings.EqualFold(parts[2], "space") {
-		// Verify it's a valid celestial body
-		_, found := findObjectByName(celestialObjects, parts[0])
-		if found {
-			return true
-		}
-	}
-
-	// Check if it's a moon subdomain (e.g., enceladus.saturn.latency.space)
-	if len(parts) == 4 && strings.EqualFold(parts[2], "latency") && strings.EqualFold(parts[3], "space") {
-		moon, found := findObjectByName(celestialObjects, parts[1])
-		if !found {
-			return false
-		}
-		// Verify the moon exists for this planet
-		if moon.ParentName == parts[0] {
-			return true
-		}
-	}
-
-	// Check if it's our domain.body.latency.space format
-	// Any domain followed by a valid celestial body and latency.space is valid
-	if len(parts) >= 3 && strings.EqualFold(parts[len(parts)-2], "latency") && strings.EqualFold(parts[len(parts)-1], "space") {
-		bodyName := parts[len(parts)-3]
-		// Check if it's a valid celestial body
+	// Check for standard body subdomain (e.g., mars.latency.space).
+	// Requires exactly 3 parts: body.latency.space
+	if numParts == 3 {
+		bodyName := parts[0]
 		_, found := findObjectByName(celestialObjects, bodyName)
-		if found {
+		return found // Valid if the body name exists
+	}
+
+	// Check for moon subdomain (e.g., phobos.mars.latency.space).
+	// Requires exactly 4 parts: moon.planet.latency.space
+	if numParts == 4 {
+		moonName := parts[0]
+		planetName := parts[1]
+		moon, moonFound := findObjectByName(celestialObjects, moonName)
+		// Check if moon exists, is a moon, and its parent matches the planet part
+		return moonFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName)
+	}
+
+	// Check for target routing format (e.g., example.com.mars.latency.space).
+	// Requires >= 4 parts: target...body.latency.space
+	if numParts >= 4 {
+		bodyName := parts[numParts-3]
+		// Check if it's a valid celestial body (non-moon)
+		body, found := findObjectByName(celestialObjects, bodyName)
+		if found && body.Type != "moon" {
 			return true
 		}
 
-		// Check for moon format (domain.moon.planet.latency.space)
-		if len(parts) >= 4 {
-			moonName := parts[len(parts)-4]
-			planetName := parts[len(parts)-3]
-			moon, found := findObjectByName(celestialObjects, moonName)
-			if !found || !strings.EqualFold(moon.ParentName, planetName) {
-				return false
+		// Check for target routing moon format (e.g., example.com.phobos.mars.latency.space).
+		// Requires >= 5 parts: target...moon.planet.latency.space
+		if numParts >= 5 {
+			moonName := parts[numParts-4]
+			planetName := parts[numParts-3]
+			moon, moonFound := findObjectByName(celestialObjects, moonName)
+			planet, planetFound := findObjectByName(celestialObjects, planetName)
+			// Check if moon and planet exist, moon type is correct, and parent matches
+			if moonFound && planetFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName) {
+				return true
 			}
-			return true
 		}
 	}
 
-	return false
+	return false // No valid pattern matched
 }
 
-// Note: This function is now used by the main.go getExampleDomains function
 
+// setupTLS configures and returns a *tls.Config suitable for the HTTPS server,
+// including ACME autocert support for automatic certificate management.
 func setupTLS() *tls.Config {
-	// Create certificate cache directory
+	// Ensure the certificate cache directory exists.
 	err := os.MkdirAll("certs", 0700)
 	if err != nil {
+		// Log warning but proceed, autocert might handle it or use memory cache
 		log.Printf("Warning: Failed to create certs directory: %v", err)
 	}
 
-	// Create autocert manager
+	// Create the autocert manager.
 	manager := &autocert.Manager{
-		Cache:  autocert.DirCache("certs"),
-		Prompt: autocert.AcceptTOS,
+		Cache:  autocert.DirCache("certs"), // Cache certificates in the "certs" directory
+		Prompt: autocert.AcceptTOS,        // Automatically accept Let's Encrypt TOS
+		// HostPolicy defines which hostnames are allowed for certificate requests.
 		HostPolicy: func(ctx context.Context, host string) error {
-			// Handle empty host (no SNI)
+			// Handle requests without Server Name Indication (SNI).
+			// These will use the default certificate generated later.
 			if host == "" {
-				log.Printf("Warning: Missing SNI, using default certificate")
-				return nil // Will use default certificate
-			}
-
-			if isValidSubdomain(host) {
-				log.Printf("Accepting certificate request for: %s", host)
+				log.Println("TLS: Request missing SNI, will use default certificate.")
+				// Returning nil here allows autocert to proceed, but GetCertificate below handles it.
 				return nil
 			}
-			log.Printf("Rejecting certificate request for invalid host: %s", host)
-			return fmt.Errorf("host %s not configured", host)
+
+			// Validate the requested hostname against allowed patterns.
+			if isValidSubdomain(host) {
+				log.Printf("TLS: Accepting certificate request for valid host: %s", host)
+				return nil // Host is allowed
+			}
+
+			// Reject requests for invalid hostnames.
+			log.Printf("TLS: Rejecting certificate request for invalid host: %s", host)
+			return fmt.Errorf("hostname %s is not allowed by HostPolicy", host)
 		},
+		Email: os.Getenv("SSL_EMAIL"), // Get email from environment variable for ACME account
 	}
 
-	// Get or create a default certificate
+	// Get or generate a default self-signed certificate for requests without SNI or for fallback.
 	defaultCert, err := getDefaultCertificate()
 	if err != nil {
-		log.Printf("Warning: Failed to load default certificate: %v", err)
+		// Log warning but the server might still function for valid SNI requests
+		log.Printf("Warning: Failed to load or generate default TLS certificate: %v", err)
 	}
 
-	// Configure TLS
+	// Configure the main TLS settings.
 	return &tls.Config{
+		// GetCertificate is called by the TLS handshake process.
+		// It uses the autocert manager for valid hostnames and falls back to the default cert.
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			// Handle missing SNI
+			// Use default certificate if SNI is missing and default cert is available.
 			if hello.ServerName == "" {
-				//log.Printf("Client from %s did not provide SNI", hello.Conn.RemoteAddr())
 				if defaultCert != nil {
+					// log.Printf("TLS: Using default certificate for request without SNI from %s", hello.Conn.RemoteAddr())
 					return defaultCert, nil
 				}
+				// If defaultCert is nil, let autocert handle it (which might fail if no cert exists yet)
+				log.Println("TLS: Warning - No SNI provided and no default certificate available.")
 			}
+			// For requests with SNI, delegate to the autocert manager.
 			return manager.GetCertificate(hello)
 		},
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
+		MinVersion:               tls.VersionTLS12, // Enforce minimum TLS 1.2
+		CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256}, // Prefer modern curves
 		PreferServerCipherSuites: true,
+		// Define supported application layer protocols (HTTP/2, HTTP/1.1, ACME TLS challenge)
 		NextProtos: []string{
-			"h2", "http/1.1", "acme-tls/1", // Add ACME protocol support
+			"h2", "http/1.1", "acme-tls/1",
 		},
+		// Define preferred cipher suites (modern and secure options first)
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, // Go 1.8+
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,   // Go 1.8+
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA, tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_RC4_128_SHA,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			// Add fallback ciphers if needed, but prioritize modern ones
+			// tls.TLS_RSA_WITH_AES_256_GCM_SHA384, // Requires Go 1.5+
+			// tls.TLS_RSA_WITH_AES_128_GCM_SHA256, // Requires Go 1.5+
 		},
 	}
 }
 
-// Helper function to get or create a default certificate
+// getDefaultCertificate loads the default certificate or generates a self-signed one if it doesn't exist.
+// This is used for clients that don't provide SNI.
 func getDefaultCertificate() (*tls.Certificate, error) {
 	certPath := "certs/default.pem"
 	keyPath := "certs/default.key"
 
-	// Check if default certificate exists
-	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		// Generate self-signed certificate
+	// Check if the default certificate files exist.
+	_, certErr := os.Stat(certPath)
+	_, keyErr := os.Stat(keyPath)
+
+	// If either file is missing, attempt to generate a new self-signed certificate.
+	if os.IsNotExist(certErr) || os.IsNotExist(keyErr) {
+		log.Println("Default certificate not found, generating a self-signed certificate...")
+		// Generate a self-signed certificate using openssl if it doesn't exist.
+		// Requires openssl to be installed and in the system PATH.
 		cmd := exec.Command("openssl", "req", "-x509", "-newkey", "rsa:4096",
 			"-keyout", keyPath,
 			"-out", certPath,
-			"-days", "365",
-			"-nodes",
-			"-subj", "/CN=latency.space")
+			"-days", "365", // Valid for 1 year
+			"-nodes",      // Do not encrypt the private key
+			"-subj", "/CN=latency.space") // Common Name for the certificate
 
-		if err := cmd.Run(); err != nil {
-			return nil, fmt.Errorf("failed to generate default certificate: %v", err)
+		// Run the command and capture output/error
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate default certificate using openssl: %v\nOutput: %s", err, string(output))
 		}
+		log.Println("Successfully generated self-signed default certificate.")
 	}
 
-	// Load the certificate
+	// Load the certificate and key pair from the files.
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load default certificate: %v", err)
+		return nil, fmt.Errorf("failed to load default certificate from %s and %s: %v", certPath, keyPath, err)
 	}
 
+	log.Println("Loaded default certificate.")
 	return &cert, nil
 }
 
-// Add metrics for certificate operations
+// Register Prometheus metrics for TLS operations.
 func init() {
-	// Add prometheus metrics
 	tlsHandshakeErrors := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tls_handshake_errors_total",
-			Help: "Total number of TLS handshake errors",
+			Help: "Total number of TLS handshake errors encountered by the server.",
 		},
-		[]string{"error_type"},
+		[]string{"reason"}, // Label by error reason if possible (might be hard to capture specific reasons)
 	)
 	prometheus.MustRegister(tlsHandshakeErrors)
+	// TODO: Potentially add more TLS-related metrics (e.g., versions, cipher suites used)
 }

@@ -13,97 +13,120 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/net/proxy"
+	"golang.org/x/net/proxy" // SOCKS5 client library
 )
 
-// Simple test client for the SOCKS proxy
+// Simple command-line client for testing the SOCKS5 proxy functionality.
+// NOTE: This file has a build tag `//go:build ignore` at the top,
+// so it won't be built with the main proxy application.
+// Run it directly using `go run proxy/src/test_socks.go <args>`.
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: go run test_socks.go <proxy-host:port> <destination-url>")
+		fmt.Println("Usage: go run proxy/src/test_socks.go <proxy-host:port> <destination-url>")
 		fmt.Println("Example: go run test_socks.go mars.latency.space:1080 https://example.com")
 		os.Exit(1)
 	}
 
-	proxyAddr := os.Args[1]
-	destination := os.Args[2]
+	proxyAddr := os.Args[1]   // e.g., "mars.latency.space:1080"
+	destination := os.Args[2] // e.g., "https://example.com"
 
-	fmt.Printf("Testing SOCKS proxy at %s to %s\n", proxyAddr, destination)
+	fmt.Printf("Attempting to connect to %s via SOCKS proxy %s\n", destination, proxyAddr)
 
-	// Create a SOCKS5 dialer
-	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+	// Create a SOCKS5 dialer using the provided proxy address.
+	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct) // Using proxy.Direct as fallback is fine here
 	if err != nil {
-		log.Fatalf("Failed to create SOCKS5 dialer: %v", err)
+		log.Fatalf("Error creating SOCKS5 dialer: %v", err)
 	}
 
-	// Create HTTP transport with the SOCKS5 dialer
+	// Create an HTTP transport that uses the SOCKS5 dialer.
 	httpTransport := &http.Transport{
-		Dial: dialer.Dial,
+		DialContext: dialer.(proxy.ContextDialer).DialContext, // Use DialContext for better cancellation support
 	}
 
-	// Create HTTP client
+	// Create an HTTP client configured to use the SOCKS transport.
+	// Set a generous timeout considering potential high latency.
 	client := &http.Client{
 		Transport: httpTransport,
-		Timeout:   30 * time.Second,
+		Timeout:   10 * time.Minute, // Example: 10 minutes timeout, adjust as needed
 	}
 
-	// Parse the destination URL
+	// Parse the target URL.
 	destURL, err := url.Parse(destination)
 	if err != nil {
-		log.Fatalf("Invalid destination URL: %v", err)
+		log.Fatalf("Invalid destination URL '%s': %v", destination, err)
 	}
 
-	// Create HTTP request
+	// Create a GET request for the target URL.
 	req, err := http.NewRequest("GET", destURL.String(), nil)
 	if err != nil {
-		log.Fatalf("Failed to create request: %v", err)
+		log.Fatalf("Error creating HTTP request: %v", err)
 	}
 
-	// Time the request
+	// Execute the request and measure the time taken.
+	fmt.Println("Sending request...")
 	start := time.Now()
 	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Request failed: %v", err)
-	}
 	elapsed := time.Since(start)
+	if err != nil {
+		log.Fatalf("HTTP request failed: %v", err)
+	}
+	defer resp.Body.Close() // Ensure response body is closed
 
-	// Print response details
-	fmt.Printf("Response Status: %s\n", resp.Status)
+	// Print the response status and headers.
+	fmt.Printf("\n--- Response ---")
+	fmt.Printf("\nStatus: %s\n", resp.Status)
 	fmt.Printf("Time taken: %v\n", elapsed)
 	fmt.Println("Headers:")
-	for key, value := range resp.Header {
-		fmt.Printf("  %s: %s\n", key, value)
+	for key, values := range resp.Header {
+		for _, value := range values {
+			fmt.Printf("  %s: %s\n", key, value)
+		}
 	}
 
-	// Print a snippet of the response body
-	fmt.Println("\nResponse body (first 500 bytes):")
+	// Print the beginning of the response body.
+	fmt.Println("\nBody (first 500 bytes):")
 	body := make([]byte, 500)
-	n, _ := io.ReadAtLeast(resp.Body, body, 1)
-	fmt.Println(string(body[:n]))
+	n, readErr := io.ReadFull(resp.Body, body) // Read up to 500 bytes
+	if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
+		log.Printf("Warning: Error reading response body: %v", readErr)
+	}
+	if n > 0 {
+		fmt.Println(string(body[:n]))
+	} else {
+		fmt.Println("[No body content read]")
+	}
+	fmt.Println("\n----------------")
 
-	resp.Body.Close()
+	fmt.Println("\nTest finished successfully.")
 }
 
-// Test DNS format
+// testDNSFormat specifically tests connecting via the SOCKS proxy using the special DNS format.
+// This function is not called by main but kept for potential separate testing.
 func testDNSFormat() {
-	// Example domain format: www.example.com.mars.latency.space
-	// Connect to the proxy as mars.latency.space:1080
-	// Request www.example.com
+	// Test connection to www.example.com via mars.latency.space:1080.
 	proxyAddr := "mars.latency.space:1080"
+	targetAddr := "www.example.com:80" // Target service address
 
-	// Create a SOCKS5 dialer
+	fmt.Printf("Testing SOCKS DNS format: connecting to %s via proxy %s\n", targetAddr, proxyAddr)
+
+	// Create the SOCKS5 dialer.
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
-		log.Fatalf("Failed to create SOCKS5 dialer: %v", err)
+		log.Fatalf("Error creating SOCKS5 dialer for DNS test: %v", err)
 	}
 
-	// Connect to destination via the SOCKS5 proxy
+	// Dial the target address (www.example.com:80) through the proxy.
+	fmt.Println("Dialing...")
 	start := time.Now()
-	conn, err := dialer.Dial("tcp", "www.example.com:80")
-	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
+	// Use the dialer directly to establish a TCP connection
+	conn, err := dialer.Dial("tcp", targetAddr)
 	elapsed := time.Since(start)
+	if err != nil {
+		log.Fatalf("Failed to connect to %s via proxy %s: %v", targetAddr, proxyAddr, err)
+	}
+	defer conn.Close() // Ensure connection is closed
 
-	fmt.Printf("Connected to www.example.com via %s in %v\n", proxyAddr, elapsed)
-	conn.Close()
+	fmt.Printf("Successfully connected to %s via %s in %v\n", targetAddr, proxyAddr, elapsed)
+	// Here you could potentially send/receive data over the raw TCP connection (conn)
+	// For example, send an HTTP GET request manually.
 }

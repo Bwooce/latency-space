@@ -15,59 +15,59 @@ const (
 	J2000_EPOCH      = 2451545.0   // J2000 epoch in Julian days (January 1, 2000, 12:00 TT)
 )
 
-// CelestialObject represents any object in the solar system (planet, moon, spacecraft, etc.)
+// CelestialObject defines the structure for storing data about any object in the solar system.
 type CelestialObject struct {
 	Name       string
-	Type       string  // "planet", "dwarf_planet", "moon", "spacecraft", etc.
+	Type       string  // e.g., "planet", "dwarf_planet", "moon", "spacecraft", "asteroid", "star"
 	ParentName string  // Name of parent body (empty for Sun, planet name for moons)
-	Radius     float64 // Mean radius in km
+	Radius     float64 // Mean radius in kilometers
 
-	// Orbital elements for J2000 epoch
-	// For planets, dwarf planets: heliocentric elements (in AU and degrees)
-	// For moons: parent-centric elements (semi-major axis in km, angles in degrees)
-	// For spacecraft: mission-specific elements or fixed position
-	A  float64 // Semi-major axis (AU for heliocentric, km for moon/spacecraft orbits)
+	// Orbital elements relative to the J2000 epoch.
+	// - Planets/Dwarf Planets/Asteroids: Heliocentric elements (AU, degrees).
+	// - Moons: Parent-centric elements (km, degrees).
+	// - Spacecraft: Mission-specific or fixed elements (AU or km, degrees).
+	A  float64 // Semi-major axis (AU for heliocentric, km otherwise)
 	E  float64 // Eccentricity
-	I  float64 // Inclination (degrees)
+	I  float64 // Inclination (degrees, relative to ecliptic or parent equator)
 	L  float64 // Mean longitude (degrees)
-	LP float64 // Longitude of perihelion (degrees)
+	LP float64 // Longitude of perihelion (degrees) - used for heliocentric
 	N  float64 // Longitude of ascending node (degrees)
 
-	// Century rates for orbital elements
-	dA  float64 // Rate of semi-major axis change per century
-	dE  float64 // Rate of eccentricity change per century
-	dI  float64 // Rate of inclination change per century
-	dL  float64 // Rate of mean longitude change per century
-	dLP float64 // Rate of longitude of perihelion change per century
-	dN  float64 // Rate of longitude of ascending node change per century
+	// Rates of change for orbital elements per Julian century.
+	dA  float64 // Rate of change for semi-major axis (AU/century or km/century)
+	dE  float64 // Rate of change for eccentricity (per century)
+	dI  float64 // Rate of change for inclination (degrees/century)
+	dL  float64 // Rate of change for mean longitude (degrees/century)
+	dLP float64 // Rate of change for longitude of perihelion (degrees/century)
+	dN  float64 // Rate of change for longitude of ascending node (degrees/century)
 
-	// Additional parameters for moons and spacecraft
-	W      float64 // Argument of perigee (degrees)
-	dW     float64 // Rate of argument of perigee change per century
-	Period float64 // Orbital period (days)
+	// Additional parameters primarily for moons and spacecraft.
+	W      float64 // Argument of perigee/periapsis (degrees) - used for parent-centric
+	dW     float64 // Rate of change for argument of perigee (degrees/century)
+	Period float64 // Orbital period (days) - can be calculated, but useful for reference
 
-	// For perturbation calculations
-	b float64 // Orbital period (days) or other coefficient
-	c float64 // Eccentricity for perturbation terms
-	s float64 // Sin term coefficient
-	f float64 // Mean motion (degrees/day)
+	// Parameters used in perturbation calculations (simplified VSOP87).
+	b float64 // Coefficient (e.g., related to another body's period)
+	c float64 // Coefficient (e.g., related to eccentricity)
+	s float64 // Coefficient (e.g., sine term)
+	f float64 // Coefficient (e.g., mean motion)
 
-	// Physical properties
-	Mass float64 // Mass in kg
+	// Physical properties.
+	Mass float64 // Mass in kilograms
 
-	// Spacecraft specific parameters
-	TransmitterActive bool    // Whether the spacecraft is currently transmitting
-	LaunchDate        string  // Date of launch
-	FrequencyMHz      float64 // Transmission frequency in MHz
-	MissionStatus     string  // "active", "completed", "failed", etc.
+	// Spacecraft-specific parameters.
+	TransmitterActive bool    // Is the spacecraft currently transmitting?
+	LaunchDate        string  // Launch date (YYYY-MM-DD)
+	FrequencyMHz      float64 // Primary downlink frequency in MHz
+	MissionStatus     string  // e.g., "active", "extended", "completed", "failed"
 }
 
-// Vector3 represents a 3D vector
+// Vector3 represents a standard 3D vector with X, Y, Z components.
 type Vector3 struct {
 	X, Y, Z float64
 }
 
-// Add returns the sum of two vectors
+// Add performs vector addition.
 func (v Vector3) Add(other Vector3) Vector3 {
 	return Vector3{
 		X: v.X + other.X,
@@ -76,7 +76,7 @@ func (v Vector3) Add(other Vector3) Vector3 {
 	}
 }
 
-// Subtract returns the difference of two vectors
+// Subtract performs vector subtraction (v - other).
 func (v Vector3) Subtract(other Vector3) Vector3 {
 	return Vector3{
 		X: v.X - other.X,
@@ -85,7 +85,7 @@ func (v Vector3) Subtract(other Vector3) Vector3 {
 	}
 }
 
-// Scale returns the vector multiplied by a scalar
+// Scale multiplies the vector by a scalar factor.
 func (v Vector3) Scale(factor float64) Vector3 {
 	return Vector3{
 		X: v.X * factor,
@@ -94,17 +94,17 @@ func (v Vector3) Scale(factor float64) Vector3 {
 	}
 }
 
-// Magnitude returns the magnitude (length) of the vector
+// Magnitude calculates the Euclidean length (magnitude) of the vector.
 func (v Vector3) Magnitude() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
 }
 
-// DotProduct returns the dot product of two vectors
+// DotProduct calculates the dot product of two vectors.
 func (v Vector3) DotProduct(other Vector3) float64 {
 	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
 }
 
-// CrossProduct returns the cross product of two vectors
+// CrossProduct calculates the cross product of two vectors (v x other).
 func (v Vector3) CrossProduct(other Vector3) Vector3 {
 	return Vector3{
 		X: v.Y*other.Z - v.Z*other.Y,
@@ -113,11 +113,13 @@ func (v Vector3) CrossProduct(other Vector3) Vector3 {
 	}
 }
 
-// Normalize returns the normalized vector (unit length)
+// Normalize returns a unit vector pointing in the same direction as the original vector.
+// Returns a zero vector if the magnitude is close to zero.
 func (v Vector3) Normalize() Vector3 {
 	mag := v.Magnitude()
+	// Avoid division by zero or very small numbers
 	if mag < 1e-10 {
-		return Vector3{0, 0, 0}
+		return Vector3{0, 0, 0} // Return zero vector if magnitude is negligible
 	}
 	return Vector3{
 		X: v.X / mag,

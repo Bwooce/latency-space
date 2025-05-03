@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"html/template"
@@ -23,13 +22,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Global variable to hold the parsed info page template
+// infoTemplate holds the parsed HTML template for the celestial body information page.
 var infoTemplate *template.Template
 
-// Ensure tls package is used - needed for TLS configuration
-var _ = tls.Config{}
-
-// StatusEntry represents the data for a single celestial object in the status API
+// StatusEntry represents the data for a single celestial object returned by the status API.
 type StatusEntry struct {
 	Name       string        `json:"name"`
 	Type       string        `json:"type"`
@@ -39,16 +35,16 @@ type StatusEntry struct {
 	Occluded   bool          `json:"occluded"`
 }
 
-// ApiResponse is the structure for the /api/status-data endpoint response
+// ApiResponse defines the structure of the JSON response for the `/api/status-data` endpoint.
 type ApiResponse struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Objects   map[string][]StatusEntry `json:"objects"` // Keyed by object type (e.g., "planets", "moons")
 }
 
-// InfoPageData holds the data needed to render the celestial body info page template
+// InfoPageData holds the data required to render the `info_page.html` template.
 type InfoPageData struct {
 	Name              string
-	DistanceMkm       float64 // Distance in millions of kilometers
+	DistanceMkm       float64 // Distance from Earth in millions of kilometers
 	LatencySec        float64 // One-way latency in seconds
 	LatencyFriendly   string  // Human-readable latency (e.g., "5 minutes")
 	RoundTripFriendly string  // Human-readable round-trip time
@@ -58,18 +54,18 @@ type InfoPageData struct {
 	Domain            string  // The domain name for this body (e.g., "mars.latency.space")
 }
 
-// Server is the main latency proxy server
+// Server represents the main latency proxy application.
 type Server struct {
-	port          int
-	https         bool
+	port          int // Port for the HTTP server (HTTPS uses 443)
+	https         bool // Flag indicating whether to enable HTTPS
 	metrics       *MetricsCollector
 	security      *SecurityValidator
 	httpServer    *http.Server
 	httpsServer   *http.Server
-	socksListener net.Listener
+	socksListener net.Listener // Listener for the SOCKS5 server
 }
 
-// NewServer creates a new latency proxy server
+// NewServer creates and returns a new Server instance.
 func NewServer(port int, useHTTPS bool) *Server {
 	return &Server{
 		port:     port,
@@ -79,17 +75,19 @@ func NewServer(port int, useHTTPS bool) *Server {
 	}
 }
 
-// Start runs the latency proxy server
+// Start initializes and runs the HTTP, HTTPS (if enabled), and SOCKS5 servers.
+// It listens for shutdown signals (SIGINT, SIGTERM) for graceful termination.
 func (s *Server) Start() error {
-	// Set up signal channel for graceful shutdown
+	// Channel to listen for OS shutdown signals
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start proxy servers
+	// Use a WaitGroup to wait for server goroutines to finish
 	var wg sync.WaitGroup
-	errCh := make(chan error, 3) // Buffer for HTTP, HTTPS, and SOCKS errors
+	// Channel to receive errors from server goroutines
+	errCh := make(chan error, 3) // Buffered channel for HTTP, HTTPS, SOCKS errors
 
-	// Start HTTP server
+	// Start HTTP server in a goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -99,7 +97,7 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	// Start HTTPS server if enabled
+	// Start HTTPS server in a goroutine if enabled
 	if s.https {
 		wg.Add(1)
 		go func() {
@@ -111,7 +109,7 @@ func (s *Server) Start() error {
 		}()
 	}
 
-	// Start SOCKS5 server
+	// Start SOCKS5 server in a goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

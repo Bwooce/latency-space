@@ -7,25 +7,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// WebSocket upgrader with permissive origin check for cross-origin requests
-// This will be used when WebSocket support is enabled in the future
-// Currently not used as WebSocket functionality is planned for future releases
-var _ = websocket.Upgrader{
+// upgrader defines the WebSocket upgrader configuration.
+// CheckOrigin allows all origins (use with caution, consider specific origins in production).
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
+		// Allow all connections for now. In production, you might want to
+		// restrict this to specific origins based on the request 'r'.
 		return true
 	},
 }
 
-// NOTE: WebSocket functionality is planned but not currently implemented.
-// The code below is a placeholder for future implementation.
-//
-// When implemented, this will handle WebSocket proxy connections with
-// celestial latency, similar to how HTTP requests are handled.
-//
-// Implementation requires:
-// - Proper connection handling
-// - Message proxying with latency simulation
-// - Error handling
-// - Integration with the main HTTP handler
-//
-// For now, these are omitted to avoid linting errors.
+// NOTE: WebSocket proxying is planned but not yet implemented.
+// Future implementation will handle WebSocket connections, applying latency
+// similar to HTTP/SOCKS requests. This requires careful handling of the
+// persistent connection, message framing, and applying delays without
+// blocking other operations excessively.
