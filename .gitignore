@@ -37,3 +37,5 @@ dist/
 /proxy/src/proxy
 **/proxy/proxy
 **/proxy/src/proxy
+
+**/.claude/settings.local.json
