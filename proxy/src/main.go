@@ -358,10 +358,10 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 
 	data := InfoPageData{
 		Name:              name,                                        // Use the original case name for display
-		DistanceMkm:       distance / 1e6,                              // Convert km to million km
-		LatencySec:        latency.Seconds(),                           // One-way latency in seconds
+		DistanceMkm:       float64(int((distance/1e6)*100))/100,        // Convert km to million km with 2 decimal places
+		LatencySec:        float64(int(latency.Seconds()*100))/100,     // One-way latency in seconds with 2 decimal places
 		LatencyFriendly:   latency.Round(time.Second).String(),         // Friendly one-way latency
-		RoundTripFriendly: (2 * latency).Round(time.Second).String(), // Friendly round-trip latency
+		RoundTripFriendly: (2 * latency).Round(time.Second).String(),   // Friendly round-trip latency
 		Domain:            fmt.Sprintf("%s.latency.space", strings.ToLower(name)), // Lowercase domain
 		MoonsHTML:         moonsHTML,                                   // Assign generated HTML
 	}
@@ -676,8 +676,8 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 			Name:       obj.Name,
 			Type:       obj.Type,
 			ParentName: obj.ParentName,
-			Distance:   distance,
-			Latency:    float64(latency / time.Second), // Explicitly convert to float64
+			Distance:   float64(int(distance*100))/100,       // Limit distance to 2 decimal places
+			Latency:    float64(int((latency/time.Second)*100))/100, // Limit latency to 2 decimal places
 			Occluded:   occluded,
 		}
 
