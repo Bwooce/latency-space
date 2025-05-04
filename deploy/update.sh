@@ -59,6 +59,21 @@ echo "🧹 Cleaning up any problematic containers..."
 # Stop all containers 
 docker ps -aq | xargs -r docker stop || true
 
+# Check if Docker is installed via snap and set privileged mode
+if command -v snap &> /dev/null && snap list | grep -q docker; then
+  echo "🔧 Docker installed via snap, checking privileged mode..."
+  if ! snap get docker privileged | grep -q "true"; then
+    echo "⚠️ Docker snap not in privileged mode. Setting it now..."
+    snap set docker privileged=true
+    echo "🔄 Restarting Docker service for AppArmor changes to take effect..."
+    snap restart docker
+    sleep 3
+    echo "✅ Docker snap privileged mode enabled"
+  else
+    echo "✅ Docker snap already in privileged mode"
+  fi
+fi
+
 # Restart the containers
 echo "🔄 Restarting all containers..."
 cd /opt/latency-space
