@@ -3,25 +3,34 @@
 # Use specific golang Alpine version for builder
 FROM golang:1.21.6-alpine3.19 AS builder
 
-WORKDIR /app/src
+WORKDIR /app
 
-# Combine installation and build steps to reduce layers
+# Install only essential build dependencies
 RUN apk add --no-cache \
     gcc=~13.2 \
-    musl-dev=~1.2 \
-    linux-headers=~6.5 \
-    git
+    musl-dev=~1.2
 
-# Copy the source files, including the vendor directory if it exists
+# Copy shared package first
+COPY src/shared /app/shared
+
+# Copy only go.mod and go.sum for better caching
+COPY src/go.mod src/go.sum /app/src/
+
+# Prepare vendor directory structure with our shared package
+WORKDIR /app/src
+RUN mkdir -p vendor/github.com/latency-space/shared && \
+    cp -r ../shared/* vendor/github.com/latency-space/shared/
+
+# Set environment variables for hermetic builds
+ENV CGO_ENABLED=0 \
+    GOOS=linux \
+    GOFLAGS="-mod=vendor"
+
+# Copy the source code (Go will use the vendored dependencies)
 COPY src/ .
 
-# Create a local vendor directory with the shared package
-RUN mkdir -p vendor/github.com/latency-space/shared
-COPY src/shared/ vendor/github.com/latency-space/shared/
-
-# Configure Go to use vendoring
-ENV GOFLAGS="-mod=vendor"
-RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy
+# Build with vendored dependencies
+RUN go build -o /latency-proxy
 
 # Use specific Alpine version for final image
 FROM alpine:3.19.1
