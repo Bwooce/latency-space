@@ -10,94 +10,11 @@ import (
 	"strings"
 
 	"github.com/cloudflare/cloudflare-go"
+	"latency-space/shared/celestial"
 )
 
-// CelestialObject matches the struct from proxy/src/models.go
-// This allows us to reuse the data without importing the entire proxy package
-type CelestialObject struct {
-	Name       string
-	Type       string
-	ParentName string
-	Radius     float64
-	A          float64
-	E          float64
-	I          float64
-	L          float64
-	LP         float64
-	N          float64
-	dA         float64
-	dE         float64
-	dI         float64
-	dL         float64
-	dLP        float64
-	dN         float64
-	W          float64
-	dW         float64
-	Period     float64
-	b          float64
-	c          float64
-	s          float64
-	f          float64
-	Mass       float64
-	TransmitterActive bool
-	LaunchDate        string
-	FrequencyMHz      float64
-	MissionStatus     string
-}
-
-// Objects store - will be filled from the proxy's data
-var celestialObjects []CelestialObject
-
-// Helper functions that work with our celestial objects
-func GetPlanets() []CelestialObject {
-	planets := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "planet" {
-			planets = append(planets, obj)
-		}
-	}
-	return planets
-}
-
-func GetMoons(bodyName string) []CelestialObject {
-	moons := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "moon" && strings.EqualFold(obj.ParentName, bodyName) {
-			moons = append(moons, obj)
-		}
-	}
-	return moons
-}
-
-func GetSpacecraft() []CelestialObject {
-	spacecraft := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "spacecraft" {
-			spacecraft = append(spacecraft, obj)
-		}
-	}
-	return spacecraft
-}
-
-func GetDwarfPlanets() []CelestialObject {
-	dwarfs := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "dwarf_planet" {
-			dwarfs = append(dwarfs, obj)
-		}
-	}
-	return dwarfs
-}
-
-func GetAsteroids() []CelestialObject {
-	asteroids := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "asteroid" {
-			asteroids = append(asteroids, obj)
-		}
-	}
-	return asteroids
-}
+// Global variable to store celestial objects
+var celestialObjects []celestial.CelestialObject
 
 // Helper function to find and check if a flag is present in os.Args
 func isCommandLineFlagPresent(flagName string) bool {
@@ -146,14 +63,14 @@ func collectDomains() []string {
 	// Status page subdomain removed - now integrated with main site
 
 	log.Println("Processing planets and their moons...")
-	for _, planet := range GetPlanets() {
+	for _, planet := range celestial.GetPlanets() {
 		// IMPORTANT: Always enforce lowercase for all domain parts
 		planetDomain := strings.ToLower(planet.Name)
 		log.Printf("Adding planet: %s → %s.latency.space", planet.Name, planetDomain)
 		domains = append(domains, planetDomain)
 
 		// Add moon subdomains (e.g., phobos.mars).
-		for _, moon := range GetMoons(planet.Name) {
+		for _, moon := range celestial.GetMoons(planet.Name) {
 			// Ensure both moon and planet names are lowercase for domain consistency
 			// This format must match how domains are constructed in the proxy code
 			moonName := strings.ToLower(moon.Name)
@@ -164,7 +81,7 @@ func collectDomains() []string {
 	}
 
 	log.Println("Processing spacecraft...")
-	for _, sc := range GetSpacecraft() {
+	for _, sc := range celestial.GetSpacecraft() {
 		// Replace spaces with hyphens and ensure lowercase for domain names
 		// NOTE: Hyphens are preferred over underscores for DNS compatibility
 		originalName := sc.Name
@@ -174,14 +91,14 @@ func collectDomains() []string {
 	}
 
 	log.Println("Processing dwarf planets...")
-	for _, dwarf := range GetDwarfPlanets() {
+	for _, dwarf := range celestial.GetDwarfPlanets() {
 		dwarfDomain := strings.ToLower(dwarf.Name)
 		log.Printf("Adding dwarf planet: %s → %s.latency.space", dwarf.Name, dwarfDomain)
 		domains = append(domains, dwarfDomain)
 	}
 
 	log.Println("Processing asteroids...")
-	for _, asteroid := range GetAsteroids() {
+	for _, asteroid := range celestial.GetAsteroids() {
 		asteroidDomain := strings.ToLower(asteroid.Name)
 		log.Printf("Adding asteroid: %s → %s.latency.space", asteroid.Name, asteroidDomain)
 		domains = append(domains, asteroidDomain)
@@ -206,7 +123,7 @@ func collectDomains() []string {
 }
 
 // ExecuteSetupDNS is the main function for DNS setup that can be called from either package
-func ExecuteSetupDNS(objects []CelestialObject) {
+func ExecuteSetupDNS(objects []celestial.CelestialObject) {
 	// Store the provided celestial objects in our local variable
 	celestialObjects = objects
 	

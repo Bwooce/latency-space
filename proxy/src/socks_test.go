@@ -33,16 +33,16 @@ func setupTestEnvironment() func() {
 			L:          100.46457166,
 			LP:         102.93768193,
 			N:          0.0,
-			dA:         0.00000562,
-			dE:         -0.00004392,
-			dI:         -0.01294668,
-			dL:         35999.37306329,
-			dLP:        0.32327364,
-			dN:         0.0,
-			b:          365.256,  // Orbital period (days)
-			c:          0.0167,   // Eccentricity for perturbation terms
-			s:          0.0148,   // Sin term coefficient
-			f:          0.9856,   // Mean motion (degrees/day)
+			DA:         0.00000562,
+			DE:         -0.00004392,
+			DI:         -0.01294668,
+			DL:         35999.37306329,
+			DLP:        0.32327364,
+			DN:         0.0,
+			B:          365.256,  // Orbital period (days)
+			C:          0.0167,   // Eccentricity for perturbation terms
+			S:          0.0148,   // Sin term coefficient
+			F:          0.9856,   // Mean motion (degrees/day)
 			Mass:       5.972e24, // kg
 		}, // Removed &
 		{
@@ -57,9 +57,9 @@ func setupTestEnvironment() func() {
 			L:      375.7,                        // Mean longitude at epoch
 			N:      125.08,                       // Longitude of ascending node
 			W:      318.15,                       // Argument of perigee
-			dL:     13.176358 * DAYS_PER_CENTURY, // Degrees per century
-			dN:     -0.05295 * DAYS_PER_CENTURY,
-			dW:     0.11140 * DAYS_PER_CENTURY,
+			DL:     13.176358 * DAYS_PER_CENTURY, // Degrees per century
+			DN:     -0.05295 * DAYS_PER_CENTURY,
+			DW:     0.11140 * DAYS_PER_CENTURY,
 			Period: 27.321661,
 			Mass:   7.342e22, // kg
 		},

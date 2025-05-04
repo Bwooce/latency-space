@@ -37,15 +37,6 @@ func normalizeRadians(angle float64) float64 {
 	return angle
 }
 
-// Normalize angle to [0, 360) degrees
-func normalizeDegrees(angle float64) float64 {
-	angle = math.Mod(angle, 360.0)
-	if angle < 0 {
-		angle += 360.0
-	}
-	return angle
-}
-
 // Convert time.Time to Julian Date
 func timeToJulianDate(t time.Time) float64 {
 	// Convert to UTC
@@ -148,37 +139,37 @@ func solveKeplerEquation(M float64, e float64) float64 {
 // This is a simplified version with only the main periodic terms
 func calculateVSOP87Position(obj CelestialObject, T float64) Vector3 {
 	// Calculate the object's orbital elements at time T (centuries from J2000)
-	a := obj.A + T*obj.dA
-	e := obj.E + T*obj.dE
-	i := degToRad(obj.I + T*obj.dI)
-	L := degToRad(normalizeDegrees(obj.L + T*obj.dL))
-	wbar := degToRad(normalizeDegrees(obj.LP + T*obj.dLP))
-	node := degToRad(normalizeDegrees(obj.N + T*obj.dN))
+	a := obj.A + T*obj.DA
+	e := obj.E + T*obj.DE
+	i := degToRad(obj.I + T*obj.DI)
+	L := degToRad(obj.L + T*obj.DL)
+	wbar := degToRad(obj.LP + T*obj.DLP)
+	node := degToRad(obj.N + T*obj.DN)
 
 	// Add some important planetary perturbations for higher accuracy
 	// These are simplified forms of the major perturbation terms
 
 	// For Earth-specific perturbations (simplified VSOP87 terms)
-	if obj.Name == "Earth" && obj.f > 0 && obj.b > 0 {
+	if obj.Name == "Earth" && obj.F > 0 && obj.B > 0 {
 		// Major perturbation from Jupiter
-		jupiterTerm := 0.00013 * math.Sin(degToRad(3.0*obj.f-8.0*obj.b+3.0)) // Example term
+		jupiterTerm := 0.00013 * math.Sin(degToRad(3.0*obj.F-8.0*obj.B+3.0)) // Example term
 
 		// Major perturbation from Venus
-		venusTerm := 0.00022 * math.Sin(degToRad(5.0*obj.c-2.0*obj.f-0.9)) // Example term
+		venusTerm := 0.00022 * math.Sin(degToRad(5.0*obj.C-2.0*obj.F-0.9)) // Example term
 
 		// Apply perturbations
 		L += degToRad(jupiterTerm + venusTerm)
 	}
 
 	// For Mars-specific perturbations (simplified VSOP87 terms)
-	if obj.Name == "Mars" && obj.f > 0 && obj.b > 0 {
+	if obj.Name == "Mars" && obj.F > 0 && obj.B > 0 {
 		// Major perturbation terms from Jupiter
-		perturbation := 0.00043 * math.Sin(degToRad(2.0*obj.b-5.0*obj.f+52.31))
-		perturbation += 0.00027 * math.Sin(degToRad(3.0*obj.b-5.0*obj.f+4.25))
+		perturbation := 0.00043 * math.Sin(degToRad(2.0*obj.B-5.0*obj.F+52.31))
+		perturbation += 0.00027 * math.Sin(degToRad(3.0*obj.B-5.0*obj.F+4.25))
 
 		// Apply perturbations
 		L += degToRad(perturbation)
-		e += 0.000045 * math.Cos(degToRad(2.0*obj.b-obj.f+106.3))
+		e += 0.000045 * math.Cos(degToRad(2.0*obj.B-obj.F+106.3))
 	}
 
 	// Calculate the mean anomaly
@@ -228,23 +219,23 @@ func calculateVSOP87Position(obj CelestialObject, T float64) Vector3 {
 // Calculate local position relative to parent body
 func calculateLocalPosition(obj CelestialObject, T float64) Vector3 {
 	// Calculate the object's orbital elements at time T
-	a := obj.A + T*obj.dA
-	e := obj.E + T*obj.dE
-	i := degToRad(obj.I + T*obj.dI)
-	L := degToRad(normalizeDegrees(obj.L + T*obj.dL))
+	a := obj.A + T*obj.DA
+	e := obj.E + T*obj.DE
+	i := degToRad(obj.I + T*obj.DI)
+	L := degToRad(obj.L + T*obj.DL)
 
 	var w, node, M float64
 
 	// For objects with defined argument of perigee (moons, spacecraft)
 	if obj.W != 0 {
-		w = degToRad(normalizeDegrees(obj.W + T*obj.dW))
-		node = degToRad(normalizeDegrees(obj.N + T*obj.dN))
+		w = degToRad(obj.W + T*obj.DW)
+		node = degToRad(obj.N + T*obj.DN)
 		// Calculate mean anomaly
 		M = normalizeRadians(L - (node + w))
 	} else {
 		// For objects with longitude of perihelion
-		lp := degToRad(normalizeDegrees(obj.LP + T*obj.dLP))
-		node = degToRad(normalizeDegrees(obj.N + T*obj.dN))
+		lp := degToRad(obj.LP + T*obj.DLP)
+		node = degToRad(obj.N + T*obj.DN)
 		// Calculate argument of perihelion and mean anomaly
 		w = normalizeRadians(lp - node)
 		M = normalizeRadians(L - lp)
@@ -513,56 +504,6 @@ func getCurrentDistance(bodyName string) float64 {
 	}
 	log.Printf("getCurrentDistance: invalid body %s", bodyName)
 	return 0
-}
-
-func GetMoons(bodyName string) []CelestialObject {
-	moons := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "moon" && strings.EqualFold(obj.ParentName, bodyName) {
-			moons = append(moons, obj)
-		}
-	}
-	return moons
-}
-
-func GetPlanets() []CelestialObject {
-	planets := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "planet" {
-			planets = append(planets, obj)
-		}
-	}
-	return planets
-}
-
-func GetSpacecraft() []CelestialObject {
-	spacecraft := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "spacecraft" {
-			spacecraft = append(spacecraft, obj)
-		}
-	}
-	return spacecraft
-}
-
-func GetDwarfPlanets() []CelestialObject {
-	dwarfs := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "dwarf_planet" {
-			dwarfs = append(dwarfs, obj)
-		}
-	}
-	return dwarfs
-}
-
-func GetAsteroids() []CelestialObject {
-	asteroids := make([]CelestialObject, 0)
-	for _, obj := range celestialObjects {
-		if obj.Type == "asteroid" {
-			asteroids = append(asteroids, obj)
-		}
-	}
-	return asteroids
 }
 
 // Display objects of a specific type

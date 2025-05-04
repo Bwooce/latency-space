@@ -3,7 +3,10 @@ module latency-space/tools
 
 go 1.21
 
-require github.com/cloudflare/cloudflare-go v0.79.0
+require (
+	github.com/cloudflare/cloudflare-go v0.79.0
+	latency-space/shared v0.0.0
+)
 
 require (
 	github.com/goccy/go-json v0.10.2 // indirect
@@ -15,4 +18,4 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 )
 
-replace latency.space/proxy/src => ../proxy/src
+replace latency-space/shared => ../shared

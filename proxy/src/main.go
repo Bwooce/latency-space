@@ -20,6 +20,7 @@ import (
 
 	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"latency-space/shared/celestial"
 )
 
 // infoTemplate holds the parsed HTML template for the celestial body information page.
@@ -202,7 +203,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if celestialObjects == nil {
 		log.Printf("Init celestial objects")
-		celestialObjects = InitSolarSystemObjects()
+		celestialObjects = celestial.InitSolarSystemObjects()
 	}
 
 	// If there's no target URL, just display info about this celestial body
@@ -340,7 +341,7 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 		// Proceed without occlusion data if objects aren't found
 	}
 
-	moons := GetMoons(name)
+	moons := celestial.GetMoons(name)
 
 	// 3. Populate InfoPageData
 	var moonsHTML template.HTML
@@ -403,7 +404,7 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 
 	// Ensure celestial objects are initialized
 	if celestialObjects == nil {
-		celestialObjects = InitSolarSystemObjects()
+		celestialObjects = celestial.InitSolarSystemObjects()
 	}
 
 	// Check if it's a latency.space domain (case-insensitive manual check)
@@ -761,7 +762,8 @@ func main() {
 		log.Fatalf("Failed to parse info page template: %v", templateErr)
 	}
 
-	celestialObjects = InitSolarSystemObjects()
+	// Initialize celestial objects for calculation
+	celestialObjects = celestial.InitSolarSystemObjects()
 
 	// Create and start the server
 	server := NewServer(*port, *https)

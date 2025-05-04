@@ -9,6 +9,8 @@ import (
 	"strings" // Import strings for case-insensitive comparison later
 	"testing"
 	"time"
+	
+	"latency-space/shared/celestial"
 )
 
 // testCelestialObjects provides a simplified list of objects for testing parseHostForCelestialBody.
@@ -219,7 +221,7 @@ func TestFindObjectByName(t *testing.T) {
 // TestDisplayCelestialInfoTemplate tests the rendering of the info page HTML template.
 func TestDisplayCelestialInfoTemplate(t *testing.T) {
 	// Initialize real celestial objects data.
-	celestialObjects = InitSolarSystemObjects()
+	celestialObjects = celestial.InitSolarSystemObjects()
 	// Ensure celestialObjects were loaded.
 	if len(celestialObjects) == 0 {
 		t.Fatal("Failed to initialize celestialObjects (slice is nil or empty)")
