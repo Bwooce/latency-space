@@ -38,15 +38,9 @@ cat > /etc/docker/daemon.json << 'EOF'
 }
 EOF
 
-# Disable AppArmor for Docker (snap installation)
-if command -v snap &> /dev/null && snap list | grep -q docker; then
-  echo "Docker installed via snap, configuring privileged mode..."
-  sudo snap set docker privileged=true
-  echo "Restarting Docker service for changes to take effect..."
-  sudo snap restart docker
-  sleep 3
-  echo "Docker snap privileged mode enabled"
-fi
+# We're using the standard Docker installation, not snap
+# The code for snap Docker has been removed as it's not recommended 
+# due to stability issues with containerd
 
 # Verify DNS resolution
 echo "Verifying DNS resolution..."

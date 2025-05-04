@@ -52,20 +52,10 @@ blue "Cleaning up any dangling resources..."
 docker system prune -f
 green "✅ Cleanup complete"
 
-# Check if Docker is installed via snap and ensure privileged mode is enabled
-if command -v snap &> /dev/null && snap list | grep -q docker; then
-  blue "Docker installed via snap, checking privileged mode..."
-  if ! snap get docker privileged | grep -q "true"; then
-    yellow "⚠️ Docker snap not in privileged mode. Setting it now..."
-    sudo snap set docker privileged=true
-    blue "Restarting Docker service for changes to take effect..."
-    sudo snap restart docker
-    sleep 3
-    green "✅ Docker snap privileged mode enabled"
-  else
-    green "✅ Docker snap already in privileged mode"
-  fi
-fi
+# System is using the standard package-based Docker installation
+# Snap Docker installation has been removed as it's less stable
+blue "Using system Docker installation (not snap)..."
+green "✅ System Docker configured properly"
 
 # Start containers
 blue "Starting all containers..."

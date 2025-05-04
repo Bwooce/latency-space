@@ -256,16 +256,16 @@ jobs:
               fi
             fi
             
-            # Special handling for AppArmor and Snap Docker when stopping containers
-            echo "Stopping containers with special handling for AppArmor and Snap Docker..."
+            # Stopping containers safely
+            echo "Stopping all containers..."
             docker ps -q | xargs -r docker stop || true
             
             # Attempt to manually remove stopped containers if needed
             docker ps -aq | xargs -r docker rm -f || true
             
-            # Use the update.sh script, but with some handling for permission errors
+            # Run the update script without special snap Docker handling
             echo "Running update script..."
-            if ! sudo -E DOCKER_OPTS="--security-opt apparmor=unconfined" ./deploy/update.sh; then
+            if ! sudo -E ./deploy/update.sh; then
               echo "Standard update script failed, trying alternative approach..."
               
               # Alternative approach if update.sh fails

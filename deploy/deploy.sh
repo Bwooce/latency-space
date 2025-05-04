@@ -58,20 +58,9 @@ if ! command -v docker &> /dev/null; then
   exit 1
 fi
 
-# Check if Docker is installed via snap and ensure privileged mode
-if command -v snap &> /dev/null && snap list | grep -q docker; then
-  echo "Docker installed via snap, checking privileged mode..."
-  if ! sudo snap get docker privileged | grep -q "true"; then
-    echo "Docker snap not in privileged mode. Setting it now..."
-    sudo snap set docker privileged=true
-    echo "Restarting Docker service for AppArmor changes to take effect..."
-    sudo snap restart docker
-    sleep 3
-    echo "Docker snap privileged mode enabled"
-  else
-    echo "Docker snap already in privileged mode"
-  fi
-fi
+# We're using the standard Docker installation, not the snap version
+# The code for snap Docker configuration has been removed as we're 
+# using the more stable package-based Docker installation
 
 # Deploy using Docker Compose
 echo "Deploying with Docker Compose..."
