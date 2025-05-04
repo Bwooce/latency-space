@@ -33,6 +33,9 @@ RUN apk add --no-cache \
 COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
 RUN chmod +x /usr/local/bin/latency-proxy
 
+# Copy templates
+COPY src/templates/ /app/templates/
+
 # Expose ports
 EXPOSE 80 443 1080 9090
 

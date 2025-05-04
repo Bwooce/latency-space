@@ -741,9 +741,25 @@ func main() {
 
 	// Parse the info page template at startup
 	var err error
-	infoTemplate, err = template.ParseFiles("proxy/src/templates/info_page.html")
-	if err != nil {
-		log.Fatalf("Failed to parse info page template: %v", err)
+	// Try different paths for the template (container paths first, then local development paths)
+	templatePaths := []string{
+		"/app/templates/info_page.html",            // Docker container path (new)
+		"templates/info_page.html",                 // Relative path
+		"src/templates/info_page.html",             // Another relative path
+		"proxy/src/templates/info_page.html",       // Original path
+	}
+	
+	var templateErr error
+	for _, path := range templatePaths {
+		infoTemplate, templateErr = template.ParseFiles(path)
+		if templateErr == nil {
+			log.Printf("Successfully loaded template from: %s", path)
+			break
+		}
+	}
+	
+	if infoTemplate == nil {
+		log.Fatalf("Failed to parse info page template: %v", templateErr)
 	}
 
 	celestialObjects = InitSolarSystemObjects()
