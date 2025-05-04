@@ -8,6 +8,14 @@ Simulate interplanetary network latency across the solar system with real-time o
 - Docker: [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/)
 - Docker Compose: [https://docs.docker.com/compose/install/](https://docs.docker.com/compose/install/) (Included with Docker Desktop, but may require a separate install on Linux)
 
+**Important Note for Snap-installed Docker:**
+If you're using Docker installed via Snap on Ubuntu/Debian, you'll need to set privileged mode:
+```bash
+sudo snap set docker privileged=true
+sudo snap restart docker
+```
+This addresses AppArmor permission denied errors that can occur with volume mounts.
+
 **Steps:**
 
 1.  **Clone this repository:**
@@ -55,13 +63,45 @@ Optional:
 
 ## Deployment
 
- This project includes scripts and configurations to facilitate deployment to a server, primarily managed through Docker Compose. Deployment can be triggered automatically via GitHub Actions (on pushes to the `main` branch see previous section) or performed manually.
+This project includes scripts and configurations to facilitate deployment to a server, primarily managed through Docker Compose. Deployment can be triggered automatically via GitHub Actions (on pushes to the `main` branch see previous section) or performed manually.
 
- The `/deploy` directory contains various shell scripts (`.sh`) used for setting up the server environment, managing the Docker services, troubleshooting common issues (such as DNS resolution or container restarts), and other deployment-related tasks.
+The `/deploy` directory contains various shell scripts (`.sh`) used for setting up the server environment, managing the Docker services, troubleshooting common issues (such as DNS resolution or container restarts), and other deployment-related tasks.
 
 For detailed step-by-step instructions on manual deployment, server setup prerequisites, and troubleshooting guidance, please refer to the dedicated README within the deployment directory:
 
 ➡️ **[Deployment Guide](./deploy/README.md)**
+
+### Common Container Issues and Solutions
+
+#### Template Loading Issues
+If the proxy container fails with template loading errors, ensure the Dockerfile copies templates correctly:
+```dockerfile
+# Copy templates
+COPY src/templates/ /app/templates/
+```
+
+#### Volume Mount Problems
+If containers fail to start due to volume mount issues:
+
+1. Check if Docker is installed via snap and needs privileged mode:
+```bash
+sudo snap set docker privileged=true
+sudo snap restart docker
+```
+
+2. If getting errors about missing directories, create them:
+```bash
+sudo mkdir -p /var/www/html/.well-known/acme-challenge
+sudo chmod -R 777 /var/www/html
+```
+
+3. For persistent issues, consider commenting out problematic mounts in docker-compose.yml:
+```yaml
+# Temporarily commenting out problematic mount
+# - type: bind
+#   source: /var/www/html
+#   target: /var/www/html
+```
 
 ## Available Endpoints
 
@@ -107,8 +147,16 @@ This works with both HTTP and SOCKS5 proxies (TCP only for SOCKS5 with this meth
 
  **Important Note on SSL Certificates:**
  - First-level subdomains (mars.latency.space) support HTTPS with valid certificates.
-- Multi-level subdomains (e.g., `www.google.com.mars.latency.space`) work over **HTTP only**.
-   - This is a limitation of standard wildcard SSL certificates (`*.latency.space`), which do not cover multiple subdomain levels. HTTPS connections to these multi-level domains will fail certificate validation.
+ - Second-level subdomains (e.g., `phobos.mars.latency.space`) require special wildcard certificate configuration.
+ - Multi-level proxy-through domains (e.g., `www.google.com.mars.latency.space`) work over **HTTP only**.
+   - This is a limitation of standard wildcard SSL certificates.
+
+For proper SSL certificate configuration covering all domain levels:
+```bash
+sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space
+```
+
+See the [DNS and SSL Configuration Guide](./DNS-AND-SSL-CONFIGURATION.md) for detailed instructions.
 
 ### API Endpoint: `/api/status-data`
 

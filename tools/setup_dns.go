@@ -11,6 +11,7 @@ import (
 
 // collectDomains generates a list of all required domain names for the latency.space DNS setup,
 // based on the celestial objects defined in objects_data.go.
+// NOTE: All domain names MUST be lowercase for consistent DNS resolution and SSL certificate validation.
 func collectDomains() []string {
 	var domains []string
 
@@ -25,36 +26,58 @@ func collectDomains() []string {
 
 	log.Println("Processing planets and their moons...")
 	for _, planet := range GetPlanets() {
-		log.Printf("Adding planet: %s", planet.Name)
-		domains = append(domains, strings.ToLower(planet.Name)) // Ensure lowercase
+		// IMPORTANT: Always enforce lowercase for all domain parts
+		planetDomain := strings.ToLower(planet.Name)
+		log.Printf("Adding planet: %s → %s.latency.space", planet.Name, planetDomain)
+		domains = append(domains, planetDomain)
 
 		// Add moon subdomains (e.g., phobos.mars).
 		for _, moon := range GetMoons(planet.Name) {
 			// Ensure both moon and planet names are lowercase for domain consistency
-			moonDomain := strings.ToLower(moon.Name) + "." + strings.ToLower(planet.Name)
-			log.Printf("Adding moon: %s", moonDomain)
+			// This format must match how domains are constructed in the proxy code
+			moonName := strings.ToLower(moon.Name)
+			moonDomain := moonName + "." + planetDomain
+			log.Printf("Adding moon: %s → %s.latency.space", moon.Name, moonDomain)
 			domains = append(domains, moonDomain)
 		}
 	}
 
 	log.Println("Processing spacecraft...")
 	for _, sc := range GetSpacecraft() {
-		// Replace spaces with underscores and ensure lowercase for domain names
-		scDomain := strings.ToLower(strings.ReplaceAll(sc.Name, " ", "_"))
-		log.Printf("Adding spacecraft: %s", scDomain)
+		// Replace spaces with hyphens and ensure lowercase for domain names
+		// NOTE: Hyphens are preferred over underscores for DNS compatibility
+		originalName := sc.Name
+		scDomain := strings.ToLower(strings.ReplaceAll(originalName, " ", "-"))
+		log.Printf("Adding spacecraft: %s → %s.latency.space", originalName, scDomain)
 		domains = append(domains, scDomain)
 	}
 
 	log.Println("Processing dwarf planets...")
 	for _, dwarf := range GetDwarfPlanets() {
-		log.Printf("Adding dwarf planet: %s", dwarf.Name)
-		domains = append(domains, strings.ToLower(dwarf.Name)) // Ensure lowercase
+		dwarfDomain := strings.ToLower(dwarf.Name)
+		log.Printf("Adding dwarf planet: %s → %s.latency.space", dwarf.Name, dwarfDomain)
+		domains = append(domains, dwarfDomain)
 	}
 
 	log.Println("Processing asteroids...")
 	for _, asteroid := range GetAsteroids() {
-		log.Printf("Adding asteroid: %s", asteroid.Name)
-		domains = append(domains, strings.ToLower(asteroid.Name)) // Ensure lowercase
+		asteroidDomain := strings.ToLower(asteroid.Name)
+		log.Printf("Adding asteroid: %s → %s.latency.space", asteroid.Name, asteroidDomain)
+		domains = append(domains, asteroidDomain)
+	}
+
+	// Validate all domains are lowercase (critical for SSL and DNS consistency)
+	log.Println("Validating domain names...")
+	for i, domain := range domains {
+		if domain != "@" && domain != "www" && domain != strings.ToLower(domain) {
+			log.Printf("WARNING: Domain %s contains uppercase characters. Forcing lowercase.", domain)
+			domains[i] = strings.ToLower(domain)
+		}
+		
+		// Check for problematic characters
+		if strings.Contains(domain, "_") {
+			log.Printf("WARNING: Domain %s contains underscores which may cause DNS issues. Consider using hyphens instead.", domain)
+		}
 	}
 
 	log.Printf("Collected %d domains/subdomains.", len(domains))
@@ -79,8 +102,46 @@ func main() {
 	domains := collectDomains()
 	log.Printf("Attempting to configure DNS for %d domains/subdomains in zone '%s' pointing to IP %s",
 		len(domains), *zoneName, *serverIP)
-
+		
+	// Final validation of all domain names for SSL certificate compatibility
+	log.Println("\nPERFORMING FINAL DOMAIN VALIDATION FOR SSL COMPATIBILITY")
+	log.Println("========================================================")
+	log.Println("These domains will need to be covered by SSL certificates:")
+	
+	// Group domains by levels for certificate planning
+	var rootDomains, singleLevel, multiLevel []string
+	
+	for _, domain := range domains {
+		// Skip special cases
+		if domain == "@" || domain == "www" {
+			rootDomains = append(rootDomains, domain)
+			continue
+		}
+		
+		// Check domain format and validate
+		if strings.Contains(domain, ".") {
+			multiLevel = append(multiLevel, domain)
+		} else {
+			singleLevel = append(singleLevel, domain)
+		}
+		
+		// Ensure lowercase
+		if domain != strings.ToLower(domain) {
+			log.Printf("ERROR: Domain '%s' contains uppercase letters - this will cause SSL certificate validation failures!", domain)
+		}
+	}
+	
+	log.Printf("Root domains: %d", len(rootDomains))
+	log.Printf("Single-level subdomains: %d (covered by *.latency.space certificate)", len(singleLevel))
+	log.Printf("Multi-level subdomains: %d (require *.*.latency.space certificate)", len(multiLevel))
+	
+	// Suggest the certbot command
+	log.Println("\nTo create SSL certificates for all these domains, use:")
+	log.Printf("certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space")
+	
 	// Initialize the Cloudflare API client.
+	log.Println("\nINITIALIZING DNS CONFIGURATION")
+	log.Println("=============================")
 	api, err := cloudflare.NewWithAPIToken(*apiToken)
 	if err != nil {
 		log.Fatalf("Error initializing Cloudflare API: %v", err)
@@ -94,14 +155,19 @@ func main() {
 	log.Printf("Found Zone ID '%s' for zone '%s'", zoneID, *zoneName)
 
 	ctx := context.Background()
+	
+	// Counter for tracking progress
+	processedCount := 0
+	totalCount := len(domains)
 
 	// Iterate through each domain and configure its DNS record.
 	for _, domain := range domains {
+		processedCount++
 		fullDomainName := domain + "." + *zoneName
 		if domain == "@" { // Handle root domain case
 			fullDomainName = *zoneName
 		}
-		log.Printf("Processing DNS for: %s", fullDomainName)
+		log.Printf("[%d/%d] Processing DNS for: %s", processedCount, totalCount, fullDomainName)
 
 		// Determine if the domain should be proxied (orange cloud) by Cloudflare.
 		// Only the base domain and www should be proxied.
@@ -174,4 +240,9 @@ func main() {
 	}
 
 	log.Println("\nDNS setup script finished.")
+	log.Println("==========================")
+	log.Println("Next steps:")
+	log.Println("1. Obtain SSL certificates with: sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space")
+	log.Println("2. Configure Nginx to use the certificates")
+	log.Println("3. Test all domains to ensure they resolve correctly")
 }
