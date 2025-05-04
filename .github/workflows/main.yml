@@ -280,13 +280,13 @@ jobs:
               docker container prune -f || true
               docker volume prune -f || true
               
-              # Build and start with AppArmor disabled
-              echo "Building with AppArmor disabled..."
+              # Build and start without AppArmor configuration
+              echo "Building fresh images..."
               docker compose build --no-cache proxy
               
-              # Start services with security options disabled
-              echo "Starting services with AppArmor disabled..."
-              docker compose up -d --security-opt apparmor=unconfined
+              # Start services normally without additional options
+              echo "Starting services..."
+              docker compose up -d
               
               # Check if services started
               if ! docker compose ps | grep -q "Up"; then
@@ -302,23 +302,23 @@ jobs:
               exit 1
             fi
             
-            # Run diagnostic script to create initial report with AppArmor disabled
-            echo "Running diagnostic script with AppArmor disabled..."
+            # Run diagnostic script to create initial report
+            echo "Running diagnostic script..."
             chmod +x ./deploy/diagnostic.sh
             
             # Create required directories if they don't exist
             sudo mkdir -p /tmp/latency-space/html /tmp/latency-space/logs
             sudo chmod -R 777 /tmp/latency-space
             
-            # Run with AppArmor disabled and handle potential permission issues
-            if ! sudo -E AA_DISABLE=1 ./deploy/diagnostic.sh; then
+            # Run diagnostics and handle potential permission issues
+            if ! sudo -E ./deploy/diagnostic.sh; then
               echo "Warning: Diagnostic script failed with standard options, trying alternatives..."
               
               # Copy the script to /tmp and try running from there (avoids some permission issues)
               cp ./deploy/diagnostic.sh /tmp/
               chmod +x /tmp/diagnostic.sh
               cd /tmp
-              sudo -E AA_DISABLE=1 ./diagnostic.sh || true
+              sudo -E ./diagnostic.sh || true
               
               # Not failing the build for diagnostic issues
               echo "Warning: Diagnostic script issues encountered, but continuing deployment"

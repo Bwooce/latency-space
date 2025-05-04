@@ -18,12 +18,33 @@ fi
 blue "🔧 Updating Nginx Configuration"
 echo $DIVIDER
 
-# Get container IPs
+# Get container IPs - using more specific network inspection
 blue "Getting container IPs..."
-STATUS_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=status) 2>/dev/null)
-PROXY_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=proxy) 2>/dev/null)
-PROMETHEUS_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=prometheus) 2>/dev/null)
-GRAFANA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker ps -q -f name=grafana) 2>/dev/null)
+STATUS_CONTAINER_ID=$(docker ps -q -f name=status)
+PROXY_CONTAINER_ID=$(docker ps -q -f name=proxy)
+PROMETHEUS_CONTAINER_ID=$(docker ps -q -f name=prometheus)
+GRAFANA_CONTAINER_ID=$(docker ps -q -f name=grafana)
+
+# Get IPs from all networks, prioritizing space-net
+get_container_ip() {
+  local container_id=$1
+  local network_name="latency-space_space-net"
+  
+  # First try the main network
+  local ip=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{if eq \$k \"$network_name\"}}{{\$v.IPAddress}}{{end}}{{end}}" $container_id 2>/dev/null)
+  
+  # If not found, try any network
+  if [ -z "$ip" ]; then
+    ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container_id 2>/dev/null)
+  fi
+  
+  echo $ip
+}
+
+STATUS_IP=$(get_container_ip $STATUS_CONTAINER_ID)
+PROXY_IP=$(get_container_ip $PROXY_CONTAINER_ID)
+PROMETHEUS_IP=$(get_container_ip $PROMETHEUS_CONTAINER_ID)
+GRAFANA_IP=$(get_container_ip $GRAFANA_CONTAINER_ID)
 
 # Print container IPs
 echo "Status container IP: $STATUS_IP"
