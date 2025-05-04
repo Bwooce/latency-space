@@ -1,17 +1,18 @@
 // proxy/src/websocket.go
 package main
 
-import (
-	"net/http"
-
-	"github.com/gorilla/websocket"
-)
+// Commented out until WebSocket implementation is complete
+// import (
+// 	"net/http"
+// 	"github.com/gorilla/websocket"
+// )
 
 // upgrader defines the WebSocket upgrader configuration.
 // CheckOrigin allows all origins (use with caution, consider specific origins in production).
 // This is currently unused but will be used when WebSocket proxying is implemented.
 // nolint:unused
-var upgrader = websocket.Upgrader{
+// Commented out temporarily until WebSocket implementation is complete
+/* var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
@@ -19,7 +20,7 @@ var upgrader = websocket.Upgrader{
 		// restrict this to specific origins based on the request 'r'.
 		return true
 	},
-}
+} */
 
 // NOTE: WebSocket proxying is planned but not yet implemented.
 // Future implementation will handle WebSocket connections, applying latency
