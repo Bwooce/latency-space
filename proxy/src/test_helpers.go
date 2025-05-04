@@ -9,8 +9,8 @@ var isTestMode = false
 
 // Variables to override test behavior for specific tests
 var testModeLatencyOverride time.Duration
-// testModeUDPRelayCloseDelay is reserved for future UDP relay delay testing
-// var testModeUDPRelayCloseDelay time.Duration = 500 * time.Millisecond
+// UDP relay close delay for testing connection termination
+var testModeUDPRelayCloseDelay time.Duration = 500 * time.Millisecond
 
 // setupTestMode enables test mode for latency calculations and returns a cleanup function
 func setupTestMode() func() {
