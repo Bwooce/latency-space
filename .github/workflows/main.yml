@@ -151,8 +151,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: production
     concurrency: production
-    # Add continue-on-error to allow the workflow to pass even if deployment fails
-    continue-on-error: true
+    # Removed continue-on-error to ensure workflow fails if deployment fails
+    # This ensures deployment issues are properly reported
     steps:
       - uses: actions/checkout@v3
       
@@ -245,45 +245,87 @@ jobs:
               fi
             fi
             
-            # Pull latest code
-            git pull
-            
-            # Build and start services
-            docker compose pull
-            docker compose up --build -d
-            docker system prune -f --all --volumes
-            
-            # Check if services are running
-            sleep 10 # Wait for services to start
-            if ! docker compose ps | grep -q "Up"; then
-              echo "Services may not be running, checking alternative command..."
-              if command -v docker-compose &> /dev/null && docker-compose ps | grep -q "Up"; then
-                echo "Services are up (verified using legacy docker-compose)"
-              else
-                echo "Services failed to start properly"
-                docker compose logs || docker-compose logs
+            # Pull latest code with error handling
+            echo "Pulling latest code..."
+            if ! git pull; then
+              echo "Git pull failed, trying with force option..."
+              git reset --hard HEAD
+              if ! git pull --force; then
+                echo "Git pull failed even with force option"
                 exit 1
               fi
             fi
-            sudo ./deploy/update-nginx.sh # <-- Added this line
+            
+            # Use the official update script with proper error handling
+            echo "Running update script..."
+            if ! sudo ./deploy/update.sh; then
+              echo "Update script failed - check logs for details"
+              exit 1
+            fi
+            
+            # Update Nginx configuration
+            echo "Updating Nginx configuration..."
+            if ! sudo ./deploy/update-nginx.sh; then
+              echo "Nginx update failed - check logs for details"
+              exit 1
+            fi
             
             # Run diagnostic script to create initial report
             echo "Running diagnostic script..."
             chmod +x ./deploy/diagnostic.sh
-            ./deploy/diagnostic.sh
+            if ! sudo ./deploy/diagnostic.sh; then
+              echo "Warning: Diagnostic script failed, but continuing deployment"
+              # Not exiting with error since this is not critical to the deployment
+            fi
             
             echo "Deployment completed successfully!"
 
-      # Commented out until health endpoint is properly implemented
-      # - name: Verify Deployment
-      #   run: |
-      #     for i in {1..12}; do
-      #       if curl -s https://mars.latency.space/_debug/help | grep -q "Interplanetary"; then
-      #         echo "Deployment verified!"
-      #         exit 0
-      #       fi
-      #       echo "Waiting for service to become available... ($i/12)"
-      #       sleep 10
-      #     done
-      #     echo "Deployment verification timed out"
-      #     exit 1
+      # Verify that deployment was successful
+      - name: Verify Deployment
+        run: |
+          # Check debug endpoint
+          echo "Verifying deployment via debug endpoint..."
+          for i in {1..12}; do
+            if curl -s --connect-timeout 10 https://mars.latency.space/_debug/help | grep -q "Interplanetary"; then
+              echo "Debug endpoint verification successful!"
+              debug_success=true
+              break
+            fi
+            echo "Waiting for debug endpoint to become available... ($i/12)"
+            sleep 10
+          done
+          
+          # Check diagnostic page
+          echo "Verifying diagnostic page..."
+          for i in {1..12}; do
+            if curl -s --connect-timeout 10 https://latency.space/diagnostic.html | grep -q "Latency Space Diagnostic Report"; then
+              echo "Diagnostic page verification successful!"
+              diagnostic_success=true
+              break
+            fi
+            echo "Waiting for diagnostic page to become available... ($i/12)"
+            sleep 10
+          done
+          
+          # Check if either verification was successful
+          if [ "$debug_success" == "true" ] || [ "$diagnostic_success" == "true" ]; then
+            echo "Deployment verified successfully!"
+            exit 0
+          else
+            echo "Deployment verification failed - services may not be running correctly"
+            exit 1
+          fi
+      
+      # Send notification on completion of deployment
+      - name: Notify deployment status
+        if: always()
+        uses: rtCamp/action-slack-notify@v2.2.0
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_TITLE: "Deployment Status"
+          SLACK_MESSAGE: |
+            Repository: ${{ github.repository }}
+            Status: ${{ job.status }}
+            Commit: ${{ github.sha }}
+            See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
