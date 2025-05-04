@@ -93,25 +93,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-  # Commented out node-exporter due to permission issues
-  # node-exporter:
-  #   image: prom/node-exporter:latest
-  #   restart: unless-stopped
-  #   security_opt:
-  #     - no-new-privileges:true
-  #   ports:
-  #     - "9100:9100"
-  #   volumes:
-  #     - /proc:/host/proc:ro
-  #     - /sys:/host/sys:ro
-  #     - /:/rootfs:ro
-  #   command:
-  #     - '--path.procfs=/host/proc'
-  #     - '--path.sysfs=/host/sys'
-  #     - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-  #   user: "65534:65534" # Run as nobody:nogroup
-  #   networks:
-  #     - space-net
+  # Node-exporter completely removed due to security_opt causing issues
 
 networks:
   space-net:

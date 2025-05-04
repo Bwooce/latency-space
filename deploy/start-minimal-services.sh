@@ -6,6 +6,14 @@ red() { echo -e "\033[0;31m$1\033[0m"; }
 green() { echo -e "\033[0;32m$1\033[0m"; }
 blue() { echo -e "\033[0;34m$1\033[0m"; }
 yellow() { echo -e "\033[0;33m$1\033[0m"; }
+
+# Remove any existing containers with the same name before starting
+remove_container() {
+  if docker ps -a | grep -q "$1"; then
+    blue "Removing existing container: $1"
+    docker rm -f "$1" >/dev/null 2>&1
+  fi
+}
 DIVIDER="----------------------------------------"
 
 # Check if script is run as root
@@ -115,10 +123,22 @@ green "✅ Minimal status container built"
 
 # Start the status container
 blue "Starting minimal status container..."
-docker run -d --name latency-space-status \
-  --network space-net \
-  -p 3000:80 \
-  latency-space-status-minimal
+# Remove any existing container
+remove_container "latency-space-status"
+
+# Check if port 3000 is in use
+if lsof -i:3000 >/dev/null 2>&1; then
+  yellow "⚠️ Port 3000 is already in use, using port 3001 instead"
+  docker run -d --name latency-space-status \
+    --network space-net \
+    -p 3001:80 \
+    latency-space-status-minimal
+else
+  docker run -d --name latency-space-status \
+    --network space-net \
+    -p 3000:80 \
+    latency-space-status-minimal
+fi
 
 # Clean up temp directory
 cd - > /dev/null
@@ -128,6 +148,12 @@ rm -rf $STATUS_DIR
 blue "Building minimal proxy container..."
 PROXY_DIR=$(mktemp -d)
 cd $PROXY_DIR
+
+cat > go.mod << 'EOF'
+module proxy
+
+go 1.21
+EOF
 
 cat > main.go << 'EOF'
 package main
@@ -163,6 +189,7 @@ EOF
 cat > Dockerfile << 'EOF'
 FROM golang:1.21-alpine
 WORKDIR /app
+COPY go.mod .
 COPY main.go .
 RUN go build -o proxy .
 EXPOSE 80
@@ -175,10 +202,17 @@ green "✅ Minimal proxy container built"
 
 # Start the proxy container
 blue "Starting minimal proxy container..."
+# Remove any existing container
+remove_container "latency-space-proxy"
+
 docker run -d --name latency-space-proxy \
   --network space-net \
+  --cap-add NET_ADMIN \
   -p 8080:80 \
+  -p 8443:443 \
+  -p 5356:53/udp \
   -p 1080:1080 \
+  -p 9090:9090 \
   latency-space-proxy-minimal
 
 # Clean up temp directory
