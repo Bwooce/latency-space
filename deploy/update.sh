@@ -252,6 +252,22 @@ else
   yellow "⚠️ update-nginx.sh script not found, skipping Nginx config update"
 fi
 
+# Create proper symlinks for shared data between packages
+blue "🔄 Setting up symlinks for shared celestial object data..."
+if [ -d "tools" ] && [ -d "proxy/src" ]; then
+  # Remove any existing duplicated files
+  rm -f tools/objects_data.go
+  rm -f tools/models.go
+  
+  # Create symlinks to use the original data without duplication
+  ln -sf ../proxy/src/models.go tools/models.go
+  ln -sf ../proxy/src/objects_data.go tools/objects_data.go
+  
+  green "✅ Created symlinks for shared celestial object data"
+else
+  yellow "⚠️ tools or proxy directories not found, skipping symlink creation"
+fi
+
 # Check if everything is running
 blue "🔍 Checking if containers are running..."
 sleep 10
