@@ -1,5 +1,6 @@
 // status/src/pages/Landing.jsx
 import React, { useState, useEffect } from 'react';
+import { formatFullDomain, formatMoonDomain } from '../lib/domainUtils';
 
 // Helper function to format latency from seconds
 const formatLatency = (seconds) => {
@@ -159,7 +160,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${formatFullDomain(item.name)}/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{formatFullDomain(item.name)}</code></a></p>
                         </div>
                       </div>
                     ))}
@@ -185,8 +186,8 @@ export default function LandingPage() {
                             Status: {item.occluded ? 'Occluded' : 'Visible'}
                           </p>
                            {/* Construct domain name based on parent */}
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.parentName ? `${item.name.toLowerCase().replace(/\s+/g, '-')}.${item.parentName.toLowerCase().replace(/\s+/g, '-')}` : item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">
-                            {item.parentName ? `${item.name.toLowerCase().replace(/\s+/g, '-')}.${item.parentName.toLowerCase().replace(/\s+/g, '-')}` : item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.parentName ? formatMoonDomain(item.name, item.parentName) : formatFullDomain(item.name)}/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">
+                            {item.parentName ? formatMoonDomain(item.name, item.parentName) : formatFullDomain(item.name)}
                           </code></a></p>
                         </div>
                       </div>
@@ -209,7 +210,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${formatFullDomain(item.name)}/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{formatFullDomain(item.name)}</code></a></p>
                         </div>
                       </div>
                     ))}
@@ -231,7 +232,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase().replace(/\s+/g, '-')}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${formatFullDomain(item.name)}/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{formatFullDomain(item.name)}</code></a></p>
                         </div>
                       </div>
                     ))}

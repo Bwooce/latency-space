@@ -81,7 +81,8 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 			return "", fmt.Errorf("unknown celestial body: %s", bodyName)
 		}
 
-		log.Printf("SOCKS: Extracted target domain %s from %s.latency.space format", targetDomain, bodyName)
+		formattedBodyName := FormatDomainName(bodyName)
+		log.Printf("SOCKS: Extracted target domain %s from %s.latency.space format", targetDomain, formattedBodyName)
 		return targetDomain, nil
 	}
 	return domain, nil
@@ -165,7 +166,7 @@ func getCelestialBodyFromConn(addr net.Addr) (string, error) {
 		}
 	}
 
-	// For clients connecting directly via IP, use Earth with minimal latency for testing
+	// For clients connecting directly via IP, use Mars with minimal latency for testing
 	log.Printf("No celestial body detected in hostname, using Mars for connection from |%s|", host)
 	body, _ := findObjectByName(celestialObjects, "Mars")
 	return body.Name, nil

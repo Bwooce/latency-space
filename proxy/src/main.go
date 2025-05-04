@@ -27,36 +27,36 @@ var infoTemplate *template.Template
 
 // StatusEntry represents the data for a single celestial object returned by the status API.
 type StatusEntry struct {
-	Name       string        `json:"name"`
-	Type       string        `json:"type"`
-	ParentName string        `json:"parentName,omitempty"` // Omit if empty
-	Distance   float64       `json:"distance_km"`
-	Latency    float64       `json:"latency_seconds"` // Changed type to float64
-	Occluded   bool          `json:"occluded"`
+	Name       string  `json:"name"`
+	Type       string  `json:"type"`
+	ParentName string  `json:"parentName,omitempty"` // Omit if empty
+	Distance   float64 `json:"distance_km"`
+	Latency    float64 `json:"latency_seconds"` // Changed type to float64
+	Occluded   bool    `json:"occluded"`
 }
 
 // ApiResponse defines the structure of the JSON response for the `/api/status-data` endpoint.
 type ApiResponse struct {
-	Timestamp time.Time              `json:"timestamp"`
+	Timestamp time.Time                `json:"timestamp"`
 	Objects   map[string][]StatusEntry `json:"objects"` // Keyed by object type (e.g., "planets", "moons")
 }
 
 // InfoPageData holds the data required to render the `info_page.html` template.
 type InfoPageData struct {
 	Name              string
-	DistanceMkm       float64 // Distance from Earth in millions of kilometers
-	LatencySec        float64 // One-way latency in seconds
-	LatencyFriendly   string  // Human-readable latency (e.g., "5 minutes")
-	RoundTripFriendly string  // Human-readable round-trip time
-	OccludedClass     string  // CSS class for occlusion status ("status-visible" or "status-occluded")
-	OccludedStatus    string  // Textual description of occlusion status
+	DistanceMkm       float64       // Distance from Earth in millions of kilometers
+	LatencySec        float64       // One-way latency in seconds
+	LatencyFriendly   string        // Human-readable latency (e.g., "5 minutes")
+	RoundTripFriendly string        // Human-readable round-trip time
+	OccludedClass     string        // CSS class for occlusion status ("status-visible" or "status-occluded")
+	OccludedStatus    string        // Textual description of occlusion status
 	MoonsHTML         template.HTML // Pre-rendered HTML for the moons list (if any)
-	Domain            string  // The domain name for this body (e.g., "mars.latency.space")
+	Domain            string        // The domain name for this body (e.g., "mars.latency.space")
 }
 
 // Server represents the main latency proxy application.
 type Server struct {
-	port          int // Port for the HTTP server (HTTPS uses 443)
+	port          int  // Port for the HTTP server (HTTPS uses 443)
 	https         bool // Flag indicating whether to enable HTTPS
 	metrics       *MetricsCollector
 	security      *SecurityValidator
@@ -348,8 +348,7 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 		var htmlBuilder strings.Builder
 		for _, moon := range moons {
 			// Construct the moon's domain (e.g., phobos.mars.latency.space)
-			// Ensure both moon and planet names are lowercase for domain consistency
-			moonDomain := fmt.Sprintf("%s.%s.latency.space", strings.ToLower(moon.Name), strings.ToLower(name))
+			moonDomain := FormatMoonDomain(moon.Name, name)
 			// Create the list item HTML, linking to the root of the moon's proxy domain
 			htmlBuilder.WriteString(fmt.Sprintf(`<li><a href="http://%s/">%s</a></li>`, moonDomain, moon.Name))
 		}
@@ -357,13 +356,13 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	}
 
 	data := InfoPageData{
-		Name:              name,                                        // Use the original case name for display
-		DistanceMkm:       float64(int((distance/1e6)*100))/100,        // Convert km to million km with 2 decimal places
-		LatencySec:        float64(int(latency.Seconds()*100))/100,     // One-way latency in seconds with 2 decimal places
-		LatencyFriendly:   latency.Round(time.Second).String(),         // Friendly one-way latency
-		RoundTripFriendly: (2 * latency).Round(time.Second).String(),   // Friendly round-trip latency
-		Domain:            fmt.Sprintf("%s.latency.space", strings.ToLower(name)), // Lowercase domain
-		MoonsHTML:         moonsHTML,                                   // Assign generated HTML
+		Name:              name,                                      // Use the original case name for display
+		DistanceMkm:       float64(int((distance/1e6)*100)) / 100,    // Convert km to million km with 2 decimal places
+		LatencySec:        float64(int(latency.Seconds()*100)) / 100, // One-way latency in seconds with 2 decimal places
+		LatencyFriendly:   latency.Round(time.Second).String(),       // Friendly one-way latency
+		RoundTripFriendly: (2 * latency).Round(time.Second).String(), // Friendly round-trip latency
+		Domain:            FormatFullDomain(name),                    // Formatted domain using utility function
+		MoonsHTML:         moonsHTML,                                 // Assign generated HTML
 	}
 
 	// Set occlusion status and class based on calculated data
@@ -442,15 +441,15 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 			// 2. Check if the identified 'planet' is a valid parent type
 			if !(planet.Type == "planet" || planet.Type == "dwarf_planet") {
 				// If the parent is not a planet/dwarf_planet, invalid format
-                return "", CelestialObject{}, ""
+				return "", CelestialObject{}, ""
 			}
-            // 3. Check if the moon's parent matches the identified planet (case-insensitive)
-            if !strings.EqualFold(moon.ParentName, planet.Name) {
-                // Invalid parent relationship, return empty
-                return "", CelestialObject{}, ""
-            }
+			// 3. Check if the moon's parent matches the identified planet (case-insensitive)
+			if !strings.EqualFold(moon.ParentName, planet.Name) {
+				// Invalid parent relationship, return empty
+				return "", CelestialObject{}, ""
+			}
 
-            // If all checks pass, proceed to extract target and return moon
+			// If all checks pass, proceed to extract target and return moon
 			targetDomain := ""
 			if numParts >= 5 { // Only extract target if there are enough parts
 				targetDomain = strings.Join(parts[:numParts-4], ".")
@@ -512,7 +511,7 @@ func (s *Server) startHTTPSServer() error {
 		Addr:         ":443",
 		Handler:      http.HandlerFunc(s.handleHTTP),
 		TLSConfig:    setupTLS(),
-		ErrorLog: nullLogger, // don't really need these errors right now
+		ErrorLog:     nullLogger,        // don't really need these errors right now
 		ReadTimeout:  60 * time.Minute,  // Increased for distant celestial bodies
 		WriteTimeout: 60 * time.Minute,  // Increased for distant celestial bodies
 		IdleTimeout:  120 * time.Minute, // Allow long-lived connections
@@ -597,14 +596,14 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/_debug/")
 
 	switch path {
-	case "metrics": 
+	case "metrics":
 		promhttp.Handler().ServeHTTP(w, r)
 	case "distances":
 		s.printCelestialDistances(w)
 	case "help":
 		s.printHelp(w)
 	default:
-		http.Error(w, "Unknown debug command: " + path, http.StatusNotFound)
+		http.Error(w, "Unknown debug command: "+path, http.StatusNotFound)
 	}
 }
 
@@ -676,8 +675,8 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 			Name:       obj.Name,
 			Type:       obj.Type,
 			ParentName: obj.ParentName,
-			Distance:   float64(int(distance*100))/100,       // Limit distance to 2 decimal places
-			Latency:    float64(int((latency/time.Second)*100))/100, // Limit latency to 2 decimal places
+			Distance:   float64(int(distance*100)) / 100,              // Limit distance to 2 decimal places
+			Latency:    float64(int((latency/time.Second)*100)) / 100, // Limit latency to 2 decimal places
 			Occluded:   occluded,
 		}
 
@@ -743,12 +742,12 @@ func main() {
 	var err error
 	// Try different paths for the template (container paths first, then local development paths)
 	templatePaths := []string{
-		"/app/templates/info_page.html",            // Docker container path (new)
-		"templates/info_page.html",                 // Relative path
-		"src/templates/info_page.html",             // Another relative path
-		"proxy/src/templates/info_page.html",       // Original path
+		"/app/templates/info_page.html",      // Docker container path (new)
+		"templates/info_page.html",           // Relative path
+		"src/templates/info_page.html",       // Another relative path
+		"proxy/src/templates/info_page.html", // Original path
 	}
-	
+
 	var templateErr error
 	for _, path := range templatePaths {
 		infoTemplate, templateErr = template.ParseFiles(path)
@@ -757,7 +756,7 @@ func main() {
 			break
 		}
 	}
-	
+
 	if infoTemplate == nil {
 		log.Fatalf("Failed to parse info page template: %v", templateErr)
 	}
