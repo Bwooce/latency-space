@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +14,8 @@ import (
 
 	"golang.org/x/net/proxy" // SOCKS5 client library
 )
+
+// Re-add net import when needed
 
 // Simple command-line client for testing the SOCKS5 proxy functionality.
 // NOTE: This file has a build tag `//go:build ignore` at the top,

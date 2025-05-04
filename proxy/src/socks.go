@@ -626,213 +626,213 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				continue
 			}
 
-		// First packet received? Identify the client's UDP source address.
-		// Compare host parts only, as ports might differ.
-		if clientUDPAddr == nil {
-			// Simple IP comparison (might fail for complex cases like NAT)
-			clientTCPHost, _, _ := net.SplitHostPort(clientTCPAddr.String())
-			remoteHost, _, _ := net.SplitHostPort(remoteAddr.String())
-			if clientTCPHost == remoteHost {
-				clientUDPAddr = remoteAddr
-				log.Printf("UDP Relay: Identified client UDP address for %s as %s", clientTCPAddr, clientUDPAddr)
-			} else {
-				// Packet from an unknown source before client sent anything? Drop it.
-				log.Printf("UDP Relay: Dropping packet from unexpected source %s before client %s (%s) sent data.", remoteAddr, clientTCPAddr, clientTCPHost)
-				continue
-			}
-		}
-
-		// Decide if the packet is from the client or an external target
-		// Make sure clientUDPAddr is set before comparing
-		if clientUDPAddr != nil && remoteAddr.String() == clientUDPAddr.String() {
-			// --- Packet from Client -> Target ---
-			log.Printf("UDP Relay: Processing %d bytes from client %s", n, remoteAddr)
-
-			if n < 6 { // Minimum SOCKS UDP header size (VER+RSV+FRAG+ATYP+DST.ADDR(1)+DST.PORT(2))
-				log.Printf("UDP Relay: Packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
-				continue
-			}
-
-			// Parse SOCKS5 UDP Request Header (RFC 1928 Section 6)
-			// +----+------+------+----------+----------+----------+
-			// |RSV | FRAG | ATYP | DST.ADDR | DST.PORT |   DATA   |
-			// +----+------+------+----------+----------+----------+
-			// | 2  |  1   |  1   | Variable |    2     | Variable |
-			// +----+------+------+----------+----------+----------+
-			rsv := binary.BigEndian.Uint16(packetData[0:2])
-			frag := packetData[2]
-			addrType := packetData[3]
-
-			if rsv != 0 {
-				log.Printf("UDP Relay: RSV field is non-zero (%d) in packet from client %s, dropping.", rsv, remoteAddr)
-				continue // Reserved field must be 0
-			}
-			if frag != 0 {
-				log.Printf("UDP Relay: Fragmentation not supported (FRAG=%d) in packet from client %s, dropping.", frag, remoteAddr)
-				continue // We don't support fragmentation
-			}
-
-			var dstHost string
-			var dstPort uint16
-			var dataOffset int
-
-			switch addrType {
-			case SOCKS5_ADDR_IPV4:
-				if n < 4+4+2 { // Header(4) + IPv4(4) + Port(2)
-					log.Printf("UDP Relay: IPv4 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
-					continue
+				// First packet received? Identify the client's UDP source address.
+				// Compare host parts only, as ports might differ.
+				if clientUDPAddr == nil {
+					// Simple IP comparison (might fail for complex cases like NAT)
+					clientTCPHost, _, _ := net.SplitHostPort(clientTCPAddr.String())
+					remoteHost, _, _ := net.SplitHostPort(remoteAddr.String())
+					if clientTCPHost == remoteHost {
+						clientUDPAddr = remoteAddr
+						log.Printf("UDP Relay: Identified client UDP address for %s as %s", clientTCPAddr, clientUDPAddr)
+					} else {
+						// Packet from an unknown source before client sent anything? Drop it.
+						log.Printf("UDP Relay: Dropping packet from unexpected source %s before client %s (%s) sent data.", remoteAddr, clientTCPAddr, clientTCPHost)
+						continue
+					}
 				}
-				dstHost = net.IP(packetData[4:8]).String()
-				dstPort = binary.BigEndian.Uint16(packetData[8:10])
-				dataOffset = 10
-			case SOCKS5_ADDR_DOMAIN:
-				if n < 4+1 { // Header(4) + DomainLen(1)
-					log.Printf("UDP Relay: Domain packet header from client %s too short (%d bytes), dropping.", remoteAddr, n)
-					continue
-				}
-				domainLen := int(packetData[4])
-				if n < 4+1+domainLen+2 { // Header(4) + Len(1) + Domain(len) + Port(2)
-					log.Printf("UDP Relay: Domain packet from client too short (%d bytes for domain len %d), dropping.", n, domainLen)
-					continue
-				}
-				domain := string(packetData[5 : 5+domainLen])
-				dstPort = binary.BigEndian.Uint16(packetData[5+domainLen : 5+domainLen+2])
-				dataOffset = 5 + domainLen + 2
 
-				// Process domain (e.g., extract target from .latency.space)
-				var err error
-				dstHost, err = s.processDomainName(domain)
-				if err != nil {
-					log.Printf("UDP Relay: Failed to process domain name '%s': %v. Dropping packet.", domain, err)
-					continue
-				}
-				// Note: processDomainName might have returned the original domain if not special format
-				// We might need to resolve this domain to an IP here if WriteTo needs an IP.
-				// However, net.DialUDP which WriteTo uses often handles resolution. Let's try first.
+				// Decide if the packet is from the client or an external target
+				// Make sure clientUDPAddr is set before comparing
+				if clientUDPAddr != nil && remoteAddr.String() == clientUDPAddr.String() {
+					// --- Packet from Client -> Target ---
+					log.Printf("UDP Relay: Processing %d bytes from client %s", n, remoteAddr)
 
-			case SOCKS5_ADDR_IPV6:
-				if n < 4+16+2 { // Header(4) + IPv6(16) + Port(2)
-					log.Printf("UDP Relay: IPv6 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
-					continue
-				}
-				dstHost = net.IP(packetData[4:20]).String()
-				dstPort = binary.BigEndian.Uint16(packetData[20:22])
-				dataOffset = 22
-			default:
-				log.Printf("UDP Relay: Unsupported address type (%d) from client %s, dropping packet.", addrType, remoteAddr)
-				continue
-			}
+					if n < 6 { // Minimum SOCKS UDP header size (VER+RSV+FRAG+ATYP+DST.ADDR(1)+DST.PORT(2))
+						log.Printf("UDP Relay: Packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
+						continue
+					}
 
-			if dataOffset > n {
-				log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s, dropping.", dataOffset, n, remoteAddr)
-				continue // Should not happen if previous length checks passed, but safety first
-			}
-			payload := packetData[dataOffset:n]
-			dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
+						// Parse SOCKS5 UDP Request Header (RFC 1928 Section 6)
+						// +----+------+------+----------+----------+----------+
+						// |RSV | FRAG | ATYP | DST.ADDR | DST.PORT |   DATA   |
+						// +----+------+------+----------+----------+----------+
+						// | 2  |  1   |  1   | Variable |    2     | Variable |
+						// +----+------+------+----------+----------+----------+
+						rsv := binary.BigEndian.Uint16(packetData[0:2])
+						frag := packetData[2]
+						addrType := packetData[3]
 
-			// --- Security Checks ---
-			// Use a dummy scheme for IsAllowedHost check
-			if !security.IsAllowedHost("http://" + dstHost) {
-				log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
-				continue
-			}
-			// Check port validity (using the same SOCKS validator logic)
-			if err := security.ValidateSocksDestination(dstHost, dstPort); err != nil {
-				log.Printf("UDP Relay: Destination port %d not allowed for host %s: %v, dropping packet.", dstPort, dstHost, err)
-				continue
-			}
+						if rsv != 0 {
+							log.Printf("UDP Relay: RSV field is non-zero (%d) in packet from client %s, dropping.", rsv, remoteAddr)
+							continue // Reserved field must be 0
+						}
+						if frag != 0 {
+							log.Printf("UDP Relay: Fragmentation not supported (FRAG=%d) in packet from client %s, dropping.", frag, remoteAddr)
+							continue // We don't support fragmentation
+						}
 
-			// --- Occlusion Check ---
-			if earthFound && targetFound { // Only check if we found both Earth and the target body
-				occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
-				if occluded {
-					log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
-					continue
-				}
-			} 
-			// --- End Occlusion Check ---
+						var dstHost string
+						var dstPort uint16
+						var dataOffset int
 
-			log.Printf("UDP Relay: Relaying %d bytes from client %s to %s (via %s, latency %v)",
-				len(payload), clientUDPAddr, dstAddrPort, bodyName, latency)
+						switch addrType {
+						case SOCKS5_ADDR_IPV4:
+							if n < 4+4+2 { // Header(4) + IPv4(4) + Port(2)
+								log.Printf("UDP Relay: IPv4 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
+								continue
+							}
+							dstHost = net.IP(packetData[4:8]).String()
+							dstPort = binary.BigEndian.Uint16(packetData[8:10])
+							dataOffset = 10
+							case SOCKS5_ADDR_DOMAIN:
+								if n < 4+1 { // Header(4) + DomainLen(1)
+									log.Printf("UDP Relay: Domain packet header from client %s too short (%d bytes), dropping.", remoteAddr, n)
+									continue
+								}
+								domainLen := int(packetData[4])
+								if n < 4+1+domainLen+2 { // Header(4) + Len(1) + Domain(len) + Port(2)
+									log.Printf("UDP Relay: Domain packet from client too short (%d bytes for domain len %d), dropping.", n, domainLen)
+									continue
+								}
+								domain := string(packetData[5 : 5+domainLen])
+								dstPort = binary.BigEndian.Uint16(packetData[5+domainLen : 5+domainLen+2])
+								dataOffset = 5 + domainLen + 2
 
-			// Apply forward latency
-			time.Sleep(latency)
+								// Process domain (e.g., extract target from .latency.space)
+								var err error
+								dstHost, err = s.processDomainName(domain)
+								if err != nil {
+									log.Printf("UDP Relay: Failed to process domain name '%s': %v. Dropping packet.", domain, err)
+									continue
+								}
+								// Note: processDomainName might have returned the original domain if not special format
+								// We might need to resolve this domain to an IP here if WriteTo needs an IP.
+								// However, net.DialUDP which WriteTo uses often handles resolution. Let's try first.
 
-			// Send payload to destination
-			targetUDPAddr, err := net.ResolveUDPAddr("udp", dstAddrPort)
-			if err != nil {
-				log.Printf("UDP Relay: Failed to resolve destination UDP address %s: %v", dstAddrPort, err)
-				continue
-			}
+							case SOCKS5_ADDR_IPV6:
+								if n < 4+16+2 { // Header(4) + IPv6(16) + Port(2)
+									log.Printf("UDP Relay: IPv6 packet from client %s too short (%d bytes), dropping.", remoteAddr, n)
+									continue
+								}
+								dstHost = net.IP(packetData[4:20]).String()
+								dstPort = binary.BigEndian.Uint16(packetData[20:22])
+								dataOffset = 22
+							default:
+								log.Printf("UDP Relay: Unsupported address type (%d) from client %s, dropping packet.", addrType, remoteAddr)
+								continue
+							}
 
-			_, err = udpConn.WriteTo(payload, targetUDPAddr)
-			if err != nil {
-				log.Printf("UDP Relay: Error writing %d bytes to target %s: %v", len(payload), targetUDPAddr, err)
-				// Don't necessarily continue; could be a temporary error
-			}
+							if dataOffset > n {
+								log.Printf("UDP Relay: Calculated data offset (%d) exceeds packet size (%d) from client %s, dropping.", dataOffset, n, remoteAddr)
+								continue // Should not happen if previous length checks passed, but safety first
+							}
+							payload := packetData[dataOffset:n]
+							dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
 
-			// Record metrics (outgoing bandwidth from client perspective)
-			metrics.TrackBandwidth(bodyName, int64(len(payload)))
+							// --- Security Checks ---
+							// Use a dummy scheme for IsAllowedHost check
+							if !security.IsAllowedHost("http://" + dstHost) {
+								log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
+								continue
+							}
+							// Check port validity (using the same SOCKS validator logic)
+							if err := security.ValidateSocksDestination(dstHost, dstPort); err != nil {
+								log.Printf("UDP Relay: Destination port %d not allowed for host %s: %v, dropping packet.", dstPort, dstHost, err)
+								continue
+							}
+
+							// --- Occlusion Check ---
+							if earthFound && targetFound { // Only check if we found both Earth and the target body
+								occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+								if occluded {
+									log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
+									continue
+								}
+							} 
+							// --- End Occlusion Check ---
+
+							log.Printf("UDP Relay: Relaying %d bytes from client %s to %s (via %s, latency %v)",
+								len(payload), clientUDPAddr, dstAddrPort, bodyName, latency)
+
+							// Apply forward latency
+							time.Sleep(latency)
+
+							// Send payload to destination
+							targetUDPAddr, err := net.ResolveUDPAddr("udp", dstAddrPort)
+							if err != nil {
+								log.Printf("UDP Relay: Failed to resolve destination UDP address %s: %v", dstAddrPort, err)
+								continue
+							}
+
+							_, err = udpConn.WriteTo(payload, targetUDPAddr)
+							if err != nil {
+								log.Printf("UDP Relay: Error writing %d bytes to target %s: %v", len(payload), targetUDPAddr, err)
+								// Don't necessarily continue; could be a temporary error
+							}
+
+							// Record metrics (outgoing bandwidth from client perspective)
+							metrics.TrackBandwidth(bodyName, int64(len(payload)))
 			
-		} else {
-			// --- Packet from External Target -> Client --- (Stateless approach)
-			log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
-			targetUDPAddr, ok := remoteAddr.(*net.UDPAddr)
-			if !ok {
-				log.Printf("UDP Relay: Received packet from non-UDP source %s? Dropping.", remoteAddr)
-				continue
-			}
+					} else {
+						// --- Packet from External Target -> Client --- (Stateless approach)
+						log.Printf("UDP Relay: Received %d bytes from external source %s (presumed target reply)", n, remoteAddr)
+						targetUDPAddr, ok := remoteAddr.(*net.UDPAddr)
+						if !ok {
+							log.Printf("UDP Relay: Received packet from non-UDP source %s? Dropping.", remoteAddr)
+							continue
+						}
 
-			if clientUDPAddr == nil {
-				log.Printf("UDP Relay: Received packet from target %s before client %s sent data. Dropping.", remoteAddr, clientTCPAddr)
-				continue // Don't know where to send it back
-			}
-
-
-			// Construct SOCKS5 UDP Header for the reply
-			var replyHeader []byte
-			var atyp byte
-			var addrBytes []byte
-
-			if targetUDPAddr.IP.To4() != nil {
-				atyp = SOCKS5_ADDR_IPV4
-				addrBytes = targetUDPAddr.IP.To4()
-			} else if targetUDPAddr.IP.To16() != nil {
-				atyp = SOCKS5_ADDR_IPV6
-				addrBytes = targetUDPAddr.IP.To16()
-			} else {
-				log.Printf("UDP Relay: Cannot determine address type for target reply source %s. Dropping packet.", targetUDPAddr.IP)
-				continue
-			}
-
-			replyHeader = []byte{
-				0x00, 0x00, // RSV
-				0x00, // FRAG
-				atyp, // Address Type
-			}
-			replyHeader = append(replyHeader, addrBytes...) // Target Address
-			portBytes := make([]byte, 2)
-			binary.BigEndian.PutUint16(portBytes, uint16(targetUDPAddr.Port))
-			replyHeader = append(replyHeader, portBytes...) // Target Port
-
-			// Combine header and original payload
-			fullReply := append(replyHeader, packetData[:n]...) // n is the size of the payload received from target
+						if clientUDPAddr == nil {
+							log.Printf("UDP Relay: Received packet from target %s before client %s sent data. Dropping.", remoteAddr, clientTCPAddr)
+							continue // Don't know where to send it back
+						}
 
 
-			log.Printf("UDP Relay: Relaying %d bytes from target %s back to client %s (via %s, latency %v)",
-						n, remoteAddr, clientUDPAddr, bodyName, latency)
+							// Construct SOCKS5 UDP Header for the reply
+							var replyHeader []byte
+							var atyp byte
+							var addrBytes []byte
 
-			// Apply return latency
-			time.Sleep(latency)
+							if targetUDPAddr.IP.To4() != nil {
+								atyp = SOCKS5_ADDR_IPV4
+								addrBytes = targetUDPAddr.IP.To4()
+							} else if targetUDPAddr.IP.To16() != nil {
+								atyp = SOCKS5_ADDR_IPV6
+								addrBytes = targetUDPAddr.IP.To16()
+							} else {
+								log.Printf("UDP Relay: Cannot determine address type for target reply source %s. Dropping packet.", targetUDPAddr.IP)
+								continue
+							}
 
-			// Send the full SOCKS UDP packet back to the client
-			_, err = udpConn.WriteTo(fullReply, clientUDPAddr)
-			if err != nil {
-				log.Printf("UDP Relay: Error writing %d bytes back to client %s: %v", len(fullReply), clientUDPAddr, err)
-			}
+							replyHeader = []byte{
+								0x00, 0x00, // RSV
+								0x00, // FRAG
+								atyp, // Address Type
+							}
+							replyHeader = append(replyHeader, addrBytes...) // Target Address
+							portBytes := make([]byte, 2)
+							binary.BigEndian.PutUint16(portBytes, uint16(targetUDPAddr.Port))
+							replyHeader = append(replyHeader, portBytes...) // Target Port
 
-			// Record metrics (incoming packet to client perspective)
-			metrics.RecordUDPPacket(bodyName, int64(n))
+							// Combine header and original payload
+							fullReply := append(replyHeader, packetData[:n]...) // n is the size of the payload received from target
+
+
+							log.Printf("UDP Relay: Relaying %d bytes from target %s back to client %s (via %s, latency %v)",
+										n, remoteAddr, clientUDPAddr, bodyName, latency)
+
+							// Apply return latency
+							time.Sleep(latency)
+
+							// Send the full SOCKS UDP packet back to the client
+							_, err = udpConn.WriteTo(fullReply, clientUDPAddr)
+							if err != nil {
+								log.Printf("UDP Relay: Error writing %d bytes back to client %s: %v", len(fullReply), clientUDPAddr, err)
+							}
+
+							// Record metrics (incoming packet to client perspective)
+							metrics.RecordUDPPacket(bodyName, int64(n))
 		}
 	}
 }
