@@ -93,6 +93,7 @@ func main() {
 		apiToken = flag.String("token", "", "Cloudflare API Token (required)")
 		serverIP = flag.String("ip", "", "Server IP Address to point records to (required)")
 		zoneName = flag.String("zone", "latency.space", "Cloudflare Zone Name")
+		autoSSL  = flag.Bool("ssl", false, "Automatically manage SSL certificates with certbot")
 	)
 	flag.Parse()
 
@@ -245,12 +246,8 @@ func main() {
 	log.Println("\nDNS setup completed. Starting SSL certificate management...")
 	log.Println("======================================================")
 	
-	// Check if we should automatically request SSL certificates
-	// This will use the same domains we just registered with Cloudflare
-	var autoSSL bool
-	flag.BoolVar(&autoSSL, "ssl", false, "Automatically manage SSL certificates with certbot")
-	
-	if autoSSL {
+	// Use the autoSSL flag that was defined at the top of main()
+	if *autoSSL {
 		log.Println("Automatic SSL certificate management requested")
 		
 		// Execute the certbot command to request/renew certificates
