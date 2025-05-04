@@ -184,8 +184,7 @@ generate_summary() {
     echo "Unknown"
   fi
   
-  echo -n "Kernel: $(uname -r)"
-  echo ""
+  echo "Kernel: $(uname -r)"
   
   # Service status
   echo -n "Nginx: "
@@ -203,7 +202,6 @@ generate_summary() {
   fi
   
   # Container status
-  echo ""
   echo "CONTAINERS:"
   echo -n "proxy: "
   if docker ps | grep -q proxy; then
@@ -227,7 +225,6 @@ generate_summary() {
   fi
   
   # Network status
-  echo ""
   echo "NETWORK STATUS:"
   
   echo -n "External IP: "
@@ -235,7 +232,6 @@ generate_summary() {
   echo "$SERVER_IP"
   
   # DNS status
-  echo ""
   echo "DNS STATUS:"
   for domain in latency.space status.latency.space; do
     echo -n "$domain: "
@@ -252,7 +248,6 @@ generate_summary() {
   done
   
   # Website status
-  echo ""
   echo "WEBSITE STATUS:"
   
   echo -n "Main site (latency.space): "
@@ -277,7 +272,6 @@ generate_summary() {
   fi
   
   # Issues found
-  echo ""
   echo "DETECTED ISSUES:"
   ISSUES_FOUND=0
   
@@ -338,7 +332,6 @@ generate_summary() {
     echo "No major issues detected! ✅"
   fi
   
-  echo ""
   echo "RECOMMENDED ACTIONS:"
   if [ $ISSUES_FOUND -gt 0 ]; then
     echo "1. Update from repository: cd /opt/latency-space && git pull"
