@@ -67,7 +67,7 @@ func isValidSubdomain(host string) bool {
 			moonName := parts[numParts-4]
 			planetName := parts[numParts-3]
 			moon, moonFound := findObjectByName(celestialObjects, moonName)
-			planet, planetFound := findObjectByName(celestialObjects, planetName)
+			_, planetFound := findObjectByName(celestialObjects, planetName)
 			// Check if moon and planet exist, moon type is correct, and parent matches
 			if moonFound && planetFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName) {
 				return true
