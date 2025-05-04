@@ -48,8 +48,8 @@ func NewSecurityValidator() *SecurityValidator {
 		"netflix.com", "www.netflix.com",
 		"bbc.co.uk", "www.bbc.co.uk", "bbc.com", "www.bbc.com",
 		"nytimes.com", "www.nytimes.com",
-		// Add latency.space itself for internal access (e.g., status page)
-		"latency.space", "status.latency.space",
+		// Add latency.space itself for internal access
+		"latency.space", /* status now integrated with main site */
 		"microsoft.com", "www.microsoft.com",
 		"github.com", "www.github.com",
 		"cloudflare.com", "www.cloudflare.com",

@@ -20,9 +20,9 @@ func collectDomains() []string {
 	domains = append(domains, "@")   // Root domain (latency.space)
 	domains = append(domains, "www") // www subdomain
 
-	// Add essential service subdomains.
-	log.Println("Adding essential system subdomains...")
-	domains = append(domains, "status") // Status page subdomain
+	// Add essential service subdomains if needed.
+	log.Println("Checking for essential system subdomains...")
+	// Status page subdomain removed - now integrated with main site
 
 	log.Println("Processing planets and their moons...")
 	for _, planet := range GetPlanets() {

@@ -122,7 +122,7 @@ Here's a complete reference of domain formats supported by the system:
    - `www.latency.space` - Alias to main site
 
 2. **Service Domains**
-   - `status.latency.space` - Status dashboard
+   - Status dashboard is now integrated with the main site
 
 3. **Celestial Body Domains**
    - Planets: `mars.latency.space`, `jupiter.latency.space`, etc.

@@ -113,20 +113,14 @@ echo "Testing Nginx configuration:"
 nginx -t 2>&1
 
 echo ""
-echo "Checking status.latency.space configuration:"
+echo "Checking status dashboard configuration:"
 if [ -f "/etc/nginx/sites-enabled/latency.space" ]; then
-  if grep -q "status.latency.space" /etc/nginx/sites-enabled/latency.space; then
-    if grep -q "proxy_pass.*status:80" /etc/nginx/sites-enabled/latency.space; then
-      green "✅ status.latency.space configuration found with correct port (80)"
-    elif grep -q "proxy_pass.*status:3000" /etc/nginx/sites-enabled/latency.space; then
-      yellow "⚠️ status.latency.space configuration found but using port 3000 instead of 80"
-      echo "   Fix: Update to use status:80 in /etc/nginx/sites-enabled/latency.space"
-    else 
-      yellow "⚠️ status.latency.space configuration found but with unexpected port configuration"
-      grep -A 5 "status.latency.space" /etc/nginx/sites-enabled/latency.space
-    fi
+  if grep -q "proxy_pass.*172.18.0.4:80" /etc/nginx/sites-enabled/latency.space; then
+    green "✅ Status dashboard configuration found (integrated with main site)"
   else
-    red "❌ status.latency.space server block not found in the configuration"
+    yellow "⚠️ Status dashboard configuration not found or using unexpected IP/port"
+    echo "   The status dashboard should be integrated with the main site (no separate subdomain)"
+    echo "   Expected: proxy_pass http://172.18.0.4:80 in the main server block"
   fi
 else
   red "❌ Nginx configuration file not found at /etc/nginx/sites-enabled/latency.space"
@@ -135,15 +129,15 @@ echo $DIVIDER
 
 # Check DNS resolution
 blue "🌐 DNS RESOLUTION"
-for domain in latency.space www.latency.space status.latency.space mars.latency.space; do
+for domain in latency.space www.latency.space mars.latency.space; do
   echo -n "Resolving $domain: "
   IP=$(getent hosts $domain 2>/dev/null | awk '{print $1}')
   if [ -n "$IP" ]; then
     SERVER_IP=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || hostname -I | awk '{print $1}')
     if [ "$IP" == "$SERVER_IP" ]; then
       green "✅ $IP (matches server IP)"
-    elif [[ "$domain" == "status.latency.space" || "$domain" == *".latency.space" && "$domain" != "www.latency.space" && "$domain" != "latency.space" ]]; then
-      # For subdomains, we want the IP to match the server IP directly (no Cloudflare)
+    elif [[ "$domain" == *".latency.space" && "$domain" != "www.latency.space" && "$domain" != "latency.space" ]]; then
+      # For celestial body subdomains, we want the IP to match the server IP directly (no Cloudflare)
       red "❌ $IP (should match server IP $SERVER_IP, DNS is incorrect)"
     else
       # For main domain, we can have Cloudflare or direct IP
@@ -201,8 +195,8 @@ blue "🌐 CONNECTIVITY TESTS"
 echo "Checking main website (latency.space)..."
 curl -s -I -m 5 http://latency.space | head -1 || echo "Failed to connect"
 
-echo "Checking status subdomain (status.latency.space)..."
-curl -s -I -m 5 http://status.latency.space | head -1 || echo "Failed to connect"
+echo "Checking status dashboard (integrated with main site)..."
+curl -s -I -m 5 http://latency.space/ | head -1 || echo "Failed to connect"
 
 echo "Checking mars subdomain (mars.latency.space)..."
 curl -s -I -m 5 http://mars.latency.space | head -1 || echo "Failed to connect"
@@ -247,20 +241,16 @@ if ! docker ps | grep -q status; then
   issues_found=$((issues_found+1))
 fi
 
-# Check DNS records
+# Check DNS records (status subdomain removed - now integrated with main site)
 server_ip=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || hostname -I | awk '{print $1}')
 if [ ! -z "$server_ip" ]; then
-  status_ip=$(getent hosts status.latency.space 2>/dev/null | awk '{print $1}')
-  if [ -n "$status_ip" ] && [ "$status_ip" != "$server_ip" ]; then
-    yellow "⚠️ status.latency.space DNS record ($status_ip) doesn't match server IP ($server_ip)"
-    recommendations+=("Update DNS records: sudo ./deploy/fix-all-dns.sh")
-    issues_found=$((issues_found+1))
-  fi
+  # Check celestial body DNS records, but status.latency.space is no longer used
+  echo "Checking celestial body DNS records..."
 fi
 
 # Check if we're getting 502 errors
-if curl -s -m 5 http://status.latency.space 2>/dev/null | grep -q "502 Bad Gateway"; then
-  red "❌ status.latency.space is returning 502 Bad Gateway"
+if curl -s -m 5 http://latency.space 2>/dev/null | grep -q "502 Bad Gateway"; then
+  red "❌ Main site (latency.space) is returning 502 Bad Gateway"
   recommendations+=("Fix Nginx configuration: sudo ./deploy/install-nginx-config.sh")
   recommendations+=("Restart containers: cd /opt/latency-space && docker compose restart")
   issues_found=$((issues_found+1))

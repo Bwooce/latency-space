@@ -109,8 +109,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold text-white">latency.space</h1>
           <div className="flex space-x-4">
-            <a href="https://status.latency.space" className="text-white hover:text-blue-400">Status</a>
-            {/* Removed Docs link */}
+            {/* Status link removed - now integrated with main site */}
             <a href="https://github.com/Bwooce/latency-space" className="text-white hover:text-blue-400">GitHub</a>
           </div>
         </div>
