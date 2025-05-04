@@ -12,16 +12,15 @@ RUN apk add --no-cache \
     linux-headers=~6.5 \
     git
 
-# First copy the shared package to the correct location
-COPY src/shared /go/src/github.com/latency-space/shared
-
-# Copy source files
+# Copy the source files, including the vendor directory if it exists
 COPY src/ .
 
-# Copy updated go.mod that doesn't use replace directive
-RUN cp go.mod go.mod.orig && \
-    go mod edit -dropreplace=github.com/latency-space/shared && \
-    go mod tidy
+# Create a local vendor directory with the shared package
+RUN mkdir -p vendor/github.com/latency-space/shared
+COPY src/shared/ vendor/github.com/latency-space/shared/
+
+# Configure Go to use vendoring
+ENV GOFLAGS="-mod=vendor"
 RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy
 
 # Use specific Alpine version for final image
