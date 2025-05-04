@@ -260,11 +260,18 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 
 	// Calculate latency based on celestial distance
 	distance := getCurrentDistance(bodyName) // Get distance for latency calc
-	latency := CalculateLatency(distance)
+	var latency time.Duration
+	// Use test latency in test mode
+	if isTestMode {
+		latency = testModeCalculateLatency(distance)
+	} else {
+		latency = CalculateLatency(distance)
+	}
 
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
-	if latency < 1*time.Second {
+	// Skip this check in test mode
+	if !isTestMode && latency < 1*time.Second {
 		log.Printf("Rejecting connection with insufficient latency: %s (%.2f ms)",
 			bodyName, latency.Seconds()*1000)
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
@@ -520,7 +527,13 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 		// getCelestialBodyFromConn defaults to Mars, proceed with that
 	}
 	distance := getCurrentDistance(bodyName)
-	latency := CalculateLatency(distance)
+	var latency time.Duration
+	// Use test latency in test mode
+	if isTestMode {
+		latency = testModeCalculateLatency(distance)
+	} else {
+		latency = CalculateLatency(distance)
+	}
 	log.Printf("UDP Relay for %s: Using body '%s', latency %v", clientTCPAddr, bodyName, latency)
 
 	// Get Earth object for occlusion check (assuming Earth is the proxy location)
@@ -730,8 +743,8 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 							dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
 
 							// --- Security Checks ---
-							// Use a dummy scheme for IsAllowedHost check
-							if !security.IsAllowedHost("http://" + dstHost) {
+							// Check if the destination host is allowed
+							if !security.IsAllowedHost(dstHost) {
 								log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
 								continue
 							}

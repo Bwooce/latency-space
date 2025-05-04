@@ -89,9 +89,8 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 
 // isAllowedDestination checks if a destination is in the allowed list
 func (s *SOCKSHandler) isAllowedDestination(host string) bool {
-	// Create a dummy URL to use the security validator
-	url := "http://" + host
-	allowed := s.security.IsAllowedHost(url)
+	// Just use the hostname directly with the security validator
+	allowed := s.security.IsAllowedHost(host)
 
 	// Log the result for debugging
 	if !allowed {
