@@ -217,7 +217,10 @@ func TestSOCKSAuthentication(t *testing.T) {
 						t.Logf("Correctly failed to write after auth rejection: %v", err)
 					} else {
 						// Try to read (should fail or timeout)
-						conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+						if err = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+							t.Logf("Failed to set read deadline: %v", err)
+							return
+						}
 						buf := make([]byte, 10)
 						_, err = conn.Read(buf)
 						if err == nil {
@@ -718,7 +721,9 @@ func TestSOCKSOcclusion(t *testing.T) {
 		
 		// The connection should be closed immediately due to occlusion
 		// Try to read response, should fail or timeout
-		clientConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		if err = clientConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			t.Fatalf("Failed to set read deadline: %v", err)
+		}
 		choice := make([]byte, 2)
 		n, err := io.ReadFull(clientConn, choice)
 		

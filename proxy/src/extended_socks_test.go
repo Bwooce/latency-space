@@ -1068,8 +1068,7 @@ expectedPackets:
 	clientBuf := make([]byte, 2048)
 
 	// Set a read deadline on the client UDP connection
-	err = clientUDPConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if err != nil {
+	if err := clientUDPConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		t.Fatalf("Failed to set read deadline: %v", err)
 	}
 

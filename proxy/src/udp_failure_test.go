@@ -233,8 +233,7 @@ func TestUDPFailureModes(t *testing.T) {
 				// The write itself may succeed, but there should be no response
 				
 				// Set a short timeout for reading the response
-				err = clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-				if err != nil {
+				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
 				
@@ -378,8 +377,7 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 				
 				// No response should be received (packet dropped silently)
-				err = clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-				if err != nil {
+				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
 				
@@ -537,8 +535,7 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 				
 				// No response should be received (packet should be rejected)
-				err = clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-				if err != nil {
+				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
 				
@@ -564,8 +561,7 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 				
 				// No response should be received
-				err = clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-				if err != nil {
+				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
 				
@@ -749,8 +745,7 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 				
 				// No response should be received (packet should be rejected due to fragmentation)
-				err = clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-				if err != nil {
+				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
 				
