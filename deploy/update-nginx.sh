@@ -284,56 +284,6 @@ server {
     }
 }
 
-# Server for status dashboard
-server {
-    listen 80;
-    server_name status.latency.space;
-    
-    # Global rate limiting - very strict
-    limit_req zone=ip burst=10 nodelay;
-    limit_conn addr 5;
-    
-    # New location block for /api/status-data
-    location /api/status-data {
-        # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://$PROXY_IP:80; # Target PROXY_IP
-
-        # Standard proxy headers (copied from existing location /)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-
-        # Timeouts similar to dashboard operations
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    location / {
-        # Docker service resolution - using direct IP instead of DNS
-        proxy_pass http://$STATUS_IP:80/status; # Added /status path
-        
-        # Standard proxy headers
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        
-        # Increase timeouts for dashboard operations
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-}
 EOF
 
 # Create a symlink to enable the site
