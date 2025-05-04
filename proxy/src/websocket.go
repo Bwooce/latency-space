@@ -9,6 +9,8 @@ import (
 
 // upgrader defines the WebSocket upgrader configuration.
 // CheckOrigin allows all origins (use with caution, consider specific origins in production).
+// This is currently unused but will be used when WebSocket proxying is implemented.
+// nolint:unused
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
