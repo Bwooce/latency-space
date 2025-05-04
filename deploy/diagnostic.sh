@@ -162,7 +162,13 @@ EOF
 # Function to append section headers to output
 section() {
   echo -e "<div class=\"section\" id=\"$3\">\n<h2>$1</h2>\n<button class=\"collapsible\">$1 Details (Click to expand)</button>\n<div class=\"content\">\n<pre>" >> "$OUTPUT_FILE"
-  eval "$2" >> "$OUTPUT_FILE" 2>&1 || echo "<span class=\"error\">Command failed!</span>" >> "$OUTPUT_FILE"
+  
+  # Execute command and process output to replace literal \n with actual newlines
+  output=$(eval "$2" 2>&1) || output="<span class=\"error\">Command failed!</span>"
+  # Replace any literal \n with actual newlines
+  output=$(echo "$output" | sed 's/\\n/\n/g')
+  echo "$output" >> "$OUTPUT_FILE"
+  
   echo "</pre>\n</div>\n</div>" >> "$OUTPUT_FILE"
   
   # Also log to the log file
@@ -344,7 +350,10 @@ generate_summary() {
     echo "System appears to be healthy! No immediate actions needed."
   fi
 }
-generate_summary >> "$OUTPUT_FILE"
+# Generate summary and fix any \n characters
+summary=$(generate_summary)
+summary=$(echo "$summary" | sed 's/\\n/\n/g')
+echo "$summary" >> "$OUTPUT_FILE"
 echo "</pre></div>" >> "$OUTPUT_FILE"
 
 # System information
@@ -371,8 +380,8 @@ section "Connectivity Tests" "echo 'Internal connectivity tests:'; for service i
 # Logs section
 section "Recent Logs" "echo 'Nginx error log:'; tail -n 50 /var/log/nginx/error.log 2>/dev/null || echo 'Cannot read Nginx error log'; echo -e '\nNginx access log:'; tail -n 20 /var/log/nginx/access.log 2>/dev/null || echo 'Cannot read Nginx access log'; echo -e '\nSystem log:'; journalctl -n 30 --no-pager; echo -e '\nDocker log:'; journalctl -u docker -n 20 --no-pager" "logs"
 
-# Close HTML file with JavaScript for collapsible sections
-cat >> "$OUTPUT_FILE" << 'EOF'
+# Close HTML file with JavaScript for collapsible sections - use sed to prevent literal \n
+js_code=$(cat << 'EOF'
 <script>
 // Initialize collapsible sections
 var coll = document.getElementsByClassName("collapsible");
@@ -398,6 +407,10 @@ setTimeout(function() {
 </body>
 </html>
 EOF
+)
+
+# Replace any literal \n with actual newlines and write to file
+echo "$js_code" | sed 's/\\n/\n/g' >> "$OUTPUT_FILE"
 
 # Configure Nginx to serve the diagnostic page
 if [ -f "/etc/nginx/sites-available/latency.space" ]; then
