@@ -144,6 +144,18 @@ body {
 CSSEOF
 fi
 
+# Resolve container names to IP addresses using Docker DNS
+# This is needed because Docker DNS can fail to resolve hostnames sometimes
+RESOLVED_PROMETHEUS_IP=$(getent hosts ${PROMETHEUS_IP} | awk '{ print $1 }')
+RESOLVED_PROXY_IP=$(getent hosts ${PROXY_IP} | awk '{ print $1 }')
+
+# If resolution failed, use the original values which might be IPs already
+PROMETHEUS_IP_FINAL=${RESOLVED_PROMETHEUS_IP:-${PROMETHEUS_IP}}
+PROXY_IP_FINAL=${RESOLVED_PROXY_IP:-${PROXY_IP}}
+
+echo "Original PROMETHEUS_IP: ${PROMETHEUS_IP}, Resolved: ${PROMETHEUS_IP_FINAL}"
+echo "Original PROXY_IP: ${PROXY_IP}, Resolved: ${PROXY_IP_FINAL}"
+
 # Generate a customized nginx.conf using the correct IPs
 cat > /etc/nginx/conf.d/default.conf << EOF
 server {
@@ -219,7 +231,7 @@ server {
         # Rewrite to strip the /api/prometheus prefix
         rewrite ^/api/prometheus/(.*) /$1 break;
         
-        proxy_pass http://${PROMETHEUS_IP}:9090;
+        proxy_pass http://${PROMETHEUS_IP_FINAL}:9090;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -255,7 +267,7 @@ server {
     
     # Proxy for accessing the debug endpoints - using direct IP address
     location /api/debug/ {
-        proxy_pass http://${PROXY_IP}:80/_debug/;
+        proxy_pass http://${PROXY_IP_FINAL}:80/_debug/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
