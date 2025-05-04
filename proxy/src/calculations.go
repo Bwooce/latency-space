@@ -13,6 +13,12 @@ import (
 var celestialObjects []CelestialObject
 
 func CalculateLatency(distanceKm float64) time.Duration {
+	// Use test mode with fixed low latency if enabled
+	if isTestMode {
+		return testModeCalculateLatency(distanceKm)
+	}
+	
+	// Normal latency calculation
 	seconds := distanceKm / SPEED_OF_LIGHT
 	return time.Duration(seconds * float64(time.Second))
 }
