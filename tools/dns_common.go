@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cloudflare/cloudflare-go"
-	"latency-space/shared/celestial"
+	"github.com/latency-space/shared/celestial"
 )
 
 // Global variable to store celestial objects

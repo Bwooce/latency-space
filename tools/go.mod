@@ -1,11 +1,11 @@
 // tools/go.mod
-module latency-space/tools
+module github.com/latency-space/tools
 
 go 1.21
 
 require (
 	github.com/cloudflare/cloudflare-go v0.79.0
-	latency-space/shared v0.0.0
+	github.com/latency-space/shared v0.0.0
 )
 
 require (
@@ -18,4 +18,4 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 )
 
-replace latency-space/shared => ../shared
+replace github.com/latency-space/shared => ../shared

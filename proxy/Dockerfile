@@ -13,10 +13,10 @@ RUN apk add --no-cache \
 
 # Copy dependency files first for better caching
 COPY src/go.mod src/go.sum ./
-COPY src/shared /shared
+COPY src/shared /go/src/github.com/latency-space/shared
 
 # Modify go.mod to use the local shared module without replace directive
-RUN go mod edit -dropreplace=latency-space/shared
+RUN go mod edit -dropreplace=github.com/latency-space/shared
 
 # Download dependencies
 RUN go mod download

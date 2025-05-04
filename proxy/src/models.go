@@ -1,7 +1,7 @@
 package main
 
 import (
-	"latency-space/shared/celestial"
+	"github.com/latency-space/shared/celestial"
 )
 
 // Re-export the shared celestial types

@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 	
-	"latency-space/shared/celestial"
+	"github.com/latency-space/shared/celestial"
 )
 
 // setup_dns.go is the main entry point for the DNS setup tool.
