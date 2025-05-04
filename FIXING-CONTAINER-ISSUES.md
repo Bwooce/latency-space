@@ -15,6 +15,26 @@ This document outlines the steps to fix the issues with the containers and websi
    - The planetary subdomains (venus.latency.space, etc.) show 502 Bad Gateway errors
    - The status dashboard also shows a 502 Bad Gateway error
 
+4. **SSL Certificate Issues for Multi-level Domains**:
+   - Multi-level moon domains (e.g., phobos.mars.latency.space) have SSL certificate validation problems
+   - The current certificate may not cover these multi-level subdomains
+
+## Domain Name Consistency
+
+For consistent SSL certificate validation and user experience, the system needs consistent domain name handling:
+
+1. **All domain names should be lowercase** in both URLs and displayed text
+2. **Multi-level moon domains** follow the format: `moonname.planetname.latency.space` (all lowercase)
+3. **SSL Certificate Setup** needs to include wildcard coverage for multi-level domains:
+   ```
+   certbot --nginx -d latency.space -d *.latency.space -d *.*.latency.space
+   ```
+
+This approach ensures that:
+- URLs displayed to users match the actual domains used
+- Domain names match SSL certificate coverage
+- All parts of the system (frontend, proxy, SSL) use a consistent naming convention
+
 ## Fix Steps
 
 ### 1. Update the Dockerfile for the Proxy Container
@@ -106,7 +126,28 @@ docker compose build proxy
 docker compose up -d
 ```
 
-### 5. Verify the Fix
+### 5. Update SSL Certificate for Multi-level Domains
+
+To ensure that multi-level domains like `phobos.mars.latency.space` work correctly, obtain a certificate that covers these domains:
+
+```bash
+# Stop Nginx temporarily to free port 80
+sudo systemctl stop nginx
+
+# Obtain a wildcard certificate that includes multi-level domains
+sudo certbot certonly --standalone \
+  -d latency.space \
+  -d *.latency.space \
+  -d *.*.latency.space
+
+# Start Nginx again
+sudo systemctl start nginx
+
+# Fix Nginx configuration to use the new certificate
+sudo ./deploy/update-nginx.sh
+```
+
+### 6. Verify the Fix
 
 ```bash
 # Check container status
@@ -119,6 +160,7 @@ docker logs latency-space-proxy-1
 curl -I https://latency.space
 curl -I https://status.latency.space
 curl -I https://venus.latency.space
+curl -I https://phobos.mars.latency.space  # Test a multi-level domain
 ```
 
 ## Long-term Recommendations
@@ -127,3 +169,5 @@ curl -I https://venus.latency.space
 2. **Add proper error handling** in the Go code for template loading
 3. **Add health checks** to docker-compose.yml to detect and restart failing containers properly
 4. **Review Docker installation** to ensure only one Docker installation (either snap or apt) is active
+5. **Automate SSL renewals** with a script that ensures multi-level domain coverage
+6. **Standardize domain generation** across all parts of the system to ensure consistency
