@@ -246,8 +246,12 @@ func main() {
 	log.Println("\nDNS setup completed. Starting SSL certificate management...")
 	log.Println("======================================================")
 	
-	// Use the autoSSL flag that was defined at the top of main()
-	if *autoSSL {
+	// Check if the --ssl flag is present directly in os.Args as a fallback
+	directSSLFlag := isCommandLineFlagPresent("ssl")
+	
+	// Use the autoSSL flag that was defined at the top of main() or direct detection
+	if *autoSSL || directSSLFlag {
+		log.Printf("SSL flag detected: autoSSL=%v, directSSLFlag=%v\n", *autoSSL, directSSLFlag)
 		log.Println("Automatic SSL certificate management requested")
 		
 		// Execute the certbot command to request/renew certificates
