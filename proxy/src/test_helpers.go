@@ -10,6 +10,7 @@ var isTestMode = false
 // Variables to override test behavior for specific tests
 var testModeLatencyOverride time.Duration
 // UDP relay close delay for testing connection termination
+// nolint:unused
 var testModeUDPRelayCloseDelay time.Duration = 500 * time.Millisecond
 
 // setupTestMode enables test mode for latency calculations and returns a cleanup function

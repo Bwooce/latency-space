@@ -225,8 +225,8 @@ func TestUDPFailureModes(t *testing.T) {
 				// In a real-world scenario, when a control connection is dropped,
 				// the UDP relay terminates. We need to simulate this in our tests.
 				
-				// Set global test variable for UDP relay cleanup time
-				testModeUDPRelayCloseDelay = 3 * time.Second
+				// Use fixed delay instead of the global variable
+				// Fixed delay is set below with time.Sleep()
 				
 				// IMPORTANT: Explicitly close the TCP control connection
 				// This is stored in the global variable from the setup
