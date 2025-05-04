@@ -6,6 +6,9 @@ import (
 	"flag"
 	"github.com/cloudflare/cloudflare-go"
 	"log"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -239,10 +242,180 @@ func main() {
 		}
 	}
 
-	log.Println("\nDNS setup script finished.")
-	log.Println("==========================")
-	log.Println("Next steps:")
-	log.Println("1. Obtain SSL certificates with: sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space")
-	log.Println("2. Configure Nginx to use the certificates")
-	log.Println("3. Test all domains to ensure they resolve correctly")
+	log.Println("\nDNS setup completed. Starting SSL certificate management...")
+	log.Println("======================================================")
+	
+	// Check if we should automatically request SSL certificates
+	// This will use the same domains we just registered with Cloudflare
+	var autoSSL bool
+	flag.BoolVar(&autoSSL, "ssl", false, "Automatically manage SSL certificates with certbot")
+	
+	if autoSSL {
+		log.Println("Automatic SSL certificate management requested")
+		
+		// Execute the certbot command to request/renew certificates
+		// We need to ensure certbot is installed
+		log.Println("Checking if certbot is installed...")
+		certbotCmd := "which certbot"
+		certbotOutput, certbotErr := exec.Command("bash", "-c", certbotCmd).Output()
+		if certbotErr != nil || len(certbotOutput) == 0 {
+			log.Println("Certbot not found, attempting to install...")
+			
+			// Try apt-get first, then dnf if apt-get not available
+			aptCmd := "apt-get update && apt-get install -y certbot python3-certbot-nginx"
+			_, aptErr := exec.Command("bash", "-c", aptCmd).Output()
+			if aptErr != nil {
+				// Try dnf if apt-get fails
+				dnfCmd := "dnf install -y certbot python3-certbot-nginx"
+				_, dnfErr := exec.Command("bash", "-c", dnfCmd).Output()
+				if dnfErr != nil {
+					log.Println("Failed to install certbot. Please install it manually.")
+					log.Println("Then run: sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space")
+					return
+				}
+			}
+			log.Println("Certbot installed successfully")
+		} else {
+			log.Println("Certbot is already installed")
+		}
+		
+		// Check for existing certificates and their expiration
+		sslDir := "/etc/letsencrypt/live/latency.space"
+		_, sslDirErr := os.Stat(sslDir)
+		if os.IsNotExist(sslDirErr) {
+			log.Println("No existing SSL certificates found, requesting new ones...")
+			
+			// Request new certificates
+			// First check if Nginx is running (we'll use the nginx plugin)
+			nginxCmd := "systemctl is-active nginx"
+			nginxOutput, _ := exec.Command("bash", "-c", nginxCmd).Output()
+			if strings.TrimSpace(string(nginxOutput)) == "active" {
+				log.Println("Nginx is running, using certbot with nginx plugin...")
+				
+				// Check if port 80 is accessible
+				portCmd := "curl -s http://localhost:80 &>/dev/null && echo 'OK' || echo 'FAIL'"
+				portOutput, _ := exec.Command("bash", "-c", portCmd).Output()
+				if strings.TrimSpace(string(portOutput)) == "OK" {
+					// Run certbot with nginx plugin
+					certbotNginxCmd := "certbot --nginx -d latency.space -d www.latency.space"
+					
+					// Add all important subdomains
+					for _, domain := range singleLevel {
+						if domain != "@" && domain != "www" {
+							certbotNginxCmd += " -d " + domain + ".latency.space"
+						}
+					}
+					
+					// Add multi-level domains
+					for _, domain := range multiLevel {
+						certbotNginxCmd += " -d " + domain + ".latency.space"
+					}
+					
+					// Add --non-interactive and agree-tos for automated runs
+					certbotNginxCmd += " --non-interactive --agree-tos --email admin@latency.space"
+					
+					log.Println("Running certbot to obtain certificates...")
+					log.Println(certbotNginxCmd)
+					
+					certbotOutput, certbotErr := exec.Command("bash", "-c", certbotNginxCmd).CombinedOutput()
+					if certbotErr != nil {
+						log.Printf("Error running certbot: %v\n%s", certbotErr, string(certbotOutput))
+						log.Println("Failed to obtain SSL certificates automatically.")
+						log.Println("Please run certbot manually to obtain certificates.")
+					} else {
+						log.Println("SSL certificates obtained successfully!")
+						log.Println(string(certbotOutput))
+					}
+				} else {
+					log.Println("Port 80 is not accessible. Cannot use certbot nginx plugin.")
+					log.Println("Please ensure port 80 is available and run certbot manually.")
+				}
+			} else {
+				log.Println("Nginx is not running. Using certbot standalone mode...")
+				
+				// Try to stop Nginx to free port 80
+				stopCmd := "systemctl stop nginx"
+				exec.Command("bash", "-c", stopCmd).Run()
+				
+				// Run certbot in standalone mode
+				certbotCmd := "certbot certonly --standalone -d latency.space -d www.latency.space"
+				
+				// Add all important subdomains
+				for _, domain := range singleLevel {
+					if domain != "@" && domain != "www" {
+						certbotCmd += " -d " + domain + ".latency.space"
+					}
+				}
+				
+				// Add multi-level domains
+				for _, domain := range multiLevel {
+					certbotCmd += " -d " + domain + ".latency.space"
+				}
+				
+				// Add --non-interactive and agree-tos for automated runs
+				certbotCmd += " --non-interactive --agree-tos --email admin@latency.space"
+				
+				log.Println("Running certbot to obtain certificates...")
+				log.Println(certbotCmd)
+				
+				certbotOutput, certbotErr := exec.Command("bash", "-c", certbotCmd).CombinedOutput()
+				
+				// Restart Nginx
+				startCmd := "systemctl start nginx"
+				exec.Command("bash", "-c", startCmd).Run()
+				
+				if certbotErr != nil {
+					log.Printf("Error running certbot: %v\n%s", certbotErr, string(certbotOutput))
+					log.Println("Failed to obtain SSL certificates automatically.")
+					log.Println("Please run certbot manually to obtain certificates.")
+				} else {
+					log.Println("SSL certificates obtained successfully!")
+					log.Println(string(certbotOutput))
+				}
+			}
+		} else {
+			log.Println("Existing SSL certificates found, checking expiration...")
+			
+			// Check certificate expiration
+			checkCmd := "openssl x509 -enddate -noout -in " + sslDir + "/fullchain.pem | cut -d= -f2"
+			certDateOutput, _ := exec.Command("bash", "-c", checkCmd).Output()
+			certDate := strings.TrimSpace(string(certDateOutput))
+			
+			// Parse the expiration date
+			expiryCmd := "date -d \"" + certDate + "\" +%s"
+			expirySecs, _ := exec.Command("bash", "-c", expiryCmd).Output()
+			
+			nowCmd := "date +%s"
+			nowSecs, _ := exec.Command("bash", "-c", nowCmd).Output()
+			
+			// Calculate days remaining
+			expiryInt, _ := strconv.ParseInt(strings.TrimSpace(string(expirySecs)), 10, 64)
+			nowInt, _ := strconv.ParseInt(strings.TrimSpace(string(nowSecs)), 10, 64)
+			daysRemaining := (expiryInt - nowInt) / 86400
+			
+			log.Printf("SSL certificates expire in %d days", daysRemaining)
+			
+			if daysRemaining < 30 {
+				log.Println("Certificates expire in less than 30 days, attempting renewal...")
+				
+				renewCmd := "certbot renew --quiet"
+				renewOutput, renewErr := exec.Command("bash", "-c", renewCmd).CombinedOutput()
+				if renewErr != nil {
+					log.Printf("Error renewing certificates: %v\n%s", renewErr, string(renewOutput))
+				} else {
+					log.Println("Certificate renewal completed successfully!")
+				}
+			} else {
+				log.Println("Certificates are valid for more than 30 days, no renewal needed.")
+			}
+		}
+	} else {
+		log.Println("\nDNS setup script finished.")
+		log.Println("==========================")
+		log.Println("Next steps:")
+		log.Println("1. Obtain SSL certificates with: sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.latency.space")
+		log.Println("2. Configure Nginx to use the certificates")
+		log.Println("3. Test all domains to ensure they resolve correctly")
+		log.Println("4. To automatically manage SSL certificates, run this tool with the -ssl flag")
+	}
 }

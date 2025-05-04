@@ -192,20 +192,74 @@ echo $DIVIDER
 
 # Check connectivity
 blue "🌐 CONNECTIVITY TESTS"
-echo "Checking main website (latency.space)..."
-curl -s -I -m 5 http://latency.space | head -1 || echo "Failed to connect"
 
-echo "Checking status dashboard (integrated with main site)..."
-curl -s -I -m 5 http://latency.space/ | head -1 || echo "Failed to connect"
+# Check HTTP and HTTPS for main website
+echo "Checking main website (HTTP)..."
+curl -s -I -m 5 http://latency.space | head -1 || echo "Failed to connect over HTTP"
 
-echo "Checking mars subdomain (mars.latency.space)..."
-curl -s -I -m 5 http://mars.latency.space | head -1 || echo "Failed to connect"
+echo "Checking main website (HTTPS)..."
+curl -s -I -m 5 --insecure https://latency.space | head -1 || echo "Failed to connect over HTTPS"
 
-echo "Checking _debug endpoint (latency.space/_debug/metrics)..."
-curl -s -I -m 5 http://latency.space/_debug/metrics | head -1 || echo "Failed to connect"
+# Check HTTP and HTTPS for status dashboard
+echo "Checking status dashboard (HTTP)..."
+curl -s -I -m 5 http://latency.space/ | head -1 || echo "Failed to connect over HTTP"
 
+echo "Checking status dashboard (HTTPS)..."
+curl -s -I -m 5 --insecure https://latency.space/ | head -1 || echo "Failed to connect over HTTPS"
+
+# Check HTTP and HTTPS for Mars subdomain
+echo "Checking mars subdomain (HTTP)..."
+curl -s -I -m 5 http://mars.latency.space | head -1 || echo "Failed to connect over HTTP"
+
+echo "Checking mars subdomain (HTTPS)..."
+curl -s -I -m 5 --insecure https://mars.latency.space | head -1 || echo "Failed to connect over HTTPS"
+
+# Check HTTP and HTTPS for Venus subdomain
+echo "Checking venus subdomain (HTTP)..."
+curl -s -I -m 5 http://venus.latency.space | head -1 || echo "Failed to connect over HTTP"
+
+echo "Checking venus subdomain (HTTPS)..."
+curl -s -I -m 5 --insecure https://venus.latency.space | head -1 || echo "Failed to connect over HTTPS"
+
+# Check debug endpoint over HTTP and HTTPS
+echo "Checking _debug endpoint (HTTP)..."
+curl -s -I -m 5 http://latency.space/_debug/metrics | head -1 || echo "Failed to connect over HTTP"
+
+echo "Checking _debug endpoint (HTTPS)..."
+curl -s -I -m 5 --insecure https://latency.space/_debug/metrics | head -1 || echo "Failed to connect over HTTPS"
+
+# Check direct access to containers
 echo "Checking direct access to status container..."
 curl -s -I -m 3 http://localhost:3000 | head -1 || echo "Failed to connect"
+
+echo "Checking direct access to proxy container (HTTP)..."
+curl -s -I -m 3 http://localhost:8080 | head -1 || echo "Failed to connect over HTTP"
+
+echo "Checking direct access to proxy container (HTTPS)..."
+curl -s -I -m 3 --insecure https://localhost:8443 | head -1 || echo "Failed to connect over HTTPS"
+
+# Check SSL certificate status
+if [ -f "/etc/letsencrypt/live/latency.space/fullchain.pem" ]; then
+  echo "Checking SSL certificate expiry..."
+  CERT_EXPIRY=$(openssl x509 -enddate -noout -in /etc/letsencrypt/live/latency.space/fullchain.pem | cut -d= -f2)
+  echo "Certificate expires: $CERT_EXPIRY"
+  
+  # Convert to seconds since epoch
+  EXPIRY_SECS=$(date -d "$CERT_EXPIRY" +%s)
+  NOW_SECS=$(date +%s)
+  DAYS_LEFT=$(( ($EXPIRY_SECS - $NOW_SECS) / 86400 ))
+  echo "Days until expiry: $DAYS_LEFT"
+  
+  if [ $DAYS_LEFT -lt 10 ]; then
+    red "⚠️ WARNING: SSL certificate expires in less than 10 days!"
+  elif [ $DAYS_LEFT -lt 30 ]; then
+    yellow "⚠️ SSL certificate expires in less than 30 days"
+  else
+    green "✅ SSL certificate valid for $DAYS_LEFT days"
+  fi
+else
+  red "❌ SSL certificate not found"
+fi
 echo $DIVIDER
 
 # Health summary and recommendations

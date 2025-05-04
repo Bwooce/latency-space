@@ -9,7 +9,11 @@ This directory contains scripts and configuration for deploying Latency Space.
 3. **update.sh** - Script for updating an existing deployment
 4. **setup-vps.sh** - Initial setup script for new VPS environments
 5. **update-nginx.sh** - Updates Nginx configuration with proper settings
-6. **nginx-proxy.conf** - The Nginx configuration template
+6. **install-nginx-config.sh** - Installs Nginx configuration files
+7. **fix-all-dns.sh** - Updates DNS records and manages SSL certificates
+8. **server-health-check.sh** - Performs server health checks
+9. **fix-docker-compose.sh** - Fixes Docker Compose configuration issues
+10. **start-minimal-services.sh** - Starts minimal required services
 
 ## Manual Deployment
 

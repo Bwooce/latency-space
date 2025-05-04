@@ -20,17 +20,20 @@ For consistent SSL certificate validation and user experience, the system enforc
    - Example: `voyager-1.latency.space`, `james-webb.latency.space`
    - No underscores are used in domain names (DNS best practice)
 
-## Running the DNS Setup
+## Running the DNS and SSL Setup
 
-The DNS setup script handles registering all domains with Cloudflare:
+The setup script handles registering all domains with Cloudflare and can automatically manage SSL certificates:
 
 ```bash
 # First, build the tools
 cd /opt/latency-space/tools
 go build
 
-# Then run the setup_dns tool with your Cloudflare API token and server IP
+# Option 1: Run the setup_dns tool with DNS configuration only
 ./tools -token YOUR_API_TOKEN -ip YOUR_SERVER_IP
+
+# Option 2: Run with both DNS configuration and automatic SSL certificate management
+./tools -token YOUR_API_TOKEN -ip YOUR_SERVER_IP -ssl
 ```
 
 The script will:
@@ -38,7 +41,11 @@ The script will:
 2. Validate all domains are lowercase
 3. Group domains by level (root, single-level, multi-level)
 4. Create or update DNS records in Cloudflare
-5. Provide instructions for SSL certificate setup
+5. If the `-ssl` flag is provided:
+   - Check for existing certificates and their expiration
+   - Install certbot if not already present
+   - Obtain or renew SSL certificates for all domains
+   - Configure Nginx to use the certificates (when using the nginx plugin)
 
 ## SSL Certificate Configuration
 
@@ -47,7 +54,13 @@ The system requires a certificate that covers:
 - Single-level subdomains (`*.latency.space`)
 - Multi-level subdomains (`*.*.latency.space`)
 
-To create the proper SSL certificate:
+For automatic SSL certificate management, use the `-ssl` flag with the setup tool:
+
+```bash
+./tools -token YOUR_API_TOKEN -ip YOUR_SERVER_IP -ssl
+```
+
+Alternatively, to manually create the proper SSL certificate:
 
 ```bash
 # Stop Nginx temporarily to free port 80

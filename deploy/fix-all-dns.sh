@@ -189,3 +189,100 @@ echo ""
 echo "To verify the changes took effect, the DNS should resolve directly to your server IP: $SERVER_IP"
 echo "To test SOCKS proxy functionality:"
 echo "  curl --socks5 mars.latency.space:1080 https://example.com"
+
+# Automated SSL certificate request with certbot
+echo $DIVIDER
+blue "🔒 Checking SSL certificate configuration"
+
+# Ensure certbot is installed
+if ! command -v certbot &> /dev/null; then
+  yellow "⚠️ Certbot not found, installing..."
+  
+  if command -v apt-get &> /dev/null; then
+    apt-get update
+    apt-get install -y certbot python3-certbot-nginx
+  elif command -v dnf &> /dev/null; then
+    dnf install -y certbot python3-certbot-nginx
+  else
+    red "❌ Package manager not found. Please install certbot manually."
+    exit 1
+  fi
+  
+  green "✅ Certbot installed successfully"
+fi
+
+# Check if existing certificates are present
+SSL_DIR="/etc/letsencrypt/live/latency.space"
+if [ -d "$SSL_DIR" ]; then
+  blue "Checking existing SSL certificates..."
+  
+  # Check certificate expiration
+  CERT_DATE=$(openssl x509 -enddate -noout -in $SSL_DIR/fullchain.pem | cut -d= -f2)
+  CERT_EXPIRY=$(date -d "$CERT_DATE" +%s)
+  NOW=$(date +%s)
+  DAYS_REMAINING=$(( ($CERT_EXPIRY - $NOW) / 86400 ))
+  
+  if [ $DAYS_REMAINING -lt 30 ]; then
+    yellow "⚠️ SSL certificate expires in $DAYS_REMAINING days, attempting renewal"
+    
+    # Renew certificates
+    certbot renew --quiet
+    if [ $? -eq 0 ]; then
+      green "✅ Successfully renewed SSL certificates"
+    else
+      red "❌ Failed to renew SSL certificates"
+    fi
+  else
+    green "✅ SSL certificates are valid for $DAYS_REMAINING more days"
+  fi
+else
+  yellow "⚠️ SSL certificates not found, will attempt to obtain them"
+  
+  # Create an array of domains from the important_subdomains
+  DOMAIN_ARGS=("-d" "latency.space" "-d" "www.latency.space")
+  
+  # Add all important subdomains to the certificate request
+  for subdomain in "${important_subdomains[@]}"; do
+    DOMAIN_ARGS+=("-d" "${subdomain}.latency.space")
+  done
+  
+  # Run certbot in non-interactive mode (suitable for automated scripts)
+  blue "Requesting SSL certificates for latency.space and all subdomains..."
+  
+  # Check if we're running interactively
+  if [ -t 0 ]; then
+    # Interactive run - ask user first
+    read -p "Do you want to request SSL certificates for all domains now? (y/n): " run_certbot
+    if [[ "$run_certbot" == "y" ]]; then
+      certbot --nginx "${DOMAIN_ARGS[@]}" --redirect
+    else
+      yellow "⚠️ SSL certificate request skipped."
+      echo "To request certificates manually, run:"
+      echo "certbot --nginx ${DOMAIN_ARGS[@]} --redirect"
+    fi
+  else
+    # Non-interactive run - determine if webserver is ready
+    if systemctl is-active --quiet nginx; then
+      # Check if port 80 is available (required for HTTP-01 validation)
+      if curl -s http://localhost:80 &>/dev/null; then
+        certbot --nginx "${DOMAIN_ARGS[@]}" --redirect --non-interactive --agree-tos --email admin@latency.space
+        
+        if [ $? -eq 0 ]; then
+          green "✅ Successfully obtained SSL certificates for all domains"
+        else
+          red "❌ Failed to obtain SSL certificates"
+          yellow "⚠️ You'll need to run certbot manually to obtain certificates"
+        fi
+      else
+        yellow "⚠️ Nginx is running but port 80 might not be accessible"
+        yellow "⚠️ Skipping automatic certificate request"
+      fi
+    else
+      yellow "⚠️ Nginx is not running, skipping automatic certificate request"
+      yellow "⚠️ Please ensure Nginx is properly configured before requesting certificates"
+    fi
+  fi
+fi
+
+echo $DIVIDER
+green "✅ DNS and SSL configuration complete!"
