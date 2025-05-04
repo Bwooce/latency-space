@@ -111,7 +111,7 @@ export default function LandingPage() {
           <div className="flex space-x-4">
             <a href="https://status.latency.space" className="text-white hover:text-blue-400">Status</a>
             {/* Removed Docs link */}
-            <a href="https://github.com/yourusername/latency-space" className="text-white hover:text-blue-400">GitHub</a>
+            <a href="https://github.com/Bwooce/latency-space" className="text-white hover:text-blue-400">GitHub</a>
           </div>
         </div>
       </nav>
@@ -160,7 +160,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase()}.latency.space</code></a></p>
                         </div>
                       </div>
                     ))}
@@ -187,7 +187,7 @@ export default function LandingPage() {
                           </p>
                            {/* Construct domain name based on parent */}
                           <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.parentName ? `${item.name.toLowerCase()}.${item.parentName.toLowerCase()}` : item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">
-                            {item.parentName ? `${item.name}.${item.parentName}` : item.name}.latency.space
+                            {item.parentName ? `${item.name.toLowerCase()}.${item.parentName.toLowerCase()}` : item.name.toLowerCase()}.latency.space
                           </code></a></p>
                         </div>
                       </div>
@@ -210,7 +210,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase()}.latency.space</code></a></p>
                         </div>
                       </div>
                     ))}
@@ -232,7 +232,7 @@ export default function LandingPage() {
                            <p className={`text-sm ${item.occluded ? 'text-red-400' : 'text-green-400'}`}>
                              Status: {item.occluded ? 'Occluded' : 'Visible'}
                            </p>
-                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name}.latency.space</code></a></p>
+                          <p className="text-gray-300 text-xs pt-1">Domain: <a href={`http://${item.name.toLowerCase()}.latency.space/`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline"><code className="bg-black/50 px-1 py-0.5 rounded text-xs">{item.name.toLowerCase()}.latency.space</code></a></p>
                         </div>
                       </div>
                     ))}
