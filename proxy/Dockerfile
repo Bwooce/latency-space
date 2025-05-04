@@ -9,20 +9,19 @@ WORKDIR /app/src
 RUN apk add --no-cache \
     gcc=~13.2 \
     musl-dev=~1.2 \
-    linux-headers=~6.5
+    linux-headers=~6.5 \
+    git
 
-# Copy dependency files first for better caching
-COPY src/go.mod src/go.sum ./
+# First copy the shared package to the correct location
 COPY src/shared /go/src/github.com/latency-space/shared
 
-# Modify go.mod to use the local shared module without replace directive
-RUN go mod edit -dropreplace=github.com/latency-space/shared
-
-# Download dependencies
-RUN go mod download
-
-# Copy source and build
+# Copy source files
 COPY src/ .
+
+# Copy updated go.mod that doesn't use replace directive
+RUN cp go.mod go.mod.orig && \
+    go mod edit -dropreplace=github.com/latency-space/shared && \
+    go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o /latency-proxy
 
 # Use specific Alpine version for final image
