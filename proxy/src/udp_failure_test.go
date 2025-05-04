@@ -228,9 +228,11 @@ func TestUDPFailureModes(t *testing.T) {
 				failPacket := buildUDPSocksPacket(targetUDPAddr, failData)
 				
 				// Send directly to the proxy UDP address
-				_, err = clientUDPConn.WriteTo(failPacket, proxyUDPAddr)
+				if _, err = clientUDPConn.WriteTo(failPacket, proxyUDPAddr); err != nil {
+					t.Fatalf("Failed to send UDP packet: %v", err)
+				}
 				
-				// The write itself may succeed, but there should be no response
+				// The write succeeded, but there should be no response
 				
 				// Set a short timeout for reading the response
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
