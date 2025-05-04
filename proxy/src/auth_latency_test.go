@@ -290,8 +290,9 @@ func TestSOCKSLatencyValues(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Note: We'll be using the latency value from the test case 
-			// Modify testModeCalculateLatency behavior if needed
+			// Set up test mode with the specific latency for this test case
+			testCleanup := setupTestModeWithLatency(tc.latencyValue)
+			defer testCleanup()
 			
 			// Start a SOCKS server
 			socksListener, err := net.Listen("tcp", "127.0.0.1:0")

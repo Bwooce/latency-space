@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"sort"
 	"strings"
 	"time"
-	"log"
 )
 
 var celestialObjects []CelestialObject
@@ -17,7 +17,7 @@ func CalculateLatency(distanceKm float64) time.Duration {
 	if isTestMode {
 		return testModeCalculateLatency(distanceKm)
 	}
-	
+
 	// Normal latency calculation
 	seconds := distanceKm / SPEED_OF_LIGHT
 	return time.Duration(seconds * float64(time.Second))
@@ -507,7 +507,7 @@ func getCurrentDistance(bodyName string) float64 {
 	log.Printf("Size of distanceObjects: %d", len(distanceEntries))
 	for _, body := range distanceEntries {
 		//log.Printf("body: %s, type: %s", body.Object.Name, body.Object.Type)
-		if strings.EqualFold(body.Object.Name,bodyName) {
+		if strings.EqualFold(body.Object.Name, bodyName) {
 			return body.Distance
 		}
 	}

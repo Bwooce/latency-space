@@ -10,10 +10,10 @@ import (
 
 // SecurityValidator provides methods for validating proxy requests.
 type SecurityValidator struct {
-	allowedPorts   map[string]bool   // Allowed destination ports (e.g., "80", "443")
-	maxRequestSize int64             // Maximum allowed request size (currently unused)
-	allowedSchemes map[string]bool   // Allowed URL schemes (e.g., "http", "https")
-	allowedHosts   map[string]bool   // Map of explicitly allowed destination hosts/domains
+	allowedPorts   map[string]bool // Allowed destination ports (e.g., "80", "443")
+	maxRequestSize int64           // Maximum allowed request size (currently unused)
+	allowedSchemes map[string]bool // Allowed URL schemes (e.g., "http", "https")
+	allowedHosts   map[string]bool // Map of explicitly allowed destination hosts/domains
 }
 
 // NewSecurityValidator creates a new SecurityValidator with default rules.
@@ -118,7 +118,6 @@ func (s *SecurityValidator) ValidateDestination(dest string) (string, error) {
 		return "", fmt.Errorf("destination host '%s' is not allowed", u.Hostname())
 	}
 
-
 	return u.String(), nil // Return the potentially modified URL (with added scheme)
 }
 
@@ -162,7 +161,6 @@ func (s *SecurityValidator) ValidateSocksDestination(host string, port uint16) e
 	if port != 0 && !s.allowedPorts[portStr] {
 		return fmt.Errorf("destination port %s is not allowed", portStr)
 	}
-
 
 	return nil
 }

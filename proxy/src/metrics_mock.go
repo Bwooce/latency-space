@@ -17,7 +17,7 @@ func NewTestMetricsCollector() *MetricsCollector {
 		},
 		[]string{"body", "type"},
 	)
-	
+
 	requestsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_requests_total",
@@ -25,7 +25,7 @@ func NewTestMetricsCollector() *MetricsCollector {
 		},
 		[]string{"body", "type"},
 	)
-	
+
 	bandwidthUsage := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_bandwidth_bytes_total",
@@ -33,7 +33,7 @@ func NewTestMetricsCollector() *MetricsCollector {
 		},
 		[]string{"body", "direction"},
 	)
-	
+
 	udpPackets := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_udp_packets_total",
@@ -41,7 +41,7 @@ func NewTestMetricsCollector() *MetricsCollector {
 		},
 		[]string{"body"}, // Label by celestial body
 	)
-	
+
 	// Create the metrics collector without registering the metrics
 	return &MetricsCollector{
 		requestDuration: requestDuration,

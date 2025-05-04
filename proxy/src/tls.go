@@ -17,15 +17,13 @@ import (
 // based on defined patterns (base domain, body.domain, moon.planet.domain).
 // It performs case-insensitive checks.
 func isValidSubdomain(host string) bool {
-	lowerHost := strings.ToLower(host)
-
 	// Allow the base domain and www subdomain
-	if lowerHost == "latency.space" || lowerHost == "www.latency.space" {
+	if strings.EqualFold(host, "latency.space") || strings.EqualFold(host, "www.latency.space") {
 		return true
 	}
 
 	// Split hostname by dots.
-	parts := strings.Split(lowerHost, ".")
+	parts := strings.Split(strings.ToLower(host), ".")
 	numParts := len(parts)
 
 	// Check for the required suffix ".latency.space"
@@ -78,7 +76,6 @@ func isValidSubdomain(host string) bool {
 	return false // No valid pattern matched
 }
 
-
 // setupTLS configures and returns a *tls.Config suitable for the HTTPS server,
 // including ACME autocert support for automatic certificate management.
 func setupTLS() *tls.Config {
@@ -92,7 +89,7 @@ func setupTLS() *tls.Config {
 	// Create the autocert manager.
 	manager := &autocert.Manager{
 		Cache:  autocert.DirCache("certs"), // Cache certificates in the "certs" directory
-		Prompt: autocert.AcceptTOS,        // Automatically accept Let's Encrypt TOS
+		Prompt: autocert.AcceptTOS,         // Automatically accept Let's Encrypt TOS
 		// HostPolicy defines which hostnames are allowed for certificate requests.
 		HostPolicy: func(ctx context.Context, host string) error {
 			// Handle requests without Server Name Indication (SNI).
@@ -140,7 +137,7 @@ func setupTLS() *tls.Config {
 			// For requests with SNI, delegate to the autocert manager.
 			return manager.GetCertificate(hello)
 		},
-		MinVersion:               tls.VersionTLS12, // Enforce minimum TLS 1.2
+		MinVersion:               tls.VersionTLS12,                         // Enforce minimum TLS 1.2
 		CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256}, // Prefer modern curves
 		PreferServerCipherSuites: true,
 		// Define supported application layer protocols (HTTP/2, HTTP/1.1, ACME TLS challenge)
@@ -181,7 +178,7 @@ func getDefaultCertificate() (*tls.Certificate, error) {
 			"-keyout", keyPath,
 			"-out", certPath,
 			"-days", "365", // Valid for 1 year
-			"-nodes",      // Do not encrypt the private key
+			"-nodes",                     // Do not encrypt the private key
 			"-subj", "/CN=latency.space") // Common Name for the certificate
 
 		// Run the command and capture output/error

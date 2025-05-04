@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -18,12 +18,12 @@ func setupTestEnvironment() func() {
 	// Assign the test objects to the global variable used by the main code
 	// Save the original celestial objects to restore them later
 	originalCelestialObjects := celestialObjects
-	
+
 	// Override global celestial objects with test-specific ones with low latency
 	celestialObjects = []CelestialObject{
 		{
-			Name:   "Earth",
-			Type:   "planet",
+			Name: "Earth",
+			Type: "planet",
 			// Simplified orbital elements (not used directly in this test, but needed for functions)
 			ParentName: "Sun",
 			Radius:     6378.137,
@@ -46,28 +46,28 @@ func setupTestEnvironment() func() {
 			Mass:       5.972e24, // kg
 		}, // Removed &
 		{
-			Name:   "Mars",
-			Type:   "moon",
+			Name:       "Mars",
+			Type:       "moon",
 			ParentName: "Earth",
 			// Simplified orbital elements with tiny distance for fast tests
-			Radius:     1737.4,
-			A:          1000.0, // Reduced semi-major axis in km for fast tests
-			E:          0.0549,
-			I:          5.145,
-			L:          375.7,                        // Mean longitude at epoch
-			N:          125.08,                       // Longitude of ascending node
-			W:          318.15,                       // Argument of perigee
-			dL:         13.176358 * DAYS_PER_CENTURY, // Degrees per century
-			dN:         -0.05295 * DAYS_PER_CENTURY,
-			dW:         0.11140 * DAYS_PER_CENTURY,
-			Period:     27.321661,
-			Mass:       7.342e22, // kg
-		}, 
+			Radius: 1737.4,
+			A:      1000.0, // Reduced semi-major axis in km for fast tests
+			E:      0.0549,
+			I:      5.145,
+			L:      375.7,                        // Mean longitude at epoch
+			N:      125.08,                       // Longitude of ascending node
+			W:      318.15,                       // Argument of perigee
+			dL:     13.176358 * DAYS_PER_CENTURY, // Degrees per century
+			dN:     -0.05295 * DAYS_PER_CENTURY,
+			dW:     0.11140 * DAYS_PER_CENTURY,
+			Period: 27.321661,
+			Mass:   7.342e22, // kg
+		},
 		// Add other bodies if needed for specific tests
 	}
 	// Suppress log output during tests unless debugging
 	// log.SetOutput(io.Discard) // Keep log suppression commented out for now
-	
+
 	// Return a cleanup function to restore the original celestial objects
 	return func() {
 		celestialObjects = originalCelestialObjects
@@ -83,8 +83,8 @@ func NewTestSOCKSHandler(conn net.Conn, security *SecurityValidator, metrics *Me
 
 func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	cleanup := setupTestEnvironment() // Initialize celestial objects
-	defer cleanup() // Restore original celestial objects after test
-	
+	defer cleanup()                   // Restore original celestial objects after test
+
 	// Enable test mode for low latency
 	testModeCleanup := setupTestMode()
 	defer testModeCleanup() // Restore normal mode after test
@@ -119,7 +119,6 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	targetPortStr := strconv.Itoa(targetUDPAddr.Port)
 	security.allowedPorts[targetPortStr] = true
 	t.Logf("Dynamically allowed target UDP port: %s", targetPortStr)
-
 
 	// Mock Client (UDP Listener) - for receiving replies
 	clientUDPListener, err := net.ListenPacket("udp", "127.0.0.1:0")
@@ -250,8 +249,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 
 	// Read from Target UDP Listener
 	targetBuf := make([]byte, 1024)
-	err = targetUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
-	if err != nil {
+	if err = targetUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil { // Timeout
 		t.Fatalf("Failed to set read deadline for target listener: %v", err)
 	}
 	n, remoteAddr, err := targetUDPListener.ReadFrom(targetBuf)
@@ -283,8 +281,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 
 	// Read from Client UDP Listener
 	clientBuf := make([]byte, 1024)
-	err = clientUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)) // Timeout
-	if err != nil {
+	if err = clientUDPListener.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil { // Timeout
 		t.Fatalf("Failed to set read deadline for client listener: %v", err)
 	}
 	n, remoteAddrClient, err := clientUDPListener.ReadFrom(clientBuf)
@@ -328,7 +325,6 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 	t.Logf("Client UDP received SOCKS reply correctly: DST=%s:%d, Payload=%q", receivedDstIP, receivedDstPort, string(payload))
 
-
 	// 6. Test Disallowed Host
 	t.Log("Testing disallowed host...")
 	delete(security.allowedHosts, "127.0.0.1") // Disallow localhost
@@ -340,8 +336,7 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	}
 
 	// Try reading from Target UDP Listener - should timeout
-	err = targetUDPListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond)) // Short timeout
-	if err != nil {
+	if err = targetUDPListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil { // Short timeout
 		t.Fatalf("Failed to set read deadline for target listener (disallowed test): %v", err)
 	}
 	_, _, err = targetUDPListener.ReadFrom(targetBuf)
@@ -355,13 +350,12 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 	// Restore for potential future tests (though not strictly needed here)
 	security.allowedHosts["127.0.0.1"] = true
 
-
 	// 7. Cleanup (Handled by t.Cleanup, including clientTCPConn.Close())
 	t.Logf("Client closing TCP connection (via defer)...")
 
 	// Wait for the server-side SOCKS handler goroutine to complete with a timeout
 	t.Logf("Waiting for SOCKS server handler goroutine to finish...")
-	
+
 	// Add a timeout for the channel read to prevent the test from hanging
 	select {
 	case serverErr, ok := <-serverErrChan:
