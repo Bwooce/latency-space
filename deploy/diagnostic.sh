@@ -161,19 +161,19 @@ EOF
 
 # Function to append section headers to output
 section() {
-  # Use printf to avoid echo interpreting escape sequences
-  printf "<div class=\"section\" id=\"%s\">\n<h2>%s</h2>\n<button class=\"collapsible\">%s Details (Click to expand)</button>\n<div class=\"content\">\n<pre>" "$3" "$1" "$1" >> "$OUTPUT_FILE"
+  # Note: We need to use echo -e for HTML formatting, but ensure newline literals don't get through
+  echo -e "<div class=\"section\" id=\"$3\">\n<h2>$1</h2>\n<button class=\"collapsible\">$1 Details (Click to expand)</button>\n<div class=\"content\">\n<pre>" >> "$OUTPUT_FILE"
   
   # Execute command and process output to replace literal \n with actual newlines
   output=$(eval "$2" 2>&1) || output="<span class=\"error\">Command failed!</span>"
   
   # Comprehensive replacement of all forms of literal newlines
-  output=$(echo "$output" | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed $'s/\\\\\\\\n/\n/g')
+  output=$(echo "$output" | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\\\\\n/\n/g')
   
-  # Write directly to avoid additional escape sequence interpretation
+  # Write output while preserving exact formatting
   printf "%s" "$output" >> "$OUTPUT_FILE"
   
-  printf "</pre>\n</div>\n</div>\n" >> "$OUTPUT_FILE"
+  echo -e "</pre>\n</div>\n</div>" >> "$OUTPUT_FILE"
   
   # Also log to the log file
   echo "=== $1 ===" >> "$LOG_FILE"
@@ -360,7 +360,7 @@ summary=$(generate_summary)
 summary=$(echo "$summary" | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\\\\\n/\n/g')
 # Use printf to avoid additional escape sequence interpretation
 printf "%s" "$summary" >> "$OUTPUT_FILE"
-printf "</pre></div>\n" >> "$OUTPUT_FILE"
+echo -e "</pre></div>" >> "$OUTPUT_FILE"
 
 # System information
 section "System Information" "echo 'Kernel: $(uname -a)'; echo 'Distribution: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2)'; echo 'Memory:'; free -h; echo -e '\nDisk usage:'; df -h | grep -v tmpfs | grep -v udev; echo -e '\nUptime:'; uptime; echo -e '\nCPU info:'; grep 'model name' /proc/cpuinfo | head -1; echo -e '\nCPU usage:'; top -bn1 | head -15" "system"
@@ -415,9 +415,8 @@ setTimeout(function() {
 EOF
 )
 
-# Replace any literal \n with actual newlines and write to file using printf
-js_code=$(echo "$js_code" | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\\\\\n/\n/g')
-printf "%s" "$js_code" >> "$OUTPUT_FILE"
+# Write JavaScript without manipulating newlines to preserve proper formatting
+echo "$js_code" >> "$OUTPUT_FILE"
 
 # Configure Nginx to serve the diagnostic page
 if [ -f "/etc/nginx/sites-available/latency.space" ]; then
