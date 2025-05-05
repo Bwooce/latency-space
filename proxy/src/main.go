@@ -616,11 +616,12 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	fmt.Fprintln(w, "============================================")
 	fmt.Fprintf(w, "Current Time: %s\n\n", time.Now().Format(time.RFC3339))
 
-	printObjectsByType(w, distanceEntries, "planet")
-	printObjectsByType(w, distanceEntries, "moon")
-	printObjectsByType(w, distanceEntries, "asteroid")
-	printObjectsByType(w, distanceEntries, "dwarf_planet")
-	printObjectsByType(w, distanceEntries, "spacecraft")
+	// Call printObjectsByType without distanceEntries argument, as it now uses the global cache
+	printObjectsByType(w, "planet")
+	printObjectsByType(w, "moon")
+	printObjectsByType(w, "asteroid")
+	printObjectsByType(w, "dwarf_planet")
+	printObjectsByType(w, "spacecraft")
 
 }
 
