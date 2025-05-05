@@ -13,9 +13,6 @@ import (
 	"github.com/latency-space/shared/celestial"
 )
 
-// Global variable to store celestial objects
-var celestialObjects []celestial.CelestialObject
-
 // Helper function to find and check if a flag is present in os.Args
 func isCommandLineFlagPresent(flagName string) bool {
 	flagWithDash := "-" + flagName
@@ -124,9 +121,6 @@ func collectDomains() []string {
 
 // ExecuteSetupDNS is the main function for DNS setup that can be called from either package
 func ExecuteSetupDNS(objects []celestial.CelestialObject) {
-	// Store the provided celestial objects in our local variable
-	celestialObjects = objects
-	
 	// Define command-line flags
 	var (
 		apiToken = flag.String("token", "", "Cloudflare API Token (required)")
@@ -145,7 +139,7 @@ func ExecuteSetupDNS(objects []celestial.CelestialObject) {
 		log.Fatal("Error: Cloudflare API Token (-token) and Server IP Address (-ip) are required.")
 	}
 
-	log.Printf("Initialized %d celestial objects for DNS setup", len(celestialObjects))
+	log.Printf("Initialized %d celestial objects for DNS setup", len(objects))
 
 	// Collect all required domain names.
 	domains := collectDomains()
