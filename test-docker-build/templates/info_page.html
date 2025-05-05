@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Name}} - Latency Space Proxy</title>
+    <style>
+        body {
+            background-color: #0f172a; /* slate-900 */
+            color: #e2e8f0; /* slate-200 */
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            margin: 0;
+            padding: 0;
+            background-image: linear-gradient(to bottom, #1e293b, #0f172a);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background-color: rgba(30, 41, 59, 0.8); /* slate-800 with opacity */
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #f8fafc; /* slate-50 */
+            border-bottom: 1px solid #334155; /* slate-700 */
+            padding-bottom: 10px;
+            margin-top: 0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #cbd5e1; /* slate-300 */
+            border-bottom: 1px solid #475569; /* slate-600 */
+            padding-bottom: 8px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            line-height: 1.6;
+            margin-bottom: 15px;
+            color: #cbd5e1; /* slate-300 */
+        }
+
+        a {
+            color: #38bdf8; /* sky-400 */
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        ul {
+            list-style: disc;
+            margin-left: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        code, pre {
+            font-family: "Courier New", Courier, monospace;
+            background-color: #1e293b; /* slate-800 */
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #f1f5f9; /* slate-100 */
+        }
+
+        pre {
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap; /* Allow wrapping */
+            word-wrap: break-word; /* Break long words */
+            margin-top: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #334155; /* slate-700 */
+        }
+
+        .status-visible {
+            color: #4ade80; /* green-400 */
+            font-weight: bold;
+        }
+
+        .status-occluded {
+            color: #f87171; /* red-400 */
+            font-weight: bold;
+        }
+
+        .usage-section code {
+            display: block; /* Make code examples block level */
+            margin-top: 5px;
+            padding: 10px;
+        }
+         .usage-section p {
+            margin-bottom: 5px; /* Reduce space between paragraph and code */
+         }
+
+         .moons-list a {
+             color: #7dd3fc; /* sky-300 */
+         }
+         .moons-list li {
+             margin-bottom: 5px;
+         }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{.Name}} Proxy</h1>
+
+        <p>This proxy simulates the communication delay between Earth and <strong>{{.Name}}</strong>.</p>
+
+        <h2>Current Status</h2>
+        <p>Distance from Earth: <strong>{{.DistanceMkm}} million km</strong></p>
+        <p>One-Way Light Time (Latency): <strong>{{.LatencySec}} seconds</strong> (approx. {{.LatencyFriendly}})</p>
+        <p>Round-Trip Light Time: <strong>{{.RoundTripFriendly}}</strong></p>
+        <p>Status: <span class="{{.OccludedClass}}">{{.OccludedStatus}}</span></p>
+
+        {{if .MoonsHTML}}
+        <div class="moons-list">
+            <h2>Moons</h2>
+            <p>Proxies are also available for the following moons of {{.Name}}:</p>
+            <ul>
+                {{.MoonsHTML}}
+            </ul>
+        </div>
+        {{end}}
+
+        <div class="usage-section">
+            <h2>HTTP Proxy Usage</h2>
+            <p>Use <code>{{.Domain}}</code> on port 80 as an HTTP proxy:</p>
+            <p>1. Direct Domain Format:</p>
+            <pre><code>http://{{.Domain}}/</code></pre>
+            <p>2. Target Domain Format (routes to example.com):</p>
+            <pre><code>http://example.com.{{.Domain}}/</code></pre>
+            <p>3. Query Parameter:</p>
+            <pre><code>http://{{.Domain}}/?destination=https://example.com</code></pre>
+            <p>4. Curl Example:</p>
+            <pre><code>curl -x {{.Domain}}:80 https://example.com</code></pre>
+
+            <h2>SOCKS5 Proxy Usage</h2>
+            <p>Use <code>{{.Domain}}</code> on port 1080 as a SOCKS5 proxy:</p>
+            <p>1. SSH Example:</p>
+            <pre><code>ssh -o ProxyCommand="nc -X 5 -x {{.Domain}}:1080 %h %p" your-server.com</code></pre>
+            <p>2. Curl Example:</p>
+            <pre><code>curl --socks5 {{.Domain}}:1080 https://example.com</code></pre>
+            <p>3. Browser Configuration: Set SOCKS5 proxy to Host <code>{{.Domain}}</code>, Port <code>1080</code>.</p>
+        </div>
+
+        <hr style="border-color: #334155; margin-top: 40px; margin-bottom: 20px;">
+        <p style="text-align: center; font-size: 0.9em; color: #94a3b8;">
+            Return to <a href="http://latency.space/">latency.space</a> homepage.
+        </p>
+
+    </div>
+</body>
+</html>

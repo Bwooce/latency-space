@@ -1,0 +1,10 @@
+Fix Docker build with properly configured Go modules
+
+- Created Dockerfile.proxy that builds the proxy service correctly
+- Used proper Go module handling with vendoring in the Dockerfile
+- Updated docker-compose.simple.yml to use the new Dockerfile
+- Added test scripts to verify the build process
+- Fixed shared package dependency resolution in Docker context
+
+The build now correctly resolves the shared celestial package dependency
+by using proper Go module handling with vendoring and a multi-stage build.

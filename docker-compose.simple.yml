@@ -1,8 +1,8 @@
 services:
   proxy:
     build: 
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.proxy
     ports:
       - "8080:80"
       - "8443:443"
