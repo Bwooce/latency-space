@@ -1,49 +1,29 @@
 # Use specific golang Alpine version for builder
 FROM golang:1.21.6-alpine3.19 AS builder
 
-# Install essential build dependencies and git for go modules
+# Install essential build dependencies
 RUN apk add --no-cache \
     gcc=~13.2 \
-    musl-dev=~1.2 \
-    git=~2.43
+    musl-dev=~1.2
 
-# Set up a completely clean build environment
+# Set working directory
 WORKDIR /app
 
-# First copy just shared package to build it locally
-COPY shared/ /app/shared/
+# Copy both proxy and shared code (keeping directory structure)
+COPY proxy /app/proxy
+COPY shared /app/shared
 
-# Create a temporary module for the shared package
-WORKDIR /app/shared
-RUN go mod init github.com/latency-space/shared && \
-    go mod tidy
-
-# Now set up the proxy build
-WORKDIR /app/proxy
-
-# Copy the proxy source code
-COPY proxy/src/ /app/proxy/src/
-
-# Work in the src directory
+# Move to proxy/src directory for building
 WORKDIR /app/proxy/src
 
-# Configure Go environment for building
+# Make a copy of the original go.mod file
+RUN cp go.mod go.mod.original 
+
+# Set up environment for building
 ENV CGO_ENABLED=0 \
-    GOOS=linux \
-    GO111MODULE=on
+    GOOS=linux
 
-# Create or modify go.mod to use the local shared module
-RUN go mod init github.com/latency-space/proxy && \
-    go mod edit -require github.com/latency-space/shared@v0.0.0 && \
-    go mod edit -replace github.com/latency-space/shared=/app/shared && \
-    go get github.com/prometheus/client_golang/prometheus && \
-    go get github.com/prometheus/client_golang/prometheus/promhttp && \
-    go get golang.org/x/crypto/acme/autocert && \
-    go get github.com/gorilla/websocket && \
-    go get golang.org/x/time/rate && \
-    go mod tidy
-
-# Build with the properly configured modules
+# Build with go build - using the replace directive in the original go.mod
 RUN go build -o /latency-proxy
 
 # Use specific Alpine version for final image
