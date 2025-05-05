@@ -16,6 +16,8 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+RUN apk add --no-cache libc-utils
+
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 

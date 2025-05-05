@@ -30,6 +30,7 @@ RUN apk add --no-cache \
     iproute2=~6.6 \
     iptables=~1.8 \
     openssl=~3.1 \
+    libc-utils \
     && mkdir -p /etc/latency-space
 
 # Copy the binary and templates
