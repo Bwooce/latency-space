@@ -1,49 +1,49 @@
-# Use specific golang Alpine version for builder
+# Use a specific golang Alpine version
 FROM golang:1.21.6-alpine3.19 AS builder
 
-# Install essential build dependencies
-RUN apk add --no-cache \
-    gcc=~13.2 \
-    musl-dev=~1.2
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev git
 
-# Set working directory
+# Create a clean build environment
 WORKDIR /app
 
-# Copy both proxy and shared code (keeping directory structure)
-COPY proxy /app/proxy
-COPY shared /app/shared
+# Create a clean environment without any previous files
+COPY proxy/src/*.go /app/
+COPY proxy/src/templates /app/templates
 
-# Move to proxy/src directory for building
-WORKDIR /app/proxy/src
+# Copy shared celestial package and convert it to a local package
+WORKDIR /app/celestial
+COPY shared/celestial/celestial.go /app/celestial/celestial.go
 
-# Make a copy of the original go.mod file
-RUN cp go.mod go.mod.original 
+# Set up a standalone build without network dependency
+WORKDIR /app
+RUN sed -i 's|"github.com/latency-space/shared/celestial"|"github.com/prometheus/client_golang/prometheus"|g' models.go && \
+    sed -i 's|celestial\.|\"|g' models.go && \
+    echo "// SPEED_OF_LIGHT and other constants are now defined directly here" >> models.go
 
-# Set up environment for building
-ENV CGO_ENABLED=0 \
-    GOOS=linux
+# Build the binary with exact dependency versions
+RUN go mod init github.com/latency-space/proxy-standalone && \
+    go mod edit -require github.com/prometheus/client_golang@v1.15.0 && \
+    go mod edit -require github.com/gorilla/websocket@v1.5.0 && \
+    go mod edit -require golang.org/x/crypto@v0.14.0 && \
+    go mod edit -require golang.org/x/time@v0.3.0 && \
+    go mod tidy && \
+    go build -o /app/latency-proxy
 
-# Build with go build - using the replace directive in the original go.mod
-RUN go build -o /latency-proxy
-
-# Use specific Alpine version for final image
+# Create a minimal runtime image
 FROM alpine:3.19.1
 
 # Install required runtime dependencies
-RUN apk add --no-cache \
-    iproute2=~6.6 \
-    iptables=~1.8 \
-    openssl=~3.1 \
-    && mkdir -p /etc/latency-space
+RUN apk add --no-cache iproute2 iptables openssl && \
+    mkdir -p /etc/latency-space
 
-# Copy the binary
-COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
+# Copy the binary and templates
+COPY --from=builder /app/latency-proxy /usr/local/bin/latency-proxy
+COPY --from=builder /app/templates /app/templates
 RUN chmod +x /usr/local/bin/latency-proxy
-
-# Copy templates
-COPY --from=builder /app/proxy/src/templates/ /app/templates/
 
 # Expose ports
 EXPOSE 80 443 1080 9090
 
+# Run the proxy
 CMD ["/usr/local/bin/latency-proxy"]
