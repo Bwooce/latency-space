@@ -2,15 +2,34 @@
 import React, { useState, useEffect } from 'react';
 import { formatFullDomain, formatMoonDomain } from '../lib/domainUtils';
 
-// Helper function to format latency from seconds
+// Helper function to format latency from seconds with more readable units
 const formatLatency = (seconds) => {
   if (seconds < 0) return 'N/A'; // Handle potential negative values if any
+  
   if (seconds < 60) {
+    // Less than a minute: show seconds
     return `${seconds.toFixed(2)} seconds`;
   } else if (seconds < 3600) {
-    return `${(seconds / 60).toFixed(2)} minutes`;
+    // Less than an hour: show minutes and seconds
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    return remainingSeconds > 0 
+      ? `${minutes} min ${remainingSeconds} sec` 
+      : `${minutes} min`;
+  } else if (seconds < 86400) {
+    // Less than a day: show hours and minutes
+    const hours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.round((seconds % 3600) / 60);
+    return remainingMinutes > 0 
+      ? `${hours} hr ${remainingMinutes} min` 
+      : `${hours} hr`;
   } else {
-    return `${(seconds / 3600).toFixed(2)} hours`;
+    // Days and hours
+    const days = Math.floor(seconds / 86400);
+    const remainingHours = Math.round((seconds % 86400) / 3600);
+    return remainingHours > 0 
+      ? `${days} day${days !== 1 ? 's' : ''} ${remainingHours} hr` 
+      : `${days} day${days !== 1 ? 's' : ''}`;
   }
 };
 

@@ -2,21 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from "@/lib/utils"; // Assuming you have a utility for class names
 
-// Helper function to format latency dynamically
+// Helper function to format latency dynamically with more readable units
 const formatLatency = (seconds) => {
+  if (seconds < 0) return 'N/A'; // Handle potential negative values
+  
   if (seconds < 60) {
+    // Less than a minute: show seconds
     return `${seconds.toFixed(1)} sec`;
+  } else if (seconds < 3600) {
+    // Less than an hour: show minutes and seconds
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    return remainingSeconds > 0 
+      ? `${minutes} min ${remainingSeconds} sec` 
+      : `${minutes} min`;
+  } else if (seconds < 86400) {
+    // Less than a day: show hours and minutes
+    const hours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.round((seconds % 3600) / 60);
+    return remainingMinutes > 0 
+      ? `${hours} hr ${remainingMinutes} min` 
+      : `${hours} hr`;
+  } else {
+    // Days and hours
+    const days = Math.floor(seconds / 86400);
+    const remainingHours = Math.round((seconds % 86400) / 3600);
+    return remainingHours > 0 
+      ? `${days} day${days !== 1 ? 's' : ''} ${remainingHours} hr` 
+      : `${days} day${days !== 1 ? 's' : ''}`;
   }
-  const minutes = seconds / 60;
-  if (minutes < 60) {
-    return `${minutes.toFixed(1)} min`;
-  }
-  const hours = minutes / 60;
-  if (hours < 24) {
-    return `${hours.toFixed(1)} hours`;
-  }
-  const days = hours / 24;
-  return `${days.toFixed(1)} days`;
 };
 
 // Helper function to capitalize type names
