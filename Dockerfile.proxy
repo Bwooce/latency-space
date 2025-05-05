@@ -2,33 +2,52 @@
 FROM golang:1.21.6-alpine3.19 AS builder
 
 # Install build dependencies
-RUN apk add --no-cache gcc musl-dev git
+RUN apk add --no-cache gcc musl-dev
 
-# Create a clean build environment
+# Set working directory
 WORKDIR /app
 
-# Create a clean environment without any previous files
+# Copy source code
 COPY proxy/src/*.go /app/
-COPY proxy/src/templates /app/templates
+COPY proxy/src/templates /app/templates/
+COPY shared/celestial/celestial.go /app/celestial.go
 
-# Copy shared celestial package and convert it to a local package
-WORKDIR /app/celestial
-COPY shared/celestial/celestial.go /app/celestial/celestial.go
+# Modify the source files to work without external dependencies
+RUN for file in *.go; do \
+    sed -i 's|"github.com/latency-space/shared/celestial"|"internal/celestial"|g' $file; \
+    done && \
+    # Create constants in the main package to avoid depending on celestial
+    cat > constants.go << 'EOF'
+package main
 
-# Set up a standalone build without network dependency
-WORKDIR /app
-RUN sed -i 's|"github.com/latency-space/shared/celestial"|"github.com/prometheus/client_golang/prometheus"|g' models.go && \
-    sed -i 's|celestial\.|\"|g' models.go && \
-    echo "// SPEED_OF_LIGHT and other constants are now defined directly here" >> models.go
+// Constants copied from celestial package
+const (
+    SPEED_OF_LIGHT   = 299792.458  // km/s
+    AU               = 149597870.7 // Astronomical unit in kilometers
+    EARTH_RADIUS     = 6378.137    // Earth radius in kilometers
+    SUN_RADIUS       = 695700.0    // Sun radius in kilometers
+    SECONDS_PER_DAY  = 86400.0     // Seconds in a day
+    DAYS_PER_CENTURY = 36525.0     // Days in a Julian century (365.25 * 100)
+    J2000_EPOCH      = 2451545.0   // J2000 epoch in Julian days (January 1, 2000, 12:00 TT)
+)
+EOF
 
-# Build the binary with exact dependency versions
-RUN go mod init github.com/latency-space/proxy-standalone && \
-    go mod edit -require github.com/prometheus/client_golang@v1.15.0 && \
-    go mod edit -require github.com/gorilla/websocket@v1.5.0 && \
-    go mod edit -require golang.org/x/crypto@v0.14.0 && \
-    go mod edit -require golang.org/x/time@v0.3.0 && \
-    go mod tidy && \
-    go build -o /app/latency-proxy
+# Create a simple go.mod file without dependencies on shared package
+RUN echo 'module proxy' > go.mod && \
+    echo 'require (' >> go.mod && \
+    echo '  github.com/gorilla/websocket v1.5.0' >> go.mod && \
+    echo '  github.com/prometheus/client_golang v1.15.0' >> go.mod && \
+    echo '  golang.org/x/crypto v0.14.0' >> go.mod && \
+    echo '  golang.org/x/time v0.3.0' >> go.mod && \
+    echo ')' >> go.mod && \
+    echo 'go 1.21' >> go.mod
+
+# Build standalone binary
+ENV CGO_ENABLED=0 \
+    GOOS=linux
+
+RUN cd /app && \
+    GOFLAGS="-mod=mod" go build -o latency-proxy
 
 # Create a minimal runtime image
 FROM alpine:3.19.1
