@@ -20,7 +20,7 @@ import (
 
 	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/latency-space/shared/celestial"
+	"github.com/Bwooce/latency-space/shared/celestial"
 )
 
 // infoTemplate holds the parsed HTML template for the celestial body information page.

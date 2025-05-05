@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 	
-	"github.com/latency-space/shared/celestial"
+	"github.com/Bwooce/latency-space/shared/celestial"
 )
 
 // testCelestialObjects provides a simplified list of objects for testing parseHostForCelestialBody.
