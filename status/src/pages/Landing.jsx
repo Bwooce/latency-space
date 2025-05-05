@@ -388,29 +388,32 @@ export default function LandingPage() {
           </div>
         </div>
 
+        {/* Grid for Advanced Usage and System Features */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+          {/* Column 1: Advanced Usage */}
           <div className="bg-white/10 p-6 rounded-lg">
             <h3 className="text-xl font-bold text-white mb-4">Advanced Usage</h3>
-              <div>
-                <h4 className="font-bold">Custom Applications</h4>
-                <p className="text-sm">Configure applications to use SOCKS5 proxy:</p>
-                <ul className="list-disc list-inside text-sm">
-                  <li>VoIP applications</li>
-                  <li>Messaging applications</li>
-                  <li>Gaming (for the ultimate challenge)</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-bold">Spacecraft Tracking</h4>
-                <p className="text-sm">Distances to spacecraft update in real-time based on actual trajectories</p>
-                <p className="text-gray-400 text-xs mt-1">Try Voyager 1 for the ultimate latency experience (~40+ hours round trip!)</p>
-              </div>
+            {/* Content for Advanced Usage */}
+            <div>
+              <h4 className="font-bold">Custom Applications</h4>
+              <p className="text-sm">Configure applications to use SOCKS5 proxy:</p>
+              <ul className="list-disc list-inside text-sm">
+                <li>VoIP applications</li>
+                <li>Messaging applications</li>
+                <li>Gaming (for the ultimate challenge)</li>
+              </ul>
             </div>
-          </div>
+            <div>
+              <h4 className="font-bold">Spacecraft Tracking</h4>
+              <p className="text-sm">Distances to spacecraft update in real-time based on actual trajectories</p>
+              <p className="text-gray-400 text-xs mt-1">Try Voyager 1 for the ultimate latency experience (~40+ hours round trip!)</p>
+            </div>
+          </div> {/* End Column 1 */}
 
+          {/* Column 2: System Features */}
           <div className="bg-white/10 p-6 rounded-lg">
             <h3 className="text-xl font-bold text-white mb-4">System Features</h3>
+            {/* Content for System Features */}
             <ul className="list-disc list-inside space-y-3 text-gray-300">
               <li>Accurate astronomical calculations using Kepler's laws</li>
               <li>Real-time orbital positions based on JPL Horizons data</li>
@@ -420,8 +423,9 @@ export default function LandingPage() {
               <li>Continuous integration and deployment</li>
               <li>Open source project on GitHub</li>
             </ul>
-          </div>
-        </div>
+          </div> {/* End Column 2 */}
+        </div> {/* End Grid */}
+
 
         <div className="bg-white/10 p-6 rounded-lg mb-16">
           <h3 className="text-xl font-bold text-white mb-4">Use Cases</h3>
@@ -444,6 +448,7 @@ export default function LandingPage() {
         </div>
       </main>
 
+      {/* Footer Section */}
       <footer className="bg-black/30 mt-16 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-400">
           <p>Built for space enthusiasts and network engineers</p>
@@ -451,6 +456,7 @@ export default function LandingPage() {
           <p className="mt-4 text-sm">Data updates hourly based on actual orbital mechanics</p>
         </div>
       </footer>
+      {/* End Footer Section */}
     </div>
   );
 }
