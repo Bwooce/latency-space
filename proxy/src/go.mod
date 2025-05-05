@@ -23,5 +23,3 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
-
-replace github.com/latency-space/shared => ../../shared
