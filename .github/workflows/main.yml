@@ -313,6 +313,11 @@ jobs:
               echo "Warning: Diagnostic script issues encountered, but continuing deployment"
             fi
             
+            echo "Copying diagnostic report to Nginx root..."
+            sudo cp /tmp/latency-space/html/diagnostic.html /var/www/html/diagnostic.html
+            sudo chmod 644 /var/www/html/diagnostic.html
+            echo "Diagnostic report copied."
+            
             echo "Deployment completed successfully!"
 
       # Verify that deployment was successful
