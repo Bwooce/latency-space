@@ -24,8 +24,18 @@ jobs:
         with:
           go-version: '1.21'
 
+      - name: Configure SSH for private Go modules
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Configure Git for SSH auth
+        run: git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
       - name: Install dependencies
         working-directory: ./proxy/src
+        env: # Add this
+          GOPRIVATE: github.com/latency-space/* # Add this
         run: |
           # Ensure go.mod and go.sum are up to date
           go mod tidy
