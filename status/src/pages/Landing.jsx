@@ -372,22 +372,11 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
           <div className="bg-white/10 p-6 rounded-lg">
             <h3 className="text-xl font-bold text-white mb-4">Advanced Usage</h3>
-            <div className="space-y-4 text-gray-300">
-              <div>
-                <h4 className="font-bold">Multi-level Domain Routing</h4>
-                <p className="text-sm">Access any website through multiple celestial bodies:</p>
-                <code className="block bg-black/30 p-2 rounded mt-1">
-                  http://www.example.com.titan.saturn.latency.space/
-                </code>
-                <p className="text-gray-400 text-xs mt-1">Routes to example.com with combined Saturn + Titan latency</p>
-              </div>
-
               <div>
                 <h4 className="font-bold">Custom Applications</h4>
                 <p className="text-sm">Configure applications to use SOCKS5 proxy:</p>
                 <ul className="list-disc list-inside text-sm">
                   <li>VoIP applications</li>
-                  <li>Video conferencing</li>
                   <li>Messaging applications</li>
                   <li>Gaming (for the ultimate challenge)</li>
                 </ul>
@@ -408,7 +397,6 @@ export default function LandingPage() {
               <li>Real-time orbital positions based on JPL Horizons data</li>
               <li>Support for all planets, major moons, and spacecraft</li>
               <li>HTTP and SOCKS5 proxy interfaces</li>
-              <li>Multi-level subdomains for compound latency effects</li>
               <li>Documentation and debugging endpoints</li>
               <li>Continuous integration and deployment</li>
               <li>Open source project on GitHub</li>
