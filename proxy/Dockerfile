@@ -4,22 +4,16 @@
 FROM golang:1.21.6-alpine3.19 AS builder
 
 # Install build dependencies (minimal)
-RUN apk add --no-cache gcc musl-dev git openssh-client
+RUN apk add --no-cache gcc musl-dev git
 
 # Set working directory
 WORKDIR /app
-
-# Configure Git for SSH access
-RUN mkdir -p /root/.ssh && ssh-keyscan github.com >> /root/.ssh/known_hosts
-RUN git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
-# Mount SSH key here using --mount=type=ssh when building
 
 # Copy source code files
 COPY src/ /app/
 COPY src/templates /app/templates/
 
 # Build with no vendor directory and fixed dependencies
-ENV GOPRIVATE=github.com/latency-space/*
 ENV CGO_ENABLED=0 \
     GOOS=linux
 RUN go mod download && \
