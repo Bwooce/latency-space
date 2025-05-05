@@ -13,8 +13,8 @@ WORKDIR /app
 COPY shared/ /shared/
 
 # Copy source code files
-COPY src/ /app/
-COPY src/templates /app/templates/
+COPY proxy/src /app
+COPY proxy/src/templates /app/templates
 
 # Build with no vendor directory and fixed dependencies
 ENV CGO_ENABLED=0 \
