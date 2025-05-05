@@ -1,32 +1,50 @@
 # Use specific golang Alpine version for builder
 FROM golang:1.21.6-alpine3.19 AS builder
 
-# Install only essential build dependencies
+# Install essential build dependencies and git for go modules
 RUN apk add --no-cache \
     gcc=~13.2 \
-    musl-dev=~1.2
+    musl-dev=~1.2 \
+    git=~2.43
 
-# Set working directory
-WORKDIR /build
+# Set up a completely clean build environment
+WORKDIR /app
 
-# Copy the entire repo to have access to both proxy and shared code
-COPY . /build/
+# First copy just shared package to build it locally
+COPY shared/ /app/shared/
 
-# Set up the module environment
-WORKDIR /build/proxy/src
+# Create a temporary module for the shared package
+WORKDIR /app/shared
+RUN go mod init github.com/latency-space/shared && \
+    go mod tidy
 
-# Configure Go to use modules instead of vendor for the initial build setup
+# Now set up the proxy build
+WORKDIR /app/proxy
+
+# Copy the proxy source code
+COPY proxy/src/ /app/proxy/src/
+
+# Work in the src directory
+WORKDIR /app/proxy/src
+
+# Configure Go environment for building
 ENV CGO_ENABLED=0 \
-    GOOS=linux
+    GOOS=linux \
+    GO111MODULE=on
 
-# Handle the shared module and vendoring properly
-RUN cp /build/proxy/src/go.mod /build/proxy/src/go.mod.bak && \
-    go env -w GO111MODULE=on && \
-    go mod vendor && \
-    cp -r /build/shared/ /build/proxy/src/vendor/github.com/latency-space/shared/
+# Create or modify go.mod to use the local shared module
+RUN go mod init github.com/latency-space/proxy && \
+    go mod edit -require github.com/latency-space/shared@v0.0.0 && \
+    go mod edit -replace github.com/latency-space/shared=/app/shared && \
+    go get github.com/prometheus/client_golang/prometheus && \
+    go get github.com/prometheus/client_golang/prometheus/promhttp && \
+    go get golang.org/x/crypto/acme/autocert && \
+    go get github.com/gorilla/websocket && \
+    go get golang.org/x/time/rate && \
+    go mod tidy
 
-# Build with module dependencies
-RUN go build -mod=mod -o /latency-proxy
+# Build with the properly configured modules
+RUN go build -o /latency-proxy
 
 # Use specific Alpine version for final image
 FROM alpine:3.19.1
@@ -43,7 +61,7 @@ COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
 RUN chmod +x /usr/local/bin/latency-proxy
 
 # Copy templates
-COPY proxy/src/templates/ /app/templates/
+COPY --from=builder /app/proxy/src/templates/ /app/templates/
 
 # Expose ports
 EXPOSE 80 443 1080 9090
