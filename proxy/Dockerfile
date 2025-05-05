@@ -9,6 +9,9 @@ RUN apk add --no-cache gcc musl-dev git
 # Set working directory
 WORKDIR /app
 
+# Copy shared directory
+COPY shared/ /shared/
+
 # Copy source code files
 COPY src/ /app/
 COPY src/templates /app/templates/
