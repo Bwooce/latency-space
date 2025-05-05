@@ -7,10 +7,12 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 var celestialObjects []CelestialObject
+var DistanceCacheMutex sync.RWMutex // Exported mutex for cache access
 
 func CalculateLatency(distanceKm float64) time.Duration {
 	// Use test mode with fixed low latency if enabled
@@ -454,13 +456,29 @@ type DistanceEntry struct {
 var lastDistanceUpdate time.Time
 var distanceEntries []DistanceEntry // store the current distances
 
-// Calculate distances from Earth to all objects
+// Calculate distances from Earth to all objects, using double-check locking
 func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
+	// First check (read lock) - cheap check if update is needed
+	DistanceCacheMutex.RLock()
+	needsUpdate := len(distanceEntries) == 0 || time.Since(lastDistanceUpdate) >= time.Hour
+	DistanceCacheMutex.RUnlock()
 
-	if len(distanceEntries) > 0 && time.Since(lastDistanceUpdate) < time.Hour {
-		log.Printf("No distances update required")
+	if !needsUpdate {
+		//log.Printf("No distances update required (quick check)")
 		return
 	}
+
+	// Acquire write lock to perform the update
+	DistanceCacheMutex.Lock()
+	defer DistanceCacheMutex.Unlock() // Ensure lock is released
+
+	// Second check (write lock) - re-check condition after acquiring lock
+	if len(distanceEntries) > 0 && time.Since(lastDistanceUpdate) < time.Hour {
+		//log.Printf("No distances update required (double check)")
+		return // Another goroutine updated the cache while we waited for the lock
+	}
+
+	log.Printf("Updating distances cache...")
 
 	// Find Earth
 	earth, found := findObjectByName(objects, "Earth")
@@ -493,9 +511,13 @@ func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
 }
 
 func getCurrentDistance(bodyName string) float64 {
-	log.Printf("Size of celestialObjects: %d", len(celestialObjects))
-	calculateDistancesFromEarth(celestialObjects, time.Now()) // update if required
-	log.Printf("Size of distanceObjects: %d", len(distanceEntries))
+	//log.Printf("Size of celestialObjects: %d", len(celestialObjects))
+	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated (handles its own locking)
+
+	DistanceCacheMutex.RLock() // Acquire read lock to access the cache
+	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
+
+	//log.Printf("Size of distanceObjects: %d", len(distanceEntries))
 	for _, body := range distanceEntries {
 		//log.Printf("body: %s, type: %s", body.Object.Name, body.Object.Type)
 		if strings.EqualFold(body.Object.Name, bodyName) {
@@ -507,10 +529,15 @@ func getCurrentDistance(bodyName string) float64 {
 }
 
 // Display objects of a specific type
-func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string) {
-	// Filter entries by type
+func printObjectsByType(w io.Writer, objectType string) {
+	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated
+
+	DistanceCacheMutex.RLock()         // Acquire read lock
+	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
+
+	// Filter entries by type within the lock
 	filteredEntries := make([]DistanceEntry, 0, 10)
-	for _, entry := range entries {
+	for _, entry := range distanceEntries { // Access shared data under lock
 		if entry.Object.Type == objectType {
 			filteredEntries = append(filteredEntries, entry)
 		}
@@ -545,6 +572,7 @@ func printObjectsByType(w io.Writer, entries []DistanceEntry, objectType string)
 		"Name", "Type", "Distance (km)", "Distance", "RTT", "Visibility")
 	fmt.Fprintln(w, "--------------------------------------------------------------------------------------")
 
+	// Iterate over the filtered (local) copy
 	for _, entry := range filteredEntries {
 		visibility := "Visible"
 		if entry.Occluded {

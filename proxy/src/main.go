@@ -616,11 +616,12 @@ func (s *Server) printCelestialDistances(w http.ResponseWriter) {
 	fmt.Fprintln(w, "============================================")
 	fmt.Fprintf(w, "Current Time: %s\n\n", time.Now().Format(time.RFC3339))
 
-	printObjectsByType(w, distanceEntries, "planet")
-	printObjectsByType(w, distanceEntries, "moon")
-	printObjectsByType(w, distanceEntries, "asteroid")
-	printObjectsByType(w, distanceEntries, "dwarf_planet")
-	printObjectsByType(w, distanceEntries, "spacecraft")
+	// Call printObjectsByType without distanceEntries argument, as it now uses the global cache
+	printObjectsByType(w, "planet")
+	printObjectsByType(w, "moon")
+	printObjectsByType(w, "asteroid")
+	printObjectsByType(w, "dwarf_planet")
+	printObjectsByType(w, "spacecraft")
 
 }
 
@@ -641,18 +642,22 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 		Objects:   make(map[string][]StatusEntry),
 	}
 
+	// Acquire read lock to safely access distanceEntries
+	DistanceCacheMutex.RLock()
+	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
+
 	// Populate the response data
 	for _, obj := range celestialObjects {
 		if obj.Type == "star" { // Skip the Sun for this endpoint
 			continue
 		}
 
-		// Find the corresponding distance entry by iterating through the slice
+		// Find the corresponding distance entry by iterating through the slice (under read lock)
 		var distance float64
 		var occluded bool
 		var found bool // Flag to track if the entry was found
 
-		for _, entry := range distanceEntries {
+		for _, entry := range distanceEntries { // Accessing shared data
 			// Compare names case-insensitively
 			if strings.EqualFold(entry.Object.Name, obj.Name) {
 				distance = entry.Distance
