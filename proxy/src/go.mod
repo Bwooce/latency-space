@@ -2,7 +2,7 @@ module github.com/latency-space/proxy
 
 go 1.21
 
-require github.com/Bwooce/latency-space/shared v0.0.0
+require github.com/latency-space/shared v0.0.0
 require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/prometheus/client_golang v1.20.5
@@ -23,3 +23,5 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
+
+replace github.com/latency-space/shared => ../../shared
