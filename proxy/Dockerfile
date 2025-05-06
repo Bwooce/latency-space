@@ -17,7 +17,10 @@ RUN apk add --no-cache gcc musl-dev git
 # Set working directory
 WORKDIR /app
 
-# Copy go.mod and go.sum first from the proxy directory (current context)
+# Copy the 'shared' directory from the 'copier' stage first
+COPY --from=copier /source/shared /shared
+
+# Copy go.mod and go.sum from the proxy directory (current context)
 COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
@@ -25,9 +28,6 @@ RUN go mod download
 # Copy source code from the proxy directory (current context) AFTER go mod download
 COPY src ./src
 # Removed template copy from builder stage
-
-# Copy the 'shared' directory from the 'copier' stage BEFORE build
-COPY --from=copier /source/shared /shared
 
 # Set build environment variables
 ENV CGO_ENABLED=0 GOOS=linux
