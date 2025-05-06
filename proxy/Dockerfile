@@ -1,13 +1,6 @@
 # proxy/Dockerfile
 
-# Stage 1: Copier - Capture the full project context including 'shared'
-FROM alpine:3.19.1 AS copier
-WORKDIR /source
-# This COPY command assumes the docker build command is run from the project root
-# It copies the entire project content into the /source directory of this stage
-COPY . .
-
-# Stage 2: Builder - Build the Go application
+# Builder Stage - Build the Go application
 # Use Go 1.24 on Alpine
 FROM golang:1.24-alpine AS builder
 
@@ -17,8 +10,8 @@ RUN apk add --no-cache gcc musl-dev git
 # Set working directory
 WORKDIR /app
 
-# Copy the 'shared' directory from the 'copier' stage first
-COPY --from=copier /source/shared /shared
+# Copy shared directory (assuming it's copied into context beforehand)
+COPY shared /shared
 
 # Copy go.mod and go.sum from the proxy directory (current context)
 COPY go.mod go.sum ./
@@ -32,12 +25,8 @@ COPY src ./src
 # Set build environment variables
 ENV CGO_ENABLED=0 GOOS=linux
 # Build the application
-# Change working directory to the source directory
-WORKDIR /app/src
-# Build targeting the current directory (.)
-RUN go build -mod=mod -o /latency-proxy .
-# Change back to the parent directory
-WORKDIR /app
+# Build targeting the main package within the copied src directory
+RUN go build -mod=mod -o /latency-proxy ./src/main.go
 
 # Use specific Alpine version for final image
 FROM alpine:3.19.1

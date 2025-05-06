@@ -101,10 +101,13 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
 
+      - name: Prepare proxy build context
+        run: cp -r shared proxy/shared
+
       - name: Build and push proxy
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./proxy # Changed build context to proxy directory
           file: ./proxy/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
