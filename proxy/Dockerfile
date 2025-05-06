@@ -24,8 +24,7 @@ RUN go mod download
 
 # Copy source code from the proxy directory (current context) AFTER go mod download
 COPY src ./src
-# Copy templates from the proxy directory (current context)
-COPY src/templates ./templates
+# Removed template copy from builder stage
 
 # Copy the 'shared' directory from the 'copier' stage BEFORE build
 COPY --from=copier /source/shared /shared
@@ -48,8 +47,8 @@ RUN apk add --no-cache \
 
  # Copy the built binary from the builder stage
  COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
- # Copy templates from the builder stage
- COPY --from=builder /app/templates /app/templates
+ # Copy templates from the builder stage (from the copied src directory)
+ COPY --from=builder /app/src/templates /app/templates
  # Copy shared data from the builder stage
  COPY --from=builder /shared /shared
 RUN chmod +x /usr/local/bin/latency-proxy
