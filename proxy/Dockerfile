@@ -8,8 +8,8 @@ WORKDIR /source
 COPY . .
 
 # Stage 2: Builder - Build the Go application
-# Use a specific golang Alpine version
-FROM golang:1.21.6-alpine3.19 AS builder
+# Use Go 1.24 on Alpine
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies (minimal)
 RUN apk add --no-cache gcc musl-dev git
