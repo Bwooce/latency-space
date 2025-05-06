@@ -1,7 +1,8 @@
 # proxy/Dockerfile
 
-# Use a specific golang Alpine version
-FROM golang:1.21.6-alpine3.19 AS builder
+# Builder Stage - Build the Go application
+# Use Go 1.24 on Alpine
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies (minimal)
 RUN apk add --no-cache gcc musl-dev git
@@ -9,18 +10,23 @@ RUN apk add --no-cache gcc musl-dev git
 # Set working directory
 WORKDIR /app
 
-# Copy shared directory
-COPY shared/ /shared/
+# Copy shared directory (assuming it's copied into context beforehand)
+COPY shared /shared
 
-# Copy source code files
-COPY proxy/src /app
-COPY proxy/src/templates /app/templates
+# Copy go.mod and go.sum from the proxy directory (current context)
+COPY go.mod go.sum ./
+# Download dependencies
+RUN go mod download
 
-# Build with no vendor directory and fixed dependencies
-ENV CGO_ENABLED=0 \
-    GOOS=linux
-RUN go mod download && \
-    go build -mod=mod -o latency-proxy
+# Copy source code from the proxy directory (current context) AFTER go mod download
+COPY src ./src
+# Removed template copy from builder stage
+
+# Set build environment variables
+ENV CGO_ENABLED=0 GOOS=linux
+# Build the application
+# Build targeting the main package within the copied src directory
+RUN go build -mod=mod -o /latency-proxy ./src/main.go
 
 # Use specific Alpine version for final image
 FROM alpine:3.19.1
@@ -33,12 +39,15 @@ RUN apk add --no-cache \
     libc-utils \
     && mkdir -p /etc/latency-space
 
-# Copy the binary and templates
-COPY --from=builder /app/latency-proxy /usr/local/bin/latency-proxy
-COPY --from=builder /app/templates/ /app/templates/
+ # Copy the built binary from the builder stage
+ COPY --from=builder /latency-proxy /usr/local/bin/latency-proxy
+ # Copy templates from the builder stage (from the copied src directory)
+ COPY --from=builder /app/src/templates /app/templates
+ # Copy shared data from the builder stage
+ COPY --from=builder /shared /shared
 RUN chmod +x /usr/local/bin/latency-proxy
 
-# Expose ports
+ # Expose necessary ports
 EXPOSE 80 443 1080 9090
 
 CMD ["/usr/local/bin/latency-proxy"]
