@@ -32,8 +32,12 @@ COPY --from=copier /source/shared /shared
 # Set build environment variables
 ENV CGO_ENABLED=0 GOOS=linux
 # Build the application
-# Build targeting the main package within the copied src directory
-RUN go build -mod=mod -o /latency-proxy ./src/main.go
+# Change working directory to the source directory
+WORKDIR /app/src
+# Build targeting the current directory (.)
+RUN go build -mod=mod -o /latency-proxy .
+# Change back to the parent directory
+WORKDIR /app
 
 # Use specific Alpine version for final image
 FROM alpine:3.19.1
