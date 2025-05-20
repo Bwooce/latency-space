@@ -9,10 +9,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/latency-space/shared/celestial"
 )
 
-var celestialObjects []CelestialObject
+var celestialObjects []celestial.CelestialObject
 var DistanceCacheMutex sync.RWMutex // Exported mutex for cache access
+
+func init() {
+	celestialObjects = celestial.InitSolarSystemObjects()
+	log.Printf("Celestial objects initialized. Count: %d", len(celestialObjects))
+}
 
 func CalculateLatency(distanceKm float64) time.Duration {
 	// Use test mode with fixed low latency if enabled
@@ -21,7 +28,7 @@ func CalculateLatency(distanceKm float64) time.Duration {
 	}
 
 	// Normal latency calculation
-	seconds := distanceKm / SPEED_OF_LIGHT
+	seconds := distanceKm / celestial.SPEED_OF_LIGHT
 	return time.Duration(seconds * float64(time.Second))
 }
 
@@ -79,7 +86,7 @@ func timeToJulianDate(t time.Time) float64 {
 func calculateTDBMinusTT(jd float64) float64 {
 	// Simplified algorithm for TDB-TT
 	// This is a polynomial approximation
-	t := (jd - J2000_EPOCH) / DAYS_PER_CENTURY
+	t := (jd - celestial.J2000_EPOCH) / celestial.DAYS_PER_CENTURY
 	g := degToRad(357.53 + 35999.050*t) // Mean anomaly of the Sun
 
 	// TDB - TT in seconds
@@ -88,7 +95,7 @@ func calculateTDBMinusTT(jd float64) float64 {
 
 // Convert TT to TDB Julian date
 func TTtoTDB(ttJD float64) float64 {
-	return ttJD + calculateTDBMinusTT(ttJD)/SECONDS_PER_DAY
+	return ttJD + calculateTDBMinusTT(ttJD)/celestial.SECONDS_PER_DAY
 }
 
 // Calculate centuries since J2000 for TDB time
@@ -98,13 +105,13 @@ func centuriesSinceJ2000TDB(t time.Time) float64 {
 
 	// Add approximate TT-UTC correction (crude but sufficient for this purpose)
 	// More accurate would be to use a table of Delta-T values
-	ttJD := jdUTC + 70.0/SECONDS_PER_DAY // Approximate TT-UTC in 2025
+	ttJD := jdUTC + 70.0/celestial.SECONDS_PER_DAY // Approximate TT-UTC in 2025
 
 	// Convert TT to TDB
 	tdbJD := TTtoTDB(ttJD)
 
 	// Calculate centuries
-	return (tdbJD - J2000_EPOCH) / DAYS_PER_CENTURY
+	return (tdbJD - celestial.J2000_EPOCH) / celestial.DAYS_PER_CENTURY
 }
 
 // Solve Kepler's equation using a high-precision algorithm
@@ -139,7 +146,7 @@ func solveKeplerEquation(M float64, e float64) float64 {
 
 // calculateVSOP87Position calculates planetary positions using VSOP87 algorithm
 // This is a simplified version with only the main periodic terms
-func calculateVSOP87Position(obj CelestialObject, T float64) Vector3 {
+func calculateVSOP87Position(obj celestial.CelestialObject, T float64) celestial.Vector3 {
 	// Calculate the object's orbital elements at time T (centuries from J2000)
 	a := obj.A + T*obj.DA
 	e := obj.E + T*obj.DE
@@ -215,11 +222,11 @@ func calculateVSOP87Position(obj CelestialObject, T float64) Vector3 {
 	y := xEcl*math.Sin(node) + yEcl*math.Cos(node)
 	z := zEcl
 
-	return Vector3{X: x, Y: y, Z: z}
+	return celestial.Vector3{X: x, Y: y, Z: z}
 }
 
 // Calculate local position relative to parent body
-func calculateLocalPosition(obj CelestialObject, T float64) Vector3 {
+func calculateLocalPosition(obj celestial.CelestialObject, T float64) celestial.Vector3 {
 	// Calculate the object's orbital elements at time T
 	a := obj.A + T*obj.DA
 	e := obj.E + T*obj.DE
@@ -276,14 +283,14 @@ func calculateLocalPosition(obj CelestialObject, T float64) Vector3 {
 	y := xInc*math.Sin(node) + yInc*math.Cos(node)
 	z := zInc
 
-	return Vector3{X: x, Y: y, Z: z}
+	return celestial.Vector3{X: x, Y: y, Z: z}
 }
 
 // GetObjectPosition calculates the position of an object at a given time
-func GetObjectPosition(obj CelestialObject, objects []CelestialObject, t time.Time) Vector3 {
+func GetObjectPosition(obj celestial.CelestialObject, objects []celestial.CelestialObject, t time.Time) celestial.Vector3 {
 	// For the Sun, return the origin
 	if obj.Name == "Sun" {
-		return Vector3{X: 0, Y: 0, Z: 0}
+		return celestial.Vector3{X: 0, Y: 0, Z: 0}
 	}
 
 	// Calculate centuries since J2000 using TDB
@@ -297,7 +304,7 @@ func GetObjectPosition(obj CelestialObject, objects []CelestialObject, t time.Ti
 	// For moons and spacecraft (parent-relative orbits)
 	if obj.Type == "moon" || obj.Type == "spacecraft" {
 		// Get parent body's position
-		var parent CelestialObject
+		var parent celestial.CelestialObject
 		parentFound := false
 
 		for _, p := range objects {
@@ -310,7 +317,7 @@ func GetObjectPosition(obj CelestialObject, objects []CelestialObject, t time.Ti
 
 		if !parentFound {
 			fmt.Printf("Error: Parent body %s not found for %s\n", obj.ParentName, obj.Name)
-			return Vector3{X: 0, Y: 0, Z: 0}
+			return celestial.Vector3{X: 0, Y: 0, Z: 0}
 		}
 
 		// Get parent position
@@ -319,15 +326,18 @@ func GetObjectPosition(obj CelestialObject, objects []CelestialObject, t time.Ti
 		// Calculate object's position relative to parent
 		localPos := calculateLocalPosition(obj, T)
 
-		// Convert to AU if the position is in km
-		if obj.Type == "moon" || obj.Type == "spacecraft" {
-			localPos.X /= AU
-			localPos.Y /= AU
-			localPos.Z /= AU
+		// Convert localPos to AU if it was calculated in km.
+		// Moons always have 'A' in km.
+		// Spacecraft have 'A' in km if their parent is not the Sun.
+		// If parent is Sun, 'A' is in AU, so localPos is already in AU.
+		if obj.Type == "moon" || (obj.Type == "spacecraft" && obj.ParentName != "Sun") {
+			localPos.X /= celestial.AU
+			localPos.Y /= celestial.AU
+			localPos.Z /= celestial.AU
 		}
 
-		// Add parent position to get heliocentric position
-		return Vector3{
+		// Add parent position (which is in AU) to get heliocentric position (in AU)
+		return celestial.Vector3{
 			X: parentPos.X + localPos.X,
 			Y: parentPos.Y + localPos.Y,
 			Z: parentPos.Z + localPos.Z,
@@ -335,11 +345,11 @@ func GetObjectPosition(obj CelestialObject, objects []CelestialObject, t time.Ti
 	}
 
 	// Default case
-	return Vector3{X: 0, Y: 0, Z: 0}
+	return celestial.Vector3{X: 0, Y: 0, Z: 0}
 }
 
 // CalculateDistance calculates the distance between two objects in kilometers
-func CalculateDistance(obj1, obj2 CelestialObject, objects []CelestialObject, t time.Time) float64 {
+func CalculateDistance(obj1, obj2 celestial.CelestialObject, objects []celestial.CelestialObject, t time.Time) float64 {
 	// Get positions
 	pos1 := GetObjectPosition(obj1, objects, t)
 	pos2 := GetObjectPosition(obj2, objects, t)
@@ -349,20 +359,20 @@ func CalculateDistance(obj1, obj2 CelestialObject, objects []CelestialObject, t 
 
 	// Calculate distance in AU and convert to kilometers
 	distanceAU := distanceVector.Magnitude()
-	distanceKm := distanceAU * AU
+	distanceKm := distanceAU * celestial.AU
 
 	return distanceKm
 }
 
 // IsOccluded determines if target is occluded from the viewpoint of observer by any other object
-func IsOccluded(observer, target CelestialObject, objects []CelestialObject, t time.Time) (bool, CelestialObject) {
+func IsOccluded(observer, target celestial.CelestialObject, objects []celestial.CelestialObject, t time.Time) (bool, celestial.CelestialObject) {
 	// Get positions
 	observerPos := GetObjectPosition(observer, objects, t)
 	targetPos := GetObjectPosition(target, objects, t)
 
 	// Calculate the direction vector from observer to target
 	dirVector := targetPos.Subtract(observerPos)
-	distToTarget := dirVector.Magnitude() * AU // Distance in km
+	distToTarget := dirVector.Magnitude() * celestial.AU // Distance in km
 
 	// Normalize the direction vector
 	dirNorm := dirVector.Normalize()
@@ -379,7 +389,7 @@ func IsOccluded(observer, target CelestialObject, objects []CelestialObject, t t
 
 		// Vector from observer to the object
 		objVector := objPos.Subtract(observerPos)
-		distToObj := objVector.Magnitude() * AU // Distance in km
+		distToObj := objVector.Magnitude() * celestial.AU // Distance in km
 
 		// If the object is further away than the target, it can't occlude
 		if distToObj >= distToTarget {
@@ -397,7 +407,7 @@ func IsOccluded(observer, target CelestialObject, objects []CelestialObject, t t
 		// Calculate the perpendicular distance from the object to the line of sight
 		projectionVector := dirNorm.Scale(projection)
 		perpendicularVector := objVector.Subtract(projectionVector)
-		perpendicularDist := perpendicularVector.Magnitude() * AU // in km
+		perpendicularDist := perpendicularVector.Magnitude() * celestial.AU // in km
 
 		// Check if the perpendicular distance is less than the radius of the object
 		// Add margins for specific object types
@@ -416,17 +426,17 @@ func IsOccluded(observer, target CelestialObject, objects []CelestialObject, t t
 	}
 
 	// No occlusion found
-	return false, CelestialObject{}
+	return false, celestial.CelestialObject{}
 }
 
 // Helper function to find an object by name
-func findObjectByName(objects []CelestialObject, name string) (CelestialObject, bool) {
+func findObjectByName(objects []celestial.CelestialObject, name string) (celestial.CelestialObject, bool) {
 	for _, obj := range objects {
 		if obj.Name == name || strings.EqualFold(obj.Name, name) {
 			return obj, true
 		}
 	}
-	return CelestialObject{}, false
+	return celestial.CelestialObject{}, false
 }
 
 // ParseDate parses a date string in format YYYY-MM-DD
@@ -447,17 +457,17 @@ func FormatDistance(dist float64) string {
 
 // Create a slice to store results
 type DistanceEntry struct {
-	Object     CelestialObject
+	Object     celestial.CelestialObject
 	Distance   float64
 	Occluded   bool
-	OccludedBy CelestialObject
+	OccludedBy celestial.CelestialObject
 }
 
 var lastDistanceUpdate time.Time
 var distanceEntries []DistanceEntry // store the current distances
 
 // Calculate distances from Earth to all objects, using double-check locking
-func calculateDistancesFromEarth(objects []CelestialObject, t time.Time) {
+func calculateDistancesFromEarth(objects []celestial.CelestialObject, t time.Time) {
 	// First check (read lock) - cheap check if update is needed
 	DistanceCacheMutex.RLock()
 	needsUpdate := len(distanceEntries) == 0 || time.Since(lastDistanceUpdate) >= time.Hour
