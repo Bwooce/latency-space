@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"os"
 )
 
 // SOCKS constants
