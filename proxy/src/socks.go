@@ -45,6 +45,8 @@ const (
 	SOCKS5_REP_ADDR_NOT_SUPPORTED  = 0x08
 )
 
+const readWriteBufferTime = 30 * time.Second
+
 // SOCKSHandler handles SOCKS protocol connections
 type SOCKSHandler struct {
 	conn     net.Conn
@@ -336,11 +338,22 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	// Client -> Target with celestial body latency
 	go func() {
 		defer wg.Done()
+		defer target.Close() // Ensure target is closed when this goroutine exits
+		defer s.conn.Close() // Ensure client conn is closed when this goroutine exits
+
 		buf := make([]byte, 32*1024)
 		for {
+			deadline := time.Now().Add(latency*2 + readWriteBufferTime)
+			if err := s.conn.SetReadDeadline(deadline); err != nil {
+				log.Printf("Error setting read deadline for client: %v", err)
+				break
+			}
+
 			n, err := s.conn.Read(buf)
 			if err != nil {
-				if err != io.EOF {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					log.Printf("Timeout reading from client: %v", err)
+				} else if err != io.EOF {
 					log.Printf("Error reading from client: %v", err)
 				}
 				break
@@ -358,17 +371,27 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 				break
 			}
 		}
-		target.Close()
 	}()
 
 	// Target -> Client with celestial body latency
 	go func() {
 		defer wg.Done()
+		defer s.conn.Close() // Ensure client conn is closed when this goroutine exits
+		defer target.Close() // Ensure target is closed when this goroutine exits
+
 		buf := make([]byte, 32*1024)
 		for {
+			deadline := time.Now().Add(latency*2 + readWriteBufferTime)
+			if err := target.SetReadDeadline(deadline); err != nil {
+				log.Printf("Error setting read deadline for target: %v", err)
+				break
+			}
+
 			n, err := target.Read(buf)
 			if err != nil {
-				if err != io.EOF {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					log.Printf("Timeout reading from target: %v", err)
+				} else if err != io.EOF {
 					log.Printf("Error reading from target: %v", err)
 				}
 				break
@@ -386,7 +409,6 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 				break
 			}
 		}
-		s.conn.Close()
 	}()
 
 	// Wait for both goroutines to complete

@@ -273,9 +273,9 @@ server {
         proxy_cache_bypass \$http_upgrade;
         
         # Set timeouts to prevent hanging connections
-        proxy_connect_timeout 10s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_connect_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_read_timeout 86400s;
     }
     
     # Return 444 (no response) for suspicious requests
