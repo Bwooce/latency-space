@@ -685,6 +685,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 140.81, // AU, as of 2025 (approximate)
 			E:                 0.988,  // High eccentricity for escape trajectory
 			I:                 35.13,  // Degrees
+			DA:                0.010608,
+			DL:                6213.56,
 			LaunchDate:        "1977-09-05",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -699,6 +701,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 116.43, // AU, as of 2025 (approximate)
 			E:                 0.981,  // High eccentricity for escape trajectory
 			I:                 46.2,   // Degrees
+			DA:                -0.116584,
+			DL:                4414.87,
 			LaunchDate:        "1977-08-20",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -713,6 +717,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 45.21, // AU, as of 2025 (approximate)
 			E:                 0.852, // High eccentricity for escape trajectory
 			I:                 2.45,  // Degrees
+			DA:                -0.299682,
+			DL:                2634.77,
 			LaunchDate:        "2006-01-19",
 			TransmitterActive: true,
 			FrequencyMHz:      8438.0, // X-band downlink frequency
@@ -727,6 +733,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 0.294, // AU, highly elliptical orbit
 			E:                 0.860, // Very high eccentricity
 			I:                 3.4,   // Degrees
+			DA:                -2.108227,
+			DL:                -6445.07,
 			LaunchDate:        "2018-08-12",
 			TransmitterActive: true,
 			FrequencyMHz:      8421.0, // X-band downlink frequency
@@ -741,6 +749,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 1.01,  // AU, L2 point distance
 			E:                 0.002, // Nearly circular halo orbit
 			I:                 0.1,   // Small inclination
+			DA:                0.289139,
+			DL:                -7647.60,
 			LaunchDate:        "2021-12-25",
 			TransmitterActive: true,
 			FrequencyMHz:      25900.0, // Ka-band downlink frequency
