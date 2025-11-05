@@ -379,27 +379,53 @@ sys     0m0.012s
 
 ---
 
-## **URGENT: Root Cause Analysis**
+## ✅ **ROOT CAUSE FOUND AND FIXED!**
 
-### ✅ Mars is NOT Occluded
+### The Problem
 
-I checked the API and confirmed **Mars is currently NOT occluded**, so occlusion is not the issue.
+When using `curl --socks5 mars.latency.space:1080 https://example.com`, curl resolves `example.com` to an IPv6 address **locally on your machine** and sends that IP address to the SOCKS5 proxy:
 
-### 🔍 Remaining Possible Causes (In Order of Likelihood)
+```
+2025/11/05 12:07:23 SOCKS destination rejected: 2600:1406:5e00:6::17ce:bc12 is not in the allowed list
+```
 
-Given that the error occurs in 1.1 seconds with no latency applied, the failure happens BEFORE line 282 (the latency sleep). This narrows it down to:
+The security validator only allows **domain names** (like `example.com`), not IP addresses. This is by design to prevent proxy abuse.
 
-1. **Docker Container DNS Resolution Failure** (MOST LIKELY)
-   - Container cannot resolve `example.com` to an IP address
-   - Would cause "host unreachable" error at connection attempt
+### The Solution
 
-2. **Security Validator Incorrectly Rejecting**
-   - Despite `example.com` being in allowed list, validation might be failing
-   - Could be case sensitivity or unexpected format issue
+**Use `--socks5-hostname` instead of `--socks5`:**
 
-3. **Docker Network Routing Issue**
-   - Container can resolve DNS but cannot route to external internet
-   - Outbound connections blocked by firewall or network config
+```bash
+# ✅ CORRECT - Sends domain name to proxy
+curl --socks5-hostname mars.latency.space:1080 https://example.com
+
+# ❌ WRONG - Resolves to IP locally, sends IP to proxy
+curl --socks5 mars.latency.space:1080 https://example.com
+```
+
+The `--socks5-hostname` flag tells curl to send the **hostname** to the proxy and let the proxy resolve it, instead of resolving it locally.
+
+### Why This Design?
+
+This is intentional for security:
+- Prevents abuse by attackers using arbitrary IP addresses
+- Allows the proxy to validate against an allowed domain list
+- Follows SOCKS5 RFC best practices (clients SHOULD send hostnames when possible)
+- Enables proper DNS resolution on the server side
+
+### Code Changes Made
+
+1. **Added helpful error messages** (proxy/src/socks_helpers.go:94-96):
+   ```go
+   if IsIPAddress(host) {
+       log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
+       return false
+   }
+   ```
+
+2. **Updated README.md** with clear instructions on using `--socks5-hostname`
+
+3. **Added IP detection function** (proxy/src/security.go:153-155) to identify when IP addresses are sent
 
 ---
 
