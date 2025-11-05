@@ -742,10 +742,14 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				dstAddrPort := net.JoinHostPort(dstHost, strconv.Itoa(int(dstPort)))
 
 				// --- Security Checks ---
-				// Check if the destination host is allowed
-				if IsIPAddress(dstHost) {
-					log.Printf("UDP Relay: Destination %s is an IP address. Use --socks5-hostname to send domain names to the proxy. Dropping packet.", dstHost)
-					continue
+				// Check if the destination host is a non-loopback IP address (reject public IPs, allow loopback for testing)
+				if ip := net.ParseIP(dstHost); ip != nil {
+					// Allow loopback addresses (127.0.0.1, ::1) for testing
+					if !ip.IsLoopback() {
+						log.Printf("UDP Relay: Destination %s is an IP address. Use --socks5-hostname to send domain names to the proxy. Dropping packet.", dstHost)
+						continue
+					}
+					// Loopback IP - proceed to check if it's in the allowed list
 				}
 				if !security.IsAllowedHost(dstHost) {
 					log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
