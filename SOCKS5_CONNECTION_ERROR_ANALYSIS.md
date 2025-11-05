@@ -304,9 +304,32 @@ Run with: `bash test-socks5.sh`
 
 ## Most Likely Root Cause
 
-Based on the error pattern, I suspect **one of these two issues**:
+Based on the error pattern and code analysis, I've identified **the most likely issue**:
 
-### Theory 1: Server Firewall Blocking Outbound
+### **Theory 1: Mars is Currently Occluded** (MOST LIKELY)
+
+The proxy has **occlusion detection** that blocks connections when a celestial body is behind another object (like the Sun).
+
+**Evidence:**
+- Error happens in 1.1 seconds (no latency applied) ✅
+- Error code 4 returned (host unreachable) ✅
+- Occurs BEFORE the latency sleep in the code ✅
+
+**Code location:** `proxy/src/socks.go:251-258`
+```go
+occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+if occluded {
+    log.Printf("SOCKS connection to %s rejected: occluded by %s", bodyName, occluder.Name)
+    s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
+    return fmt.Errorf("SOCKS connection rejected: %s occluded by %s", bodyName, occluder.Name)
+}
+```
+
+**This would explain everything!**
+
+---
+
+### Theory 2: Server Firewall Blocking Outbound
 
 The Docker container might not be able to make outbound HTTPS connections.
 
@@ -320,14 +343,14 @@ If this fails, you need to fix Docker networking or firewall rules.
 
 ---
 
-### Theory 2: Security Validator Bug
+### Theory 3: Security Validator Bug
 
 The SOCKS5 handler might be calling `IsAllowedHost()` incorrectly or the hostname extraction has a bug.
 
 **Check logs for:** Messages about rejected hosts or validation failures
 
 **Relevant code:**
-- `proxy/src/socks.go:580-584` - Security validation for SOCKS5
+- `proxy/src/socks.go:219-222` - Security validation for SOCKS5
 - `proxy/src/security.go:124-148` - IsAllowedHost implementation
 
 ---
@@ -356,28 +379,103 @@ sys     0m0.012s
 
 ---
 
+## **URGENT: Root Cause Analysis**
+
+### ✅ Mars is NOT Occluded
+
+I checked the API and confirmed **Mars is currently NOT occluded**, so occlusion is not the issue.
+
+### 🔍 Remaining Possible Causes (In Order of Likelihood)
+
+Given that the error occurs in 1.1 seconds with no latency applied, the failure happens BEFORE line 282 (the latency sleep). This narrows it down to:
+
+1. **Docker Container DNS Resolution Failure** (MOST LIKELY)
+   - Container cannot resolve `example.com` to an IP address
+   - Would cause "host unreachable" error at connection attempt
+
+2. **Security Validator Incorrectly Rejecting**
+   - Despite `example.com` being in allowed list, validation might be failing
+   - Could be case sensitivity or unexpected format issue
+
+3. **Docker Network Routing Issue**
+   - Container can resolve DNS but cannot route to external internet
+   - Outbound connections blocked by firewall or network config
+
+---
+
 ## Immediate Action Items
 
-### Priority 1: Check Logs
+### **Priority 1: Check Server Logs (CRITICAL)**
+
+```bash
+# SSH to your server and check SOCKS5 logs:
+docker logs latency-space-proxy-1 --tail 100
+
+# Look for these specific messages:
+# - "SOCKS destination allowed: example.com" (security passed)
+# - "SOCKS destination rejected: example.com is not in the allowed list" (security failed)
+# - "SOCKS connect to example.com:443 from..." (attempting connection)
+# - "failed to connect to example.com:443" (connection failure details)
+```
+
+**The logs will tell us EXACTLY where it's failing!**
+
+---
+
+### **Priority 2: Test DNS Resolution Inside Container**
+
+```bash
+# SSH to your server:
+ssh your-server
+
+# Test DNS resolution from inside the proxy container:
+docker exec latency-space-proxy-1 nslookup example.com
+
+# Expected output should show:
+# Name: example.com
+# Address: 93.184.216.34
+
+# If DNS fails, that's the root cause!
+```
+
+---
+
+### **Priority 3: Test Outbound Connectivity from Container**
+
+```bash
+# SSH to your server:
+ssh your-server
+
+# Test if container can reach example.com:
+docker exec latency-space-proxy-1 curl -I -m 10 https://example.com
+
+# Expected: HTTP/1.1 200 OK or similar
+# If this fails, outbound connections are blocked
+```
+
+---
+
+### Priority 2: Check Full Server Logs
 ```bash
 ssh your-server
 docker logs latency-space-proxy-1 --tail 100
 ```
 
 Look for:
+- **"occluded by"** messages (most important!)
 - SOCKS5 connection attempts
 - Validation errors
 - DNS failures
 - Network errors
 
-### Priority 2: Test Server Connectivity
+### Priority 3: Test Server Connectivity (If Not Occluded)
 ```bash
 # From server:
 curl -I https://example.com
 docker exec latency-space-proxy-1 curl -I https://example.com
 ```
 
-### Priority 3: Try Different Destinations
+### Priority 4: Try Different Destinations
 ```bash
 # From your Mac:
 curl --socks5 mars.latency.space:1080 https://www.google.com
