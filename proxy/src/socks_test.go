@@ -327,28 +327,40 @@ func TestSocksUDPAssociateAndRelay(t *testing.T) {
 
 	// 6. Test Disallowed Host
 	t.Log("Testing disallowed host...")
-	delete(security.allowedHosts, "127.0.0.1") // Disallow localhost
+	// Use a non-loopback IP (8.8.8.8) which is not in the allowed list
+	// Note: Loopback addresses (127.0.0.1) are always allowed for testing
+	disallowedIP := net.ParseIP("8.8.8.8").To4()
+	disallowedPort := uint16(53)
 
-	// Send another Client -> Target packet
-	_, err = clientUDPListener.WriteTo(udpPacket.Bytes(), proxyRelayUDPAddr)
+	// Construct SOCKS5 UDP Request Packet for disallowed host
+	var disallowedPacket bytes.Buffer
+	disallowedPacket.Write([]byte{0x00, 0x00}) // RSV
+	disallowedPacket.WriteByte(0x00)           // FRAG
+	disallowedPacket.WriteByte(SOCKS5_ADDR_IPV4)
+	disallowedPacket.Write(disallowedIP)
+	disallowedPortBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(disallowedPortBytes, disallowedPort)
+	disallowedPacket.Write(disallowedPortBytes)
+	disallowedPacket.Write([]byte("test"))
+
+	// Send packet to disallowed host - proxy should drop it
+	_, err = clientUDPListener.WriteTo(disallowedPacket.Bytes(), proxyRelayUDPAddr)
 	if err != nil {
 		t.Fatalf("Client UDP (disallowed test) failed to write to proxy relay: %v", err)
 	}
 
-	// Try reading from Target UDP Listener - should timeout
+	// Try reading from Target UDP Listener - should timeout since proxy drops the packet
 	if err = targetUDPListener.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil { // Short timeout
 		t.Fatalf("Failed to set read deadline for target listener (disallowed test): %v", err)
 	}
 	_, _, err = targetUDPListener.ReadFrom(targetBuf)
 	if err == nil {
-		t.Errorf("Target received UDP packet even when host was disallowed")
+		t.Errorf("Proxy relayed packet to disallowed host 8.8.8.8 (should have been dropped)")
 	} else if !strings.Contains(err.Error(), "timeout") {
 		t.Errorf("Target received unexpected error when expecting timeout: %v", err)
 	} else {
-		t.Log("Target correctly did not receive packet for disallowed host (timeout).")
+		t.Log("Proxy correctly dropped packet for disallowed host 8.8.8.8 (timeout).")
 	}
-	// Restore for potential future tests (though not strictly needed here)
-	security.allowedHosts["127.0.0.1"] = true
 
 	// 7. Cleanup (Handled by t.Cleanup, including clientTCPConn.Close())
 	t.Logf("Client closing TCP connection (via defer)...")
