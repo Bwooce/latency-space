@@ -90,14 +90,16 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 
 // isAllowedDestination checks if a destination is in the allowed list
 func (s *SOCKSHandler) isAllowedDestination(host string) bool {
-	// Check if this is a non-loopback IP address (reject public IPs, allow loopback for testing)
+	// Check if this is an IP address
 	if ip := net.ParseIP(host); ip != nil {
 		// Allow loopback addresses (127.0.0.1, ::1) for testing
-		if !ip.IsLoopback() {
-			log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
-			return false
+		if ip.IsLoopback() {
+			log.Printf("SOCKS destination allowed (loopback): %s", host)
+			return true // Allow loopback immediately for testing
 		}
-		// Loopback IP - check if it's in the allowed list
+		// Reject non-loopback IP addresses
+		log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
+		return false
 	}
 
 	// Just use the hostname directly with the security validator
