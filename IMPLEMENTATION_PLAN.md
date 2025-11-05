@@ -46,32 +46,56 @@ This plan implements the recommended hybrid approach:
 ### Task 1.1: Fix Cloudflare Configuration
 
 **Priority:** P0 - CRITICAL
-**Time Estimate:** 30 minutes
+**Time Estimate:** 15 minutes
 **Dependencies:** None
+
+**IMPORTANT:** Current configuration has individual A records (mars, jupiter, etc.), NOT a wildcard.
 
 **Subtasks:**
 
 - [ ] **1.1.1** Log into Cloudflare dashboard
 - [ ] **1.1.2** Navigate to DNS settings for `latency.space`
-- [ ] **1.1.3** Find the wildcard `*.latency.space` A record
-- [ ] **1.1.4** Change proxy status from "Proxied" (orange cloud) to "DNS only" (gray cloud)
-- [ ] **1.1.5** Verify change with: `dig mars.latency.space` (should show direct IP, not Cloudflare)
-- [ ] **1.1.6** Wait 5 minutes for DNS propagation
-- [ ] **1.1.7** Test: `nslookup mars.latency.space` - should resolve to server IP
-- [ ] **1.1.8** Document the configuration in `docs/cloudflare-setup.md`
+- [ ] **1.1.3** **Add wildcard record:**
+  - Click "Add record"
+  - Type: `A`
+  - Name: `*` (just asterisk)
+  - Content: YOUR_SERVER_IP (same as latency.space)
+  - **Proxy status: DNS only** (gray cloud) ⚠️
+  - TTL: Auto
+  - Save
+- [ ] **1.1.4** **Change ALL celestial records to DNS-only:**
+  - For each record (mars, jupiter, moon, phobos, etc.):
+  - Click the orange cloud ☁️
+  - Change to gray cloud (DNS only)
+  - Save
+  - Repeat for all ~50 records
+- [ ] **1.1.5** **Keep main site proxied:**
+  - `latency.space` → Leave orange ☁️ (Proxied)
+  - `www.latency.space` → Leave orange ☁️ (Proxied)
+- [ ] **1.1.6** Wait 2-5 minutes for DNS propagation
+- [ ] **1.1.7** Test wildcard works: `nslookup test.latency.space`
+- [ ] **1.1.8** Test direct resolution: `nslookup mars.latency.space` (should show YOUR_IP)
+- [ ] **1.1.9** Test SOCKS5 accessible: `nc -zv mars.latency.space 1080`
+- [ ] **1.1.10** Document in `docs/CLOUDFLARE_DNS_CONFIGURATION.md` (created)
 
 **Verification:**
 ```bash
-# Should return your server IP, not Cloudflare IP
-dig mars.latency.space +short
+# Wildcard resolves to your server
+nslookup example.com.mars.latency.space
+# Should return YOUR_SERVER_IP
 
-# Should be able to reach SOCKS5 port
+# Direct resolution works (not through Cloudflare)
+nslookup mars.latency.space
+# Should return YOUR_SERVER_IP (not Cloudflare IP range)
+
+# SOCKS5 port accessible
 nc -zv mars.latency.space 1080
+# Should connect successfully
 ```
 
 **Files Modified:**
-- Cloudflare dashboard (no code changes)
-- New file: `docs/cloudflare-setup.md`
+- Cloudflare dashboard (add wildcard, change ~50 records)
+- New file: `docs/CLOUDFLARE_DNS_CONFIGURATION.md` (detailed guide created)
 
 ---
 
