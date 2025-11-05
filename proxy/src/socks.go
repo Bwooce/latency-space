@@ -743,6 +743,10 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 				// --- Security Checks ---
 				// Check if the destination host is allowed
+				if IsIPAddress(dstHost) {
+					log.Printf("UDP Relay: Destination %s is an IP address. Use --socks5-hostname to send domain names to the proxy. Dropping packet.", dstHost)
+					continue
+				}
 				if !security.IsAllowedHost(dstHost) {
 					log.Printf("UDP Relay: Destination host %s not allowed, dropping packet.", dstHost)
 					continue

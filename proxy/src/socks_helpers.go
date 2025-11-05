@@ -90,6 +90,12 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 
 // isAllowedDestination checks if a destination is in the allowed list
 func (s *SOCKSHandler) isAllowedDestination(host string) bool {
+	// Check if this is an IP address instead of a hostname
+	if IsIPAddress(host) {
+		log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
+		return false
+	}
+
 	// Just use the hostname directly with the security validator
 	allowed := s.security.IsAllowedHost(host)
 

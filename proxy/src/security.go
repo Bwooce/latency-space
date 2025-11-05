@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv" // Required for port conversion in ValidateSocksDestination
 	"strings"
@@ -123,6 +124,7 @@ func (s *SecurityValidator) ValidateDestination(dest string) (string, error) {
 
 // IsAllowedHost checks if the destination host (or its parent domain) is in the allowed list.
 // Performs case-insensitive matching.
+// Returns false for IP addresses (both IPv4 and IPv6).
 func (s *SecurityValidator) IsAllowedHost(host string) bool {
 	if host == "" {
 		return false // Cannot allow empty host
@@ -145,6 +147,11 @@ func (s *SecurityValidator) IsAllowedHost(host string) bool {
 	// Log rejection if desired
 	// log.Printf("Rejected host: %s (not in allowed list or subdomain)", host)
 	return false
+}
+
+// IsIPAddress checks if a string is an IP address (IPv4 or IPv6)
+func IsIPAddress(host string) bool {
+	return net.ParseIP(host) != nil
 }
 
 // ValidateSocksDestination checks if the SOCKS destination port is allowed.

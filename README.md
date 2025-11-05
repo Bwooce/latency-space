@@ -120,12 +120,20 @@ Connect to latency.space as a SOCKS5 proxy on port 1080 for TCP connections:
 
 ```bash
 # Example with curl for TCP (HTTPS)
-curl --socks5 mars.latency.space:1080 https://example.com
+# IMPORTANT: Use --socks5-hostname (not --socks5) to send the domain name to the proxy
+curl --socks5-hostname mars.latency.space:1080 https://example.com
 
 # Configure browser or application to use the SOCKS5 proxy
 Host: mars.latency.space
 Port: 1080
 ```
+
+**Important:** For security reasons, the proxy only accepts **domain names** (not IP addresses) as destinations.
+
+- ✅ **Use `--socks5-hostname`** - Sends domain names to the proxy (works correctly)
+- ❌ **Don't use `--socks5`** - Resolves to IP addresses locally (will be rejected)
+
+In browsers and most SOCKS5 clients, enable "Remote DNS" or "Proxy DNS when using SOCKS" to ensure hostnames are sent to the proxy.
 
 The proxy also supports UDP forwarding via the SOCKS5 `UDP ASSOCIATE` command. When you initiate a UDP association, the proxy sets up a UDP relay. Latency for relayed UDP packets (both outgoing and incoming) is applied based on the celestial body hostname used in the initial SOCKS5 connection (e.g., `mars.latency.space`).
 
