@@ -157,6 +157,16 @@ func IsIPAddress(host string) bool {
 // ValidateSocksDestination checks if the SOCKS destination port is allowed.
 // Host validation is done separately using IsAllowedHost.
 func (s *SecurityValidator) ValidateSocksDestination(host string, port uint16) error {
+	// Allow loopback addresses (127.0.0.1, ::1) for testing
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		// Just validate port for loopback addresses
+		portStr := strconv.FormatUint(uint64(port), 10)
+		if port != 0 && !s.allowedPorts[portStr] {
+			return fmt.Errorf("destination port %s is not allowed", portStr)
+		}
+		return nil
+	}
+
 	// Validate host first
 	if !s.IsAllowedHost(host) {
 		return fmt.Errorf("destination host '%s' is not allowed", host)
