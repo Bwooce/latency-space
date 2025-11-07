@@ -22,6 +22,13 @@ func setupTestEnvironment() func() {
 	// Override global celestial objects with test-specific ones with low latency
 	celestialObjects = []CelestialObject{
 		{
+			Name:   "Sun",
+			Type:   "star",
+			Radius: 695700, // km
+			Mass:   1.989e30, // kg
+			// Sun is at the origin, no orbital elements needed
+		},
+		{
 			Name: "Earth",
 			Type: "planet",
 			// Simplified orbital elements (not used directly in this test, but needed for functions)
@@ -44,24 +51,20 @@ func setupTestEnvironment() func() {
 			S:          0.0148,   // Sin term coefficient
 			F:          0.9856,   // Mean motion (degrees/day)
 			Mass:       5.972e24, // kg
-		}, // Removed &
+		},
 		{
 			Name:       "Mars",
-			Type:       "moon",
-			ParentName: "Earth",
-			// Simplified orbital elements with tiny distance for fast tests
-			Radius: 1737.4,
-			A:      1000.0, // Reduced semi-major axis in km for fast tests
-			E:      0.0549,
-			I:      5.145,
-			L:      375.7,                        // Mean longitude at epoch
-			N:      125.08,                       // Longitude of ascending node
-			W:      318.15,                       // Argument of perigee
-			DL:     13.176358 * DAYS_PER_CENTURY, // Degrees per century
-			DN:     -0.05295 * DAYS_PER_CENTURY,
-			DW:     0.11140 * DAYS_PER_CENTURY,
-			Period: 27.321661,
-			Mass:   7.342e22, // kg
+			Type:       "planet",
+			ParentName: "Sun",
+			// Simplified orbital elements for fast tests
+			Radius: 3396.19,
+			A:      1.52366231, // AU - semi-major axis
+			E:      0.09341233,
+			I:      1.85061,
+			L:      355.45332,
+			LP:     336.04084,
+			N:      49.57854,
+			Mass:   6.4171e23, // kg
 		},
 		// Add other bodies if needed for specific tests
 	}

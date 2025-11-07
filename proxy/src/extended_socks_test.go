@@ -23,6 +23,13 @@ func setupExtendedTestEnv() (func(), map[string]CelestialObject) {
 	// Create multiple test celestial objects with varying distances/latencies
 	testBodies := []CelestialObject{
 		{
+			Name:   "Sun",
+			Type:   "star",
+			Radius: 695700, // km
+			Mass:   1.989e30, // kg
+			// Sun is at the origin, no orbital elements needed
+		},
+		{
 			Name:       "Earth",
 			Type:       "planet",
 			ParentName: "Sun",

@@ -521,6 +521,11 @@ func calculateDistancesFromEarth(objects []celestial.CelestialObject, t time.Tim
 }
 
 func getCurrentDistance(bodyName string) float64 {
+	// Special case: Earth is the reference point, distance is 0
+	if strings.EqualFold(bodyName, "Earth") {
+		return 0
+	}
+
 	//log.Printf("Size of celestialObjects: %d", len(celestialObjects))
 	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated (handles its own locking)
 
