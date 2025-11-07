@@ -217,7 +217,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 
 	// Anti-DDoS: Check if destination is in allowed list
 	if !s.isAllowedDestination(dstAddr) {
-		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
+		s.sendReply(SOCKS5_REP_CONN_NOT_ALLOWED, net.IPv4zero, 0)
 		return fmt.Errorf("destination not in allowed list: %s", dstAddr)
 	}
 
