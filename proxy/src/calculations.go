@@ -19,6 +19,18 @@ var DistanceCacheMutex sync.RWMutex // Exported mutex for cache access
 func init() {
 	celestialObjects = celestial.InitSolarSystemObjects()
 	log.Printf("Celestial objects initialized. Count: %d", len(celestialObjects))
+
+	// Debug: Verify Sun is in the list
+	sunFound := false
+	for _, obj := range celestialObjects {
+		if obj.Name == "Sun" {
+			sunFound = true
+			break
+		}
+	}
+	if !sunFound {
+		log.Printf("WARNING: Sun object not found in celestialObjects!")
+	}
 }
 
 func CalculateLatency(distanceKm float64) time.Duration {
@@ -316,6 +328,13 @@ func GetObjectPosition(obj celestial.CelestialObject, objects []celestial.Celest
 		}
 
 		if !parentFound {
+			// Debug: Print what objects we have
+			log.Printf("ERROR: Parent body '%s' not found for '%s'. Available objects: %d", obj.ParentName, obj.Name, len(objects))
+			for i, p := range objects {
+				if i < 5 || p.Name == "Sun" || p.Type == "star" { // Print first 5 and any star
+					log.Printf("  [%d] Name='%s' Type='%s'", i, p.Name, p.Type)
+				}
+			}
 			fmt.Printf("Error: Parent body %s not found for %s\n", obj.ParentName, obj.Name)
 			return celestial.Vector3{X: 0, Y: 0, Z: 0}
 		}
