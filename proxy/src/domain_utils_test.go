@@ -92,34 +92,34 @@ func TestFormatFullDomain(t *testing.T) {
 
 func TestFormatMoonDomain(t *testing.T) {
 	tests := []struct {
-		name        string
-		moonName    string
-		planetName  string
-		expected    string
+		name       string
+		moonName   string
+		planetName string
+		expected   string
 	}{
 		{
-			name:        "Simple names",
-			moonName:    "phobos",
-			planetName:  "mars",
-			expected:    "phobos.mars.latency.space",
+			name:       "Simple names",
+			moonName:   "phobos",
+			planetName: "mars",
+			expected:   "phobos.mars.latency.space",
 		},
 		{
-			name:        "Names with uppercase",
-			moonName:    "Phobos",
-			planetName:  "Mars",
-			expected:    "phobos.mars.latency.space",
+			name:       "Names with uppercase",
+			moonName:   "Phobos",
+			planetName: "Mars",
+			expected:   "phobos.mars.latency.space",
 		},
 		{
-			name:        "Names with spaces",
-			moonName:    "Io",
-			planetName:  "Jupiter",
-			expected:    "io.jupiter.latency.space",
+			name:       "Names with spaces",
+			moonName:   "Io",
+			planetName: "Jupiter",
+			expected:   "io.jupiter.latency.space",
 		},
 		{
-			name:        "Complex moon name",
-			moonName:    "Europa North",
-			planetName:  "Jupiter",
-			expected:    "europa-north.jupiter.latency.space",
+			name:       "Complex moon name",
+			moonName:   "Europa North",
+			planetName: "Jupiter",
+			expected:   "europa-north.jupiter.latency.space",
 		},
 	}
 
@@ -166,25 +166,25 @@ func TestFormatTargetDomain(t *testing.T) {
 
 func TestFormatMoonTargetDomain(t *testing.T) {
 	tests := []struct {
-		name          string
-		targetDomain  string
-		moonName      string
-		planetName    string
-		expected      string
+		name         string
+		targetDomain string
+		moonName     string
+		planetName   string
+		expected     string
 	}{
 		{
-			name:          "Simple target and celestials",
-			targetDomain:  "example.com",
-			moonName:      "phobos",
-			planetName:    "mars",
-			expected:      "example.com.phobos.mars.latency.space",
+			name:         "Simple target and celestials",
+			targetDomain: "example.com",
+			moonName:     "phobos",
+			planetName:   "mars",
+			expected:     "example.com.phobos.mars.latency.space",
 		},
 		{
-			name:          "Complex names",
-			targetDomain:  "Example.Com",
-			moonName:      "Europa North",
-			planetName:    "Jupiter",
-			expected:      "Example.Com.europa-north.jupiter.latency.space",
+			name:         "Complex names",
+			targetDomain: "Example.Com",
+			moonName:     "Europa North",
+			planetName:   "Jupiter",
+			expected:     "Example.Com.europa-north.jupiter.latency.space",
 		},
 	}
 

@@ -88,7 +88,7 @@ func TestUDPFailureModes(t *testing.T) {
 				serverComplete := make(chan struct{})
 				var serverWg sync.WaitGroup
 				serverWg.Add(1)
-				
+
 				go func() {
 					defer serverWg.Done()
 					var err error
@@ -100,8 +100,8 @@ func TestUDPFailureModes(t *testing.T) {
 						close(serverComplete)
 						return
 					}
-					
-					handler := NewSOCKSHandler(tcpConn, security, metrics)
+
+					handler := NewSOCKSHandler(tcpConn, security, metrics, "")
 					handler.Handle()
 					close(serverComplete)
 				}()
@@ -113,8 +113,8 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 
 				// Store for later closure in test
-				t.Cleanup(func() { 
-					clientTCPConn.Close() 
+				t.Cleanup(func() {
+					clientTCPConn.Close()
 					// Wait for server to complete
 					<-serverComplete
 					serverWg.Wait()
@@ -134,7 +134,7 @@ func TestUDPFailureModes(t *testing.T) {
 
 				// UDP ASSOCIATE request
 				udpRequest := []byte{
-					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 					SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 				}
 				_, err = clientTCPConn.Write(udpRequest)
@@ -188,22 +188,22 @@ func TestUDPFailureModes(t *testing.T) {
 					IP:   net.IP(boundAddr),
 					Port: int(boundPort),
 				}
-				
+
 				// Send one initial packet to establish the UDP relay
 				initPacket := buildUDPSocksPacket(targetUDPAddr, []byte("init"))
 				_, err = clientUDPConn.WriteTo(initPacket, proxyUDPAddr)
 				if err != nil {
 					t.Fatalf("Failed to send initial UDP packet: %v", err)
 				}
-				
+
 				// Wait a bit for UDP relay to initialize
 				time.Sleep(100 * time.Millisecond)
-				
+
 				return proxyUDPAddr, clientUDPConn
 			},
 			runTest: func(t *testing.T, proxyUDPAddr *net.UDPAddr, clientUDPConn net.PacketConn) {
 				defer clientUDPConn.Close()
-				
+
 				// Get target address from the proxy UDP address
 				// This is a bit of a hack - we know the proxy endpoint
 				// but need a valid target. For this test, we'll just use
@@ -213,7 +213,7 @@ func TestUDPFailureModes(t *testing.T) {
 					IP:   proxyUDPAddr.IP,
 					Port: proxyUDPAddr.Port + 1,
 				}
-				
+
 				// Send a packet to the proxy
 				data := []byte("This packet should go through")
 				packet := buildUDPSocksPacket(targetUDPAddr, data)
@@ -221,13 +221,13 @@ func TestUDPFailureModes(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to send UDP packet: %v", err)
 				}
-				
+
 				// In a real-world scenario, when a control connection is dropped,
 				// the UDP relay terminates. We need to simulate this in our tests.
-				
+
 				// Use fixed delay instead of the global variable
 				// Fixed delay is set below with time.Sleep()
-				
+
 				// IMPORTANT: Explicitly close the TCP control connection
 				// This is stored in the global variable from the setup
 				if dropTestTCPConn != nil {
@@ -235,31 +235,31 @@ func TestUDPFailureModes(t *testing.T) {
 					dropTestTCPConn.Close()
 					dropTestTCPConn = nil
 				}
-				
+
 				// Wait for the UDP relay to notice the connection closure and clean up
 				// This needs to be long enough for the relay to fully terminate
 				time.Sleep(3 * time.Second)
-				
+
 				// This packet should be dropped because the relay is closed
 				failData := []byte("This packet should be dropped")
 				failPacket := buildUDPSocksPacket(targetUDPAddr, failData)
-				
+
 				// Send directly to the proxy UDP address
 				if _, err = clientUDPConn.WriteTo(failPacket, proxyUDPAddr); err != nil {
 					t.Fatalf("Failed to send UDP packet: %v", err)
 				}
-				
+
 				// The write succeeded, but there should be no response
-				
+
 				// Set a short timeout for reading the response
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
-				
+
 				// Try to read a response, which should timeout
 				respBuf := make([]byte, 2048)
 				_, _, err = clientUDPConn.ReadFrom(respBuf)
-				
+
 				if err == nil {
 					t.Logf("Got data response even after control connection closed (this is acceptable)")
 				} else if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
@@ -291,8 +291,8 @@ func TestUDPFailureModes(t *testing.T) {
 						return
 					}
 					defer conn.Close()
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -317,7 +317,7 @@ func TestUDPFailureModes(t *testing.T) {
 
 				// UDP ASSOCIATE request
 				udpRequest := []byte{
-					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 					SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 				}
 				_, err = clientTCPConn.Write(udpRequest)
@@ -371,38 +371,38 @@ func TestUDPFailureModes(t *testing.T) {
 					IP:   net.IP(boundAddr),
 					Port: int(boundPort),
 				}
-				
+
 				return proxyUDPAddr, clientUDPConn
 			},
 			runTest: func(t *testing.T, proxyUDPAddr *net.UDPAddr, clientUDPConn net.PacketConn) {
 				defer clientUDPConn.Close()
-				
+
 				// Explicitly disallow 8.8.8.8 as a target
 				delete(security.allowedHosts, "8.8.8.8")
-				
+
 				// Create a packet targeting a disallowed host (8.8.8.8)
 				disallowedAddr := &net.UDPAddr{
 					IP:   net.ParseIP("8.8.8.8"),
 					Port: 53, // DNS port
 				}
-				
+
 				data := []byte("This packet should be dropped by security check")
 				packet := buildUDPSocksPacket(disallowedAddr, data)
-				
+
 				// Send the packet
 				_, err := clientUDPConn.WriteTo(packet, proxyUDPAddr)
 				if err != nil {
 					t.Fatalf("Failed to send UDP packet to disallowed target: %v", err)
 				}
-				
+
 				// No response should be received (packet dropped silently)
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
-				
+
 				respBuf := make([]byte, 2048)
 				_, _, err = clientUDPConn.ReadFrom(respBuf)
-				
+
 				if err == nil {
 					t.Errorf("Expected no response for disallowed target, but got data")
 				} else if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
@@ -430,7 +430,7 @@ func TestUDPFailureModes(t *testing.T) {
 					t.Fatalf("Failed to start target UDP listener: %v", err)
 				}
 				t.Cleanup(func() { targetUDPListener.Close() })
-				
+
 				go func() {
 					buf := make([]byte, 2048)
 					for {
@@ -460,8 +460,8 @@ func TestUDPFailureModes(t *testing.T) {
 						return
 					}
 					defer conn.Close()
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -486,7 +486,7 @@ func TestUDPFailureModes(t *testing.T) {
 
 				// UDP ASSOCIATE request
 				udpRequest := []byte{
-					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 					SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 				}
 				_, err = clientTCPConn.Write(udpRequest)
@@ -540,27 +540,27 @@ func TestUDPFailureModes(t *testing.T) {
 					IP:   net.IP(boundAddr),
 					Port: int(boundPort),
 				}
-				
+
 				return proxyUDPAddr, clientUDPConn
 			},
 			runTest: func(t *testing.T, proxyUDPAddr *net.UDPAddr, clientUDPConn net.PacketConn) {
 				defer clientUDPConn.Close()
-				
+
 				// Send a malformed UDP packet (too short)
 				malformedPacket := []byte{0x00, 0x00, 0x00} // Just RSV+FRAG, no ATYP or address
 				_, err := clientUDPConn.WriteTo(malformedPacket, proxyUDPAddr)
 				if err != nil {
 					t.Fatalf("Failed to send malformed packet: %v", err)
 				}
-				
+
 				// No response should be received (packet should be rejected)
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
-				
+
 				respBuf := make([]byte, 2048)
 				_, _, err = clientUDPConn.ReadFrom(respBuf)
-				
+
 				if err == nil {
 					t.Errorf("Expected no response for malformed packet, but got data")
 				} else if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
@@ -568,24 +568,24 @@ func TestUDPFailureModes(t *testing.T) {
 				} else {
 					t.Logf("Correctly received no response for malformed packet")
 				}
-				
+
 				// Send another malformed packet with invalid ATYP
 				malformedPacket2 := []byte{
-					0x00, 0x00, 0x00, // RSV+FRAG 
+					0x00, 0x00, 0x00, // RSV+FRAG
 					0x05, // Invalid ATYP (not 1, 3, or 4)
 				}
 				_, err = clientUDPConn.WriteTo(malformedPacket2, proxyUDPAddr)
 				if err != nil {
 					t.Fatalf("Failed to send malformed packet 2: %v", err)
 				}
-				
+
 				// No response should be received
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
-				
+
 				_, _, err = clientUDPConn.ReadFrom(respBuf)
-				
+
 				if err == nil {
 					t.Errorf("Expected no response for packet with invalid ATYP, but got data")
 				} else if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
@@ -614,11 +614,11 @@ func TestUDPFailureModes(t *testing.T) {
 				}
 				t.Cleanup(func() { targetUDPListener.Close() })
 				targetUDPAddr := targetUDPListener.LocalAddr().(*net.UDPAddr)
-				
+
 				// Allow target port
 				targetPortStr := strconv.Itoa(targetUDPAddr.Port)
 				security.allowedPorts[targetPortStr] = true
-				
+
 				go func() {
 					buf := make([]byte, 2048)
 					for {
@@ -648,8 +648,8 @@ func TestUDPFailureModes(t *testing.T) {
 						return
 					}
 					defer conn.Close()
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -674,7 +674,7 @@ func TestUDPFailureModes(t *testing.T) {
 
 				// UDP ASSOCIATE request
 				udpRequest := []byte{
-					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+					SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 					SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 				}
 				_, err = clientTCPConn.Write(udpRequest)
@@ -728,49 +728,49 @@ func TestUDPFailureModes(t *testing.T) {
 					IP:   net.IP(boundAddr),
 					Port: int(boundPort),
 				}
-				
+
 				return proxyUDPAddr, clientUDPConn
 			},
 			runTest: func(t *testing.T, proxyUDPAddr *net.UDPAddr, clientUDPConn net.PacketConn) {
 				defer clientUDPConn.Close()
-				
+
 				// Create a valid target address
 				targetUDPAddr := &net.UDPAddr{
 					IP:   net.ParseIP("127.0.0.1"),
 					Port: 53, // Any valid port should work
 				}
-				
+
 				// Create a UDP packet with non-zero fragmentation (not supported)
 				fragValue := byte(1) // Non-zero fragmentation value
 				data := []byte("This packet has fragmentation enabled")
-				
+
 				// Build a SOCKS UDP packet with fragmentation
 				var packet bytes.Buffer
-				packet.Write([]byte{0x00, 0x00}) // RSV
-				packet.WriteByte(fragValue)      // FRAG = non-zero
-				packet.WriteByte(SOCKS5_ADDR_IPV4) // ATYP
+				packet.Write([]byte{0x00, 0x00})     // RSV
+				packet.WriteByte(fragValue)          // FRAG = non-zero
+				packet.WriteByte(SOCKS5_ADDR_IPV4)   // ATYP
 				packet.Write(targetUDPAddr.IP.To4()) // DST.ADDR
-				
+
 				portBytes := make([]byte, 2)
 				binary.BigEndian.PutUint16(portBytes, uint16(targetUDPAddr.Port))
 				packet.Write(portBytes) // DST.PORT
-				
+
 				packet.Write(data) // DATA
-				
+
 				// Send the packet with fragmentation
 				_, err := clientUDPConn.WriteTo(packet.Bytes(), proxyUDPAddr)
 				if err != nil {
 					t.Fatalf("Failed to send fragmented packet: %v", err)
 				}
-				
+
 				// No response should be received (packet should be rejected due to fragmentation)
 				if err := clientUDPConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 					t.Fatalf("Failed to set read deadline: %v", err)
 				}
-				
+
 				respBuf := make([]byte, 2048)
 				_, _, err = clientUDPConn.ReadFrom(respBuf)
-				
+
 				if err == nil {
 					t.Errorf("Expected no response for fragmented packet, but got data")
 				} else if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
@@ -794,21 +794,21 @@ func TestUDPFailureModes(t *testing.T) {
 // Helper function to build a SOCKS5 UDP packet
 func buildUDPSocksPacket(targetAddr *net.UDPAddr, data []byte) []byte {
 	var packet bytes.Buffer
-	
+
 	// RSV(2) + FRAG(1) + ATYP(1) fields
 	packet.Write([]byte{0x00, 0x00, 0x00, SOCKS5_ADDR_IPV4})
-	
+
 	// Target address (4 bytes for IPv4)
 	packet.Write(targetAddr.IP.To4())
-	
+
 	// Target port (2 bytes)
 	portBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBytes, uint16(targetAddr.Port))
 	packet.Write(portBytes)
-	
+
 	// Payload data
 	packet.Write(data)
-	
+
 	return packet.Bytes()
 }
 
@@ -832,7 +832,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 	// Setup security and metrics
 	security := NewSecurityValidator()
 	metrics := NewTestMetricsCollector()
-	
+
 	// Allow localhost testing
 	security.allowedHosts["127.0.0.1"] = true
 	security.allowedPorts["8000"] = true
@@ -845,7 +845,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 	defer socksListener.Close()
 
 	socksAddr := socksListener.Addr().String()
-	
+
 	// Start handling connections
 	go func() {
 		for {
@@ -856,9 +856,9 @@ func TestUDPPortExhaustion(t *testing.T) {
 				}
 				return
 			}
-			
+
 			go func(c net.Conn) {
-				handler := NewSOCKSHandler(c, security, metrics)
+				handler := NewSOCKSHandler(c, security, metrics, "")
 				handler.Handle()
 			}(conn)
 		}
@@ -867,15 +867,15 @@ func TestUDPPortExhaustion(t *testing.T) {
 	// Number of concurrent clients to simulate
 	numClients := 20
 	successChan := make(chan bool, numClients)
-	
+
 	var wg sync.WaitGroup
 	wg.Add(numClients)
-	
+
 	// Launch multiple clients concurrently
 	for i := 0; i < numClients; i++ {
 		go func(clientID int) {
 			defer wg.Done()
-			
+
 			// Connect to SOCKS server
 			clientConn, err := net.Dial("tcp", socksAddr)
 			if err != nil {
@@ -884,7 +884,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 				return
 			}
 			defer clientConn.Close()
-			
+
 			// SOCKS5 handshake
 			_, err = clientConn.Write([]byte{SOCKS5_VERSION, 1, SOCKS5_NO_AUTH})
 			if err != nil {
@@ -892,7 +892,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Read server choice
 			choice := make([]byte, 2)
 			_, err = io.ReadFull(clientConn, choice)
@@ -901,10 +901,10 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Send UDP ASSOCIATE request
 			udpRequest := []byte{
-				SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+				SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 				SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 			}
 			_, err = clientConn.Write(udpRequest)
@@ -913,7 +913,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Read response header
 			respHeader := make([]byte, 4)
 			_, err = io.ReadFull(clientConn, respHeader)
@@ -922,14 +922,14 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Check response code
 			if respHeader[1] != SOCKS5_REP_SUCCESS {
 				t.Logf("Client %d: UDP ASSOCIATE failed with code: 0x%02x", clientID, respHeader[1])
 				successChan <- false
 				return
 			}
-			
+
 			// Read bound address based on type
 			var addrLen int
 			switch respHeader[3] {
@@ -951,7 +951,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Read the address and port
 			addrBytes := make([]byte, addrLen)
 			_, err = io.ReadFull(clientConn, addrBytes)
@@ -960,7 +960,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			portBytes := make([]byte, 2)
 			_, err = io.ReadFull(clientConn, portBytes)
 			if err != nil {
@@ -968,20 +968,20 @@ func TestUDPPortExhaustion(t *testing.T) {
 				successChan <- false
 				return
 			}
-			
+
 			// Success if we got this far
 			t.Logf("Client %d: Successfully established UDP ASSOCIATE", clientID)
 			successChan <- true
-			
+
 			// Keep connection open a while to maintain the UDP relays
 			time.Sleep(200 * time.Millisecond)
 		}(i)
 	}
-	
+
 	// Wait for all clients
 	wg.Wait()
 	close(successChan)
-	
+
 	// Count successes
 	successCount := 0
 	for success := range successChan {
@@ -989,7 +989,7 @@ func TestUDPPortExhaustion(t *testing.T) {
 			successCount++
 		}
 	}
-	
+
 	// We expect some clients to succeed
 	if successCount == 0 {
 		t.Errorf("All UDP ASSOCIATE requests failed, expected some to succeed")

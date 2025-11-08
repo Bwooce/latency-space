@@ -24,7 +24,7 @@ func setupTestEnvironment() func() {
 		{
 			Name:   "Sun",
 			Type:   "star",
-			Radius: 695700, // km
+			Radius: 695700,   // km
 			Mass:   1.989e30, // kg
 			// Sun is at the origin, no orbital elements needed
 		},
@@ -81,7 +81,7 @@ func setupTestEnvironment() func() {
 
 // NewTestSOCKSHandler creates a SOCKS connection handler for testing with fixed latency
 func NewTestSOCKSHandler(conn net.Conn, security *SecurityValidator, metrics *MetricsCollector) *SOCKSHandler {
-	return NewSOCKSHandler(conn, security, metrics)
+	return NewSOCKSHandler(conn, security, metrics, "")
 }
 
 func TestSocksUDPAssociateAndRelay(t *testing.T) {

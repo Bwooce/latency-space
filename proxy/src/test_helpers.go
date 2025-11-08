@@ -9,6 +9,7 @@ var isTestMode = false
 
 // Variables to override test behavior for specific tests
 var testModeLatencyOverride time.Duration
+
 // UDP relay close delay for testing connection termination
 // nolint:unused
 var testModeUDPRelayCloseDelay time.Duration = 500 * time.Millisecond
@@ -17,10 +18,10 @@ var testModeUDPRelayCloseDelay time.Duration = 500 * time.Millisecond
 func setupTestMode() func() {
 	// Set test mode
 	isTestMode = true
-	
+
 	// Reset latency override
 	testModeLatencyOverride = 0
-	
+
 	// Return a function to reset it
 	return func() {
 		isTestMode = false
@@ -32,10 +33,10 @@ func setupTestMode() func() {
 func setupTestModeWithLatency(latency time.Duration) func() {
 	// Set test mode
 	isTestMode = true
-	
+
 	// Set latency override
 	testModeLatencyOverride = latency
-	
+
 	// Return a function to reset it
 	return func() {
 		isTestMode = false
@@ -49,7 +50,7 @@ func testModeCalculateLatency(distance float64) time.Duration {
 	if testModeLatencyOverride > 0 {
 		return testModeLatencyOverride
 	}
-	
+
 	// Default test latency
 	return 3 * time.Millisecond
 }

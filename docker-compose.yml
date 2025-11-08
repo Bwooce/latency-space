@@ -1,29 +1,223 @@
 services:
+  # Main proxy for HTTP/HTTPS info pages and API
+  # This no longer runs SOCKS5 - that's handled by individual services below
   proxy:
     build:
       context: ./proxy
       dockerfile: Dockerfile
     ports:
-      - "8080:80" # Changed from 80:80 to avoid conflict with Nginx
-      - "8443:443" # Changed from 443:443 to avoid conflict with Nginx
-      - "5355:53/udp" # Changed from 53:53/udp to avoid conflict with system DNS
-      # Removed 5353:5353/udp as it's conflicting
-      - "1080:1080" # SOCKS5 proxy
+      - "8080:80" # HTTP info pages
+      - "8443:443" # HTTPS info pages
+      - "5355:53/udp" # DNS
       - "9090:9090" # Prometheus metrics
     volumes:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
-      - proxy_certs:/app/certs # For certificate persistence
-      # Temporarily commenting out the problematic bind mount
-      # - type: bind # Add the new volume mapping for acme challenge
-      #   source: /var/www/html
-      #   target: /var/www/html
+      - proxy_certs:/app/certs
+    environment:
+      - SOCKS_ENABLED=false # Disable SOCKS5 on main proxy
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
     networks:
       space-net:
         ipv4_address: 172.18.0.2
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===== SOCKS5 Proxies - Tier 1: Planets =====
+
+  socks-mars:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1080:1080" # Standard SOCKS5 port for Mars
+      - "9100:9090" # Metrics on different port
+    environment:
+      - CELESTIAL_BODY=Mars
+      - HTTP_ENABLED=false # Only run SOCKS5
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-moon:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1081:1080"
+      - "9101:9090"
+    environment:
+      - CELESTIAL_BODY=Moon
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-venus:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1082:1080"
+      - "9102:9090"
+    environment:
+      - CELESTIAL_BODY=Venus
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-mercury:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1083:1080"
+      - "9103:9090"
+    environment:
+      - CELESTIAL_BODY=Mercury
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-jupiter:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1084:1080"
+      - "9104:9090"
+    environment:
+      - CELESTIAL_BODY=Jupiter
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-saturn:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "1085:1080"
+      - "9105:9090"
+    environment:
+      - CELESTIAL_BODY=Saturn
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===== SOCKS5 Proxies - Tier 3: Popular Moons =====
+
+  socks-europa:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "2081:1080"
+      - "9201:9090"
+    environment:
+      - CELESTIAL_BODY=Europa
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-titan:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "2084:1080"
+      - "9204:9090"
+    environment:
+      - CELESTIAL_BODY=Titan
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===== SOCKS5 Proxies - Tier 4: Spacecraft =====
+
+  socks-voyager1:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "3080:1080"
+      - "9300:9090"
+    environment:
+      - CELESTIAL_BODY=Voyager 1
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  socks-jwst:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "3084:1080"
+      - "9304:9090"
+    environment:
+      - CELESTIAL_BODY=JWST
+      - HTTP_ENABLED=false
+    restart: unless-stopped
+    networks:
+      space-net:
     logging:
       driver: "json-file"
       options:

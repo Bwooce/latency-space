@@ -116,31 +116,73 @@ Access websites with planetary latency:
 
 ### SOCKS5 Proxy
 
-Connect to latency.space as a SOCKS5 proxy on port 1080 for TCP connections:
+Connect to latency.space as a SOCKS5 proxy using **port-per-celestial-body** routing:
+
+#### Quick Start - Mars (Most Common)
 
 ```bash
-# Example with curl for TCP (HTTPS)
-# IMPORTANT: Use --socks5-hostname (not --socks5) to send the domain name to the proxy
-curl --socks5-hostname mars.latency.space:1080 https://example.com
+# Mars on standard SOCKS5 port (1080)
+curl --socks5-hostname latency.space:1080 https://example.com
 
-# Configure browser or application to use the SOCKS5 proxy
-Host: mars.latency.space
+# Configure browser or application
+Host: latency.space
 Port: 1080
+SOCKS v5: Yes
+Remote DNS: Yes
 ```
+
+#### Port Assignments by Celestial Body
+
+Each celestial body runs on its own port to enable proper routing:
+
+**Main Planets:**
+| Port | Body | Typical Latency | Command |
+|------|------|-----------------|---------|
+| **1080** | **Mars** | 3-22 minutes | `--socks5-hostname latency.space:1080` |
+| 1081 | Moon | 1.3 seconds | `--socks5-hostname latency.space:1081` |
+| 1082 | Venus | 2-14 minutes | `--socks5-hostname latency.space:1082` |
+| 1083 | Mercury | 4-12 minutes | `--socks5-hostname latency.space:1083` |
+| 1084 | Jupiter | 32-54 minutes | `--socks5-hostname latency.space:1084` |
+| 1085 | Saturn | 68-84 minutes | `--socks5-hostname latency.space:1085` |
+
+**Popular Moons:**
+| Port | Body | Parent | Typical Latency | Command |
+|------|------|--------|-----------------|---------|
+| 2081 | Europa | Jupiter | 32-54 minutes | `--socks5-hostname latency.space:2081` |
+| 2084 | Titan | Saturn | 68-84 minutes | `--socks5-hostname latency.space:2084` |
+
+**Spacecraft:**
+| Port | Body | Typical Distance | Typical Latency | Command |
+|------|------|------------------|-----------------|---------|
+| 3080 | Voyager 1 | ~24 billion km | 22+ hours | `--socks5-hostname latency.space:3080` |
+| 3084 | JWST | 1.5 million km | ~5 seconds | `--socks5-hostname latency.space:3084` |
+
+> **Why different ports?** After DNS resolution, the SOCKS5 protocol has no way to preserve which hostname (mars.latency.space vs moon.latency.space) the client originally used. Each celestial body runs on a dedicated port to enable proper routing. See [SOCKS5_PORT_ASSIGNMENTS.md](./SOCKS5_PORT_ASSIGNMENTS.md) for the complete port table.
+
+**Browser Configuration Examples:**
+
+Firefox/Chrome SOCKS5 Proxy Settings:
+- For Mars: `latency.space:1080`
+- For Moon: `latency.space:1081`
+- For Jupiter: `latency.space:1084`
+- Enable "Proxy DNS when using SOCKS v5" or "Remote DNS"
 
 **Important:** For security reasons, the proxy only accepts **domain names** (not IP addresses) as destinations.
 
 - ✅ **Use `--socks5-hostname`** - Sends domain names to the proxy (works correctly)
-- ❌ **Don't use `--socks5`** - Resolves to IP addresses locally (will be rejected)
+- ❌ **Don't use `--socks5`** - Resolves to IP addresses locally (will be rejected with error code 2)
 
 In browsers and most SOCKS5 clients, enable "Remote DNS" or "Proxy DNS when using SOCKS" to ensure hostnames are sent to the proxy.
 
-The proxy also supports UDP forwarding via the SOCKS5 `UDP ASSOCIATE` command. When you initiate a UDP association, the proxy sets up a UDP relay. Latency for relayed UDP packets (both outgoing and incoming) is applied based on the celestial body hostname used in the initial SOCKS5 connection (e.g., `mars.latency.space`).
+The proxy also supports UDP forwarding via the SOCKS5 `UDP ASSOCIATE` command. Latency for relayed UDP packets (both outgoing and incoming) is applied based on the celestial body port you connect to.
 
 ```bash
 # Example: Send a UDP packet (e.g., DNS query) to 1.1.1.1:53 via Mars
 # Requires a netcat version that supports SOCKS5 UDP (-X 5 and -x)
-echo "dns-query-data" | nc -u -X 5 -x mars.latency.space:1080 1.1.1.1 53
+echo "dns-query-data" | nc -u -X 5 -x latency.space:1080 1.1.1.1 53
+
+# Via Moon (faster for testing)
+echo "dns-query-data" | nc -u -X 5 -x latency.space:1081 1.1.1.1 53
 ```
 
 ### Special DNS-style Routing

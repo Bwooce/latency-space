@@ -18,4 +18,3 @@ const (
 	DAYS_PER_CENTURY = celestial.DAYS_PER_CENTURY
 	J2000_EPOCH      = celestial.J2000_EPOCH
 )
-

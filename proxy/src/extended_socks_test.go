@@ -25,7 +25,7 @@ func setupExtendedTestEnv() (func(), map[string]CelestialObject) {
 		{
 			Name:   "Sun",
 			Type:   "star",
-			Radius: 695700, // km
+			Radius: 695700,   // km
 			Mass:   1.989e30, // kg
 			// Sun is at the origin, no orbital elements needed
 		},
@@ -121,7 +121,7 @@ func TestSocksTCPConnect(t *testing.T) {
 	// Setup security validator and metrics
 	security := NewSecurityValidator()
 	metrics := NewTestMetricsCollector()
-	
+
 	// Allow localhost and common ports for testing
 	security.allowedHosts["127.0.0.1"] = true
 	security.allowedHosts["localhost"] = true
@@ -161,10 +161,10 @@ func TestSocksTCPConnect(t *testing.T) {
 					t.Logf("Target read error: %v", err)
 					return
 				}
-				
+
 				msg := string(buf[:n])
 				targetEchoMsgs <- msg
-				
+
 				// Echo the message back
 				_, err = c.Write(buf[:n])
 				if err != nil {
@@ -182,14 +182,14 @@ func TestSocksTCPConnect(t *testing.T) {
 	defer socksListener.Close()
 
 	socksAddr := socksListener.Addr().String()
-	
+
 	var serverWg sync.WaitGroup
 	serverWg.Add(1)
-	
+
 	// Handle one connection
 	go func() {
 		defer serverWg.Done()
-		
+
 		conn, err := socksListener.Accept()
 		if err != nil {
 			if !strings.Contains(err.Error(), "use of closed") {
@@ -197,8 +197,8 @@ func TestSocksTCPConnect(t *testing.T) {
 			}
 			return
 		}
-		
-		handler := NewSOCKSHandler(conn, security, metrics)
+
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
@@ -232,15 +232,15 @@ func TestSocksTCPConnect(t *testing.T) {
 	targetPortNum := uint16(targetAddr.Port)
 
 	req := []byte{
-		SOCKS5_VERSION,      // version
-		SOCKS5_CMD_CONNECT,  // command (CONNECT)
-		0x00,                // reserved
-		SOCKS5_ADDR_IPV4,    // address type (IPv4)
+		SOCKS5_VERSION,     // version
+		SOCKS5_CMD_CONNECT, // command (CONNECT)
+		0x00,               // reserved
+		SOCKS5_ADDR_IPV4,   // address type (IPv4)
 	}
-	req = append(req, targetIP...)  // append 4 bytes of IPv4
+	req = append(req, targetIP...) // append 4 bytes of IPv4
 	portBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBytes, targetPortNum)
-	req = append(req, portBytes...)  // append 2 bytes of port
+	req = append(req, portBytes...) // append 2 bytes of port
 
 	_, err = clientConn.Write(req)
 	if err != nil {
@@ -322,7 +322,7 @@ func TestSocksTCPConnect(t *testing.T) {
 	if respMsg != testMessage {
 		t.Fatalf("Received wrong response: got %q, want %q", respMsg, testMessage)
 	}
-	
+
 	t.Logf("Client received echo response: %q", respMsg)
 }
 
@@ -338,7 +338,7 @@ func TestSocksTCPDomainName(t *testing.T) {
 	// Setup security validator and metrics
 	security := NewSecurityValidator()
 	metrics := NewTestMetricsCollector()
-	
+
 	// Allow test domains
 	security.allowedHosts["localhost"] = true
 	security.allowedHosts["example.com"] = true
@@ -377,7 +377,7 @@ func TestSocksTCPDomainName(t *testing.T) {
 			conn.Close()
 			return
 		}
-		
+
 		_, err = conn.Write(buf[:n])
 		if err != nil {
 			t.Logf("Target write error: %v", err)
@@ -393,14 +393,14 @@ func TestSocksTCPDomainName(t *testing.T) {
 	defer socksListener.Close()
 
 	socksAddr := socksListener.Addr().String()
-	
+
 	var serverWg sync.WaitGroup
 	serverWg.Add(1)
-	
+
 	// Handle one connection
 	go func() {
 		defer serverWg.Done()
-		
+
 		conn, err := socksListener.Accept()
 		if err != nil {
 			if !strings.Contains(err.Error(), "use of closed") {
@@ -408,8 +408,8 @@ func TestSocksTCPDomainName(t *testing.T) {
 			}
 			return
 		}
-		
-		handler := NewSOCKSHandler(conn, security, metrics)
+
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
@@ -444,16 +444,16 @@ func TestSocksTCPDomainName(t *testing.T) {
 	targetPortNum := uint16(targetAddr.Port)
 
 	req := []byte{
-		SOCKS5_VERSION,      // version
-		SOCKS5_CMD_CONNECT,  // command (CONNECT)
-		0x00,                // reserved
-		SOCKS5_ADDR_DOMAIN,  // address type (Domain)
-		byte(len(domain)),   // domain name length
+		SOCKS5_VERSION,     // version
+		SOCKS5_CMD_CONNECT, // command (CONNECT)
+		0x00,               // reserved
+		SOCKS5_ADDR_DOMAIN, // address type (Domain)
+		byte(len(domain)),  // domain name length
 	}
-	req = append(req, []byte(domain)...)  // append domain name
+	req = append(req, []byte(domain)...) // append domain name
 	portBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBytes, targetPortNum)
-	req = append(req, portBytes...)  // append 2 bytes of port
+	req = append(req, portBytes...) // append 2 bytes of port
 
 	_, err = clientConn.Write(req)
 	if err != nil {
@@ -536,7 +536,7 @@ func TestSocksTCPDomainName(t *testing.T) {
 	if respMsg != testMessage {
 		t.Fatalf("Received wrong response: got %q, want %q", respMsg, testMessage)
 	}
-	
+
 	t.Logf("Client received correct echo response: %q", respMsg)
 
 	// Close connections and wait for goroutines
@@ -561,15 +561,15 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 	// Setup security validator and metrics
 	security := NewSecurityValidator()
 	metrics := NewTestMetricsCollector()
-	
+
 	// Allow localhost for testing
 	security.allowedHosts["127.0.0.1"] = true
 	security.allowedHosts["localhost"] = true
 
 	// Test cases for error conditions
 	testCases := []struct {
-		name        string
-		setupFunc   func(t *testing.T) net.Conn // Setup function that creates a SOCKS client connection
+		name         string
+		setupFunc    func(t *testing.T) net.Conn       // Setup function that creates a SOCKS client connection
 		validateFunc func(t *testing.T, conn net.Conn) // Validation function to verify error handling
 	}{
 		{
@@ -583,7 +583,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 				t.Cleanup(func() { socksListener.Close() })
 
 				socksAddr := socksListener.Addr().String()
-				
+
 				// Handle one connection
 				go func() {
 					conn, err := socksListener.Accept()
@@ -593,8 +593,8 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						}
 						return
 					}
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -622,21 +622,21 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 			},
 			validateFunc: func(t *testing.T, conn net.Conn) {
 				defer conn.Close()
-				
+
 				// Send CONNECT request to disallowed host (8.8.8.8)
 				disallowedIP := net.ParseIP("8.8.8.8").To4()
 				targetPort := uint16(80)
 
 				req := []byte{
-					SOCKS5_VERSION,      // version
-					SOCKS5_CMD_CONNECT,  // command (CONNECT)
-					0x00,                // reserved
-					SOCKS5_ADDR_IPV4,    // address type (IPv4)
+					SOCKS5_VERSION,     // version
+					SOCKS5_CMD_CONNECT, // command (CONNECT)
+					0x00,               // reserved
+					SOCKS5_ADDR_IPV4,   // address type (IPv4)
 				}
-				req = append(req, disallowedIP...)  // append 4 bytes of IPv4
+				req = append(req, disallowedIP...) // append 4 bytes of IPv4
 				portBytes := make([]byte, 2)
 				binary.BigEndian.PutUint16(portBytes, targetPort)
-				req = append(req, portBytes...)  // append 2 bytes of port
+				req = append(req, portBytes...) // append 2 bytes of port
 
 				_, err := conn.Write(req)
 				if err != nil {
@@ -654,10 +654,9 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 					t.Fatalf("Unexpected response version: 0x%02x", resp[0])
 				}
 
-				// Should get a "connection not allowed" error
-				// Server might return either CONN_NOT_ALLOWED or HOST_UNREACHABLE
-				if resp[1] != SOCKS5_REP_CONN_NOT_ALLOWED && resp[1] != SOCKS5_REP_HOST_UNREACHABLE {
-					t.Fatalf("Expected CONN_NOT_ALLOWED (0x02) or HOST_UNREACHABLE (0x04), got: 0x%02x", resp[1])
+				// Should get a "connection not allowed" error for policy-based rejections
+				if resp[1] != SOCKS5_REP_CONN_NOT_ALLOWED {
+					t.Fatalf("Expected CONN_NOT_ALLOWED (0x02), got: 0x%02x", resp[1])
 				}
 
 				t.Logf("Correctly received CONN_NOT_ALLOWED for disallowed host")
@@ -674,7 +673,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 				t.Cleanup(func() { socksListener.Close() })
 
 				socksAddr := socksListener.Addr().String()
-				
+
 				// Handle one connection
 				go func() {
 					conn, err := socksListener.Accept()
@@ -684,8 +683,8 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						}
 						return
 					}
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -713,24 +712,24 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 			},
 			validateFunc: func(t *testing.T, conn net.Conn) {
 				defer conn.Close()
-				
+
 				// Allow port 12345 (likely unused)
 				security.allowedPorts["12345"] = true
-				
+
 				// Send CONNECT request to allowed host but non-existent port
 				targetIP := net.ParseIP("127.0.0.1").To4()
 				targetPort := uint16(12345) // Most likely nothing listening on this port
 
 				req := []byte{
-					SOCKS5_VERSION,      // version
-					SOCKS5_CMD_CONNECT,  // command (CONNECT)
-					0x00,                // reserved
-					SOCKS5_ADDR_IPV4,    // address type (IPv4)
+					SOCKS5_VERSION,     // version
+					SOCKS5_CMD_CONNECT, // command (CONNECT)
+					0x00,               // reserved
+					SOCKS5_ADDR_IPV4,   // address type (IPv4)
 				}
-				req = append(req, targetIP...)  // append 4 bytes of IPv4
+				req = append(req, targetIP...) // append 4 bytes of IPv4
 				portBytes := make([]byte, 2)
 				binary.BigEndian.PutUint16(portBytes, targetPort)
-				req = append(req, portBytes...)  // append 2 bytes of port
+				req = append(req, portBytes...) // append 2 bytes of port
 
 				_, err := conn.Write(req)
 				if err != nil {
@@ -767,7 +766,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 				t.Cleanup(func() { socksListener.Close() })
 
 				socksAddr := socksListener.Addr().String()
-				
+
 				// Handle one connection
 				go func() {
 					conn, err := socksListener.Accept()
@@ -777,8 +776,8 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						}
 						return
 					}
-					
-					handler := NewSOCKSHandler(conn, security, metrics)
+
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -806,21 +805,21 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 			},
 			validateFunc: func(t *testing.T, conn net.Conn) {
 				defer conn.Close()
-				
+
 				// Send an invalid command (0x04)
 				targetIP := net.ParseIP("127.0.0.1").To4()
 				targetPort := uint16(80)
 
 				req := []byte{
-					SOCKS5_VERSION, // version
-					0x04,           // invalid command (not CONNECT, BIND, or UDP)
-					0x00,           // reserved
-					SOCKS5_ADDR_IPV4,    // address type (IPv4)
+					SOCKS5_VERSION,   // version
+					0x04,             // invalid command (not CONNECT, BIND, or UDP)
+					0x00,             // reserved
+					SOCKS5_ADDR_IPV4, // address type (IPv4)
 				}
-				req = append(req, targetIP...)  // append 4 bytes of IPv4
+				req = append(req, targetIP...) // append 4 bytes of IPv4
 				portBytes := make([]byte, 2)
 				binary.BigEndian.PutUint16(portBytes, targetPort)
-				req = append(req, portBytes...)  // append 2 bytes of port
+				req = append(req, portBytes...) // append 2 bytes of port
 
 				_, err := conn.Write(req)
 				if err != nil {
@@ -903,7 +902,7 @@ func TestSocksUDPReliability(t *testing.T) {
 		}
 		defer conn.Close()
 
-		handler := NewSOCKSHandler(conn, security, metrics)
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
@@ -928,7 +927,7 @@ func TestSocksUDPReliability(t *testing.T) {
 
 	// UDP ASSOCIATE request
 	udpRequest := []byte{
-		SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00, 
+		SOCKS5_VERSION, SOCKS5_CMD_UDP_ASSOCIATE, 0x00,
 		SOCKS5_ADDR_IPV4, 0, 0, 0, 0, 0, 0,
 	}
 	_, err = clientTCPConn.Write(udpRequest)
@@ -1003,7 +1002,7 @@ func TestSocksUDPReliability(t *testing.T) {
 			// Process the packet
 			packet := make([]byte, n)
 			copy(packet, buffer[:n])
-			
+
 			// Check for duplicate (using content as key)
 			packetKey := string(packet)
 			if !packetMemo[packetKey] {
@@ -1034,14 +1033,14 @@ func TestSocksUDPReliability(t *testing.T) {
 	for _, data := range testData {
 		// Build the SOCKS UDP datagram
 		var datagram bytes.Buffer
-		datagram.Write([]byte{0, 0, 0}) // RSV + FRAG
-		datagram.WriteByte(SOCKS5_ADDR_IPV4) // ATYP
+		datagram.Write([]byte{0, 0, 0})        // RSV + FRAG
+		datagram.WriteByte(SOCKS5_ADDR_IPV4)   // ATYP
 		datagram.Write(targetUDPAddr.IP.To4()) // DST.ADDR
-		
+
 		portBytes := make([]byte, 2)
 		binary.BigEndian.PutUint16(portBytes, uint16(targetUDPAddr.Port))
 		datagram.Write(portBytes) // DST.PORT
-		
+
 		datagram.Write(data.data) // DATA
 
 		// Send to proxy relay

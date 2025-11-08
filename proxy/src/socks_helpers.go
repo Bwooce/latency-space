@@ -142,7 +142,14 @@ func isNetClosingErr(err error) bool {
 }
 
 // getCelestialBodyFromConn extracts the celestial body from the connection
-func getCelestialBodyFromConn(addr net.Addr) (string, error) {
+func (s *SOCKSHandler) getCelestialBodyFromConn(addr net.Addr) (string, error) {
+	// If a fixed celestial body is configured, use it
+	if s.fixedCelestialBody != "" {
+		log.Printf("Using fixed celestial body: %s", s.fixedCelestialBody)
+		return s.fixedCelestialBody, nil
+	}
+
+	// Otherwise, try to determine from connection hostname (existing logic)
 	host := addr.String()
 
 	// Extract the host part without port

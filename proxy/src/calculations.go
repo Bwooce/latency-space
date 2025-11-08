@@ -548,7 +548,7 @@ func getCurrentDistance(bodyName string) float64 {
 	//log.Printf("Size of celestialObjects: %d", len(celestialObjects))
 	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated (handles its own locking)
 
-	DistanceCacheMutex.RLock() // Acquire read lock to access the cache
+	DistanceCacheMutex.RLock()         // Acquire read lock to access the cache
 	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
 
 	//log.Printf("Size of distanceObjects: %d", len(distanceEntries))

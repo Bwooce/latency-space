@@ -47,17 +47,19 @@ const (
 
 // SOCKSHandler handles SOCKS protocol connections
 type SOCKSHandler struct {
-	conn     net.Conn
-	security *SecurityValidator
-	metrics  *MetricsCollector
+	conn               net.Conn
+	security           *SecurityValidator
+	metrics            *MetricsCollector
+	fixedCelestialBody string // If set, use this body instead of detecting from hostname
 }
 
 // NewSOCKSHandler creates a new SOCKS connection handler
-func NewSOCKSHandler(conn net.Conn, security *SecurityValidator, metrics *MetricsCollector) *SOCKSHandler {
+func NewSOCKSHandler(conn net.Conn, security *SecurityValidator, metrics *MetricsCollector, fixedBody string) *SOCKSHandler {
 	return &SOCKSHandler{
-		conn:     conn,
-		security: security,
-		metrics:  metrics,
+		conn:               conn,
+		security:           security,
+		metrics:            metrics,
+		fixedCelestialBody: fixedBody,
 	}
 }
 
@@ -217,12 +219,12 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 
 	// Anti-DDoS: Check if destination is in allowed list
 	if !s.isAllowedDestination(dstAddr) {
-		s.sendReply(SOCKS5_REP_HOST_UNREACHABLE, net.IPv4zero, 0)
+		s.sendReply(SOCKS5_REP_CONN_NOT_ALLOWED, net.IPv4zero, 0)
 		return fmt.Errorf("destination not in allowed list: %s", dstAddr)
 	}
 
 	// Extract celestial body and apply latency
-	bodyName, err := getCelestialBodyFromConn(s.conn.RemoteAddr())
+	bodyName, err := s.getCelestialBodyFromConn(s.conn.RemoteAddr())
 	if err != nil {
 		log.Printf("No valid body found in %v: %v", s.conn.RemoteAddr(), err)
 		// If no body is found, getCelestialBodyFromConn defaults to Mars, so proceed
@@ -521,7 +523,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	log.Printf("UDP Relay started for %s, listening on %s", clientTCPAddr, udpConn.LocalAddr())
 
 	// Determine celestial body and latency based on the *initial* TCP connection
-	bodyName, err := getCelestialBodyFromConn(clientTCPAddr)
+	bodyName, err := s.getCelestialBodyFromConn(clientTCPAddr)
 	if err != nil {
 		log.Printf("UDP Relay: Error getting celestial body for %v: %v. Using default.", clientTCPAddr, err)
 		// getCelestialBodyFromConn defaults to Mars, proceed with that
