@@ -9,6 +9,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Docker**: `docker compose up -d` (all services) or `docker compose -f docker-compose.minimal.yml up -d` (minimal)
 - **Diagnostic Information**: `curl https://latency.space/diagnostic.html` will provide current running instance diagnositic information
 
+## Pre-commit Checks
+**IMPORTANT**: Always run these checks before committing code:
+- **Go Formatting**: `cd proxy/src && go fmt ./...`
+- **Go Linting**: Ensure code passes golangci-lint (CI will fail if linting errors exist)
+- **Go Tests**: `cd proxy/src && go test -v ./...` - All tests must pass
+- **Build Verification**: `cd proxy/src && go build` - Code must compile without errors
+
 ## Code Style Guidelines
 - **Go**: Standard Go formatting with proper error handling (always check err != nil). Always run tests after making changes.
 - **JavaScript**: Use ES6 features, React functional components with hooks
