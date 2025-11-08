@@ -234,8 +234,8 @@ echo $DIVIDER
 blue "🔄 Restarting all containers..."
 cd /opt/latency-space
 docker compose down
-blue "🏗️ Building proxy image..."
-docker compose build --no-cache proxy
+blue "🏗️ Building all proxy images..."
+docker compose build --no-cache
 docker compose up -d
 if [ $? -eq 0 ]; then
   green "✅ All containers restarted successfully"

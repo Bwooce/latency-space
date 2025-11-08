@@ -271,7 +271,7 @@ jobs:
               
               # Build and start without AppArmor configuration
               echo "Building fresh images..."
-              docker compose build --no-cache proxy
+              docker compose build --no-cache
               
               # Start services normally without additional options
               echo "Starting services..."
