@@ -15,8 +15,19 @@ func TestDistinctSpacecraftDistances(t *testing.T) {
 	// 1. Define Test Data (Simplified Orbital Parameters)
 	// Using simplified heliocentric coordinates (AU) for a specific time.
 	// These are NOT accurate orbital elements, just positions for testing.
+	// Sun - Required as parent for other objects
+	sun := CelestialObject{
+		Name:   "Sun",
+		Type:   "star",
+		Radius: 695700, // km
+		Mass:   1.989e30,
+		// Sun is at the origin, no orbital elements needed
+	}
+	// Earth - Reference point for distance calculations
 	earth := CelestialObject{
-		Name: "Earth", Type: "planet",
+		Name:       "Earth",
+		Type:       "planet",
+		ParentName: "Sun",
 		// Simplified position: 1 AU along X-axis
 		A: 1.0, E: 0, I: 0, L: 0, LP: 0, N: 0, // Simplified elements for position calc
 	}
@@ -35,7 +46,7 @@ func TestDistinctSpacecraftDistances(t *testing.T) {
 		Radius: 1, // Placeholder
 	}
 
-	testObjects := []CelestialObject{earth, voyager1, jwst}
+	testObjects := []CelestialObject{sun, earth, voyager1, jwst}
 
 	// 2. Define a fixed time
 	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)

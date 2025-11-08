@@ -4,7 +4,10 @@
 FROM golang:1.21.6-alpine3.19 AS builder
 
 # Install build dependencies (minimal)
-RUN apk add --no-cache gcc musl-dev git
+RUN apk add --no-cache \
+    gcc=~13.2 \
+    musl-dev=~1.2 \
+    git=~2.43
 
 # Set working directory
 WORKDIR /app
@@ -30,7 +33,7 @@ RUN apk add --no-cache \
     iproute2=~6.6 \
     iptables=~1.8 \
     openssl=~3.1 \
-    libc-utils \
+    libc-utils=~0.7 \
     && mkdir -p /etc/latency-space
 
 # Copy the binary and templates
