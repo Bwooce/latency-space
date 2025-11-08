@@ -237,7 +237,13 @@ REQUIRED_PORTS="8081 8444 9099 1080 1081 1082 1083 1084 1085 2081 2084 3001 3003
 CONFLICTS_FOUND=false
 for port in $REQUIRED_PORTS; do
   # Check if port is in use by non-docker processes
-  PORT_INFO=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -v docker-proxy || lsof -i :$port 2>/dev/null | grep -v docker-proxy)
+  # Use || true to prevent set -e from exiting when grep finds nothing
+  PORT_INFO=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -v docker-proxy || true)
+  if [ -z "$PORT_INFO" ]; then
+    # Try lsof if ss didn't find anything
+    PORT_INFO=$(lsof -i :$port 2>/dev/null | grep -v docker-proxy || true)
+  fi
+
   if [ -n "$PORT_INFO" ]; then
     yellow "⚠️  Port $port is in use by NON-DOCKER process:"
     echo "$PORT_INFO"
