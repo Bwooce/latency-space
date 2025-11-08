@@ -276,10 +276,27 @@ jobs:
               # Start services normally without additional options
               echo "Starting services..."
               docker compose up -d
-              
+
+              # Detailed diagnostic output
+              echo "Checking container status..."
+              docker compose ps -a
+
+              RUNNING=$(docker compose ps | grep -c "Up" || echo "0")
+              TOTAL=$(docker compose config --services | wc -l)
+              echo "Running: $RUNNING / Total: $TOTAL"
+
               # Check if services started
-              if ! docker compose ps | grep -q "Up"; then
-                echo "Failed to start services even with security options disabled"
+              if [ "$RUNNING" -eq 0 ]; then
+                echo "ERROR: No containers are running!"
+                echo "Showing container logs:"
+                docker compose logs --tail=50
+                exit 1
+              elif [ "$RUNNING" -lt "$TOTAL" ]; then
+                echo "WARNING: Only $RUNNING out of $TOTAL containers started"
+                echo "Failed containers:"
+                docker compose ps -a | grep -v " Up "
+                echo "Recent logs:"
+                docker compose logs --tail=30 --since=2m
                 exit 1
               fi
             fi
