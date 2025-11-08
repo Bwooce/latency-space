@@ -48,8 +48,8 @@ func TestDistinctSpacecraftDistances(t *testing.T) {
 	// Set the global celestialObjects for the test context IF NEEDED by dependencies
 	// Since calculateDistancesFromEarth takes objects as arg, we don't strictly need this
 	// But GetObjectPosition relies on the global slice if ParentName lookups occur
-	originalCelestialObjects := celestialObjects // backup
-	celestialObjects = testObjects               // set global for GetObjectPosition
+	originalCelestialObjects := celestialObjects                   // backup
+	celestialObjects = testObjects                                 // set global for GetObjectPosition
 	defer func() { celestialObjects = originalCelestialObjects }() // restore
 
 	calculateDistancesFromEarth(testObjects, testTime)
@@ -88,12 +88,12 @@ func TestDistinctSpacecraftDistances(t *testing.T) {
 	}
 
 	// Optional: Add approximate checks for expected ranges
-	expectedJwstDist := 0.01 * AU // ~1.5 million km
+	expectedJwstDist := 0.01 * AU                    // ~1.5 million km
 	if math.Abs(jwstDist-expectedJwstDist) > 0.5e6 { // Allow 500k km tolerance
 		t.Errorf("JWST distance (%f km) is further than expected (%f km +/- 500k km) from Earth based on simplified model", jwstDist, expectedJwstDist)
 	}
 
-	expectedVoyagerDist := 149.0 * AU // ~22 billion km
+	expectedVoyagerDist := 149.0 * AU                    // ~22 billion km
 	if math.Abs(voyagerDist-expectedVoyagerDist) > 1e9 { // Allow 1 billion km tolerance (large distance)
 		t.Errorf("Voyager 1 distance (%f km) significantly different than expected (%f km +/- 1B km) from Earth based on simplified model", voyagerDist, expectedVoyagerDist)
 	}

@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/latency-space/shared/celestial"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // infoTemplate holds the parsed HTML template for the celestial body information page.
@@ -57,22 +57,28 @@ type InfoPageData struct {
 
 // Server represents the main latency proxy application.
 type Server struct {
-	port          int  // Port for the HTTP server (HTTPS uses 443)
-	https         bool // Flag indicating whether to enable HTTPS
-	metrics       *MetricsCollector
-	security      *SecurityValidator
-	httpServer    *http.Server
-	httpsServer   *http.Server
-	socksListener net.Listener // Listener for the SOCKS5 server
+	port               int  // Port for the HTTP server (HTTPS uses 443)
+	https              bool // Flag indicating whether to enable HTTPS
+	metrics            *MetricsCollector
+	security           *SecurityValidator
+	httpServer         *http.Server
+	httpsServer        *http.Server
+	socksListener      net.Listener // Listener for the SOCKS5 server
+	httpEnabled        bool         // Whether HTTP/HTTPS should run
+	socksEnabled       bool         // Whether SOCKS5 should run
+	fixedCelestialBody string       // Fixed celestial body for this instance (empty = dynamic)
 }
 
 // NewServer creates and returns a new Server instance.
-func NewServer(port int, useHTTPS bool) *Server {
+func NewServer(port int, useHTTPS bool, httpEn bool, socksEn bool, fixedBody string) *Server {
 	return &Server{
-		port:     port,
-		https:    useHTTPS,
-		metrics:  NewMetricsCollector(),
-		security: NewSecurityValidator(),
+		port:               port,
+		https:              useHTTPS,
+		metrics:            NewMetricsCollector(),
+		security:           NewSecurityValidator(),
+		httpEnabled:        httpEn,
+		socksEnabled:       socksEn,
+		fixedCelestialBody: fixedBody,
 	}
 }
 
@@ -88,18 +94,23 @@ func (s *Server) Start() error {
 	// Channel to receive errors from server goroutines
 	errCh := make(chan error, 3) // Buffered channel for HTTP, HTTPS, SOCKS errors
 
-	// Start HTTP server in a goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := s.startHTTPServer()
-		if err != nil && err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("HTTP server error: %v", err)
-		}
-	}()
+	// Start HTTP server in a goroutine (only if HTTP enabled)
+	if s.httpEnabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.startHTTPServer()
+			if err != nil && err != http.ErrServerClosed {
+				errCh <- fmt.Errorf("HTTP server error: %v", err)
+			}
+		}()
+		log.Printf("HTTP server starting on port %d", s.port)
+	} else {
+		log.Printf("HTTP server disabled")
+	}
 
-	// Start HTTPS server in a goroutine if enabled
-	if s.https {
+	// Start HTTPS server in a goroutine (only if HTTP and HTTPS both enabled)
+	if s.httpEnabled && s.https {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -108,17 +119,25 @@ func (s *Server) Start() error {
 				errCh <- fmt.Errorf("HTTPS server error: %v", err)
 			}
 		}()
+		log.Printf("HTTPS server starting on port 443")
+	} else if s.httpEnabled {
+		log.Printf("HTTPS server disabled")
 	}
 
-	// Start SOCKS5 server in a goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := s.startSOCKSServer()
-		if err != nil {
-			errCh <- fmt.Errorf("SOCKS5 server error: %v", err)
-		}
-	}()
+	// Start SOCKS5 server in a goroutine (only if SOCKS enabled)
+	if s.socksEnabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.startSOCKSServer()
+			if err != nil {
+				errCh <- fmt.Errorf("SOCKS5 server error: %v", err)
+			}
+		}()
+		log.Printf("SOCKS5 server starting on port 1080")
+	} else {
+		log.Printf("SOCKS5 server disabled")
+	}
 
 	// Wait for signals or errors
 	select {
@@ -583,7 +602,8 @@ func (s *Server) startSOCKSServer() error {
 		}
 
 		// Handle the connection in a goroutine
-		go NewSOCKSHandler(conn, s.security, s.metrics).Handle()
+		// Pass the fixed celestial body if configured
+		go NewSOCKSHandler(conn, s.security, s.metrics, s.fixedCelestialBody).Handle()
 	}
 }
 
@@ -741,37 +761,69 @@ func main() {
 	// Parse command-line arguments
 	port := flag.Int("port", 80, "HTTP port to listen on")
 	https := flag.Bool("https", true, "Enable HTTPS")
-
 	flag.Parse()
 
-	// Parse the info page template at startup
+	// Read environment variables for configuration
+	fixedCelestialBody := os.Getenv("CELESTIAL_BODY")
+
+	httpEnabledStr := os.Getenv("HTTP_ENABLED")
+	httpEnabled := httpEnabledStr != "false" // Default to true unless explicitly "false"
+
+	socksEnabledStr := os.Getenv("SOCKS_ENABLED")
+	socksEnabled := socksEnabledStr != "false" // Default to true unless explicitly "false"
+
+	// Log configuration
+	log.Printf("===== latency.space Proxy Configuration =====")
+	log.Printf("  HTTP/HTTPS Enabled: %v", httpEnabled)
+	log.Printf("  SOCKS5 Enabled: %v", socksEnabled)
+	if fixedCelestialBody != "" {
+		log.Printf("  Fixed Celestial Body: %s", fixedCelestialBody)
+	} else {
+		log.Printf("  Celestial Body: Dynamic (detected from hostname)")
+	}
+	log.Printf("==============================================")
+
+	// Parse the info page template at startup (only if HTTP enabled)
 	var err error
-	// Try different paths for the template (container paths first, then local development paths)
-	templatePaths := []string{
-		"/app/templates/info_page.html",      // Docker container path (new)
-		"templates/info_page.html",           // Relative path
-		"src/templates/info_page.html",       // Another relative path
-		"proxy/src/templates/info_page.html", // Original path
-	}
-
-	var templateErr error
-	for _, path := range templatePaths {
-		infoTemplate, templateErr = template.ParseFiles(path)
-		if templateErr == nil {
-			log.Printf("Successfully loaded template from: %s", path)
-			break
+	if httpEnabled {
+		// Try different paths for the template (container paths first, then local development paths)
+		templatePaths := []string{
+			"/app/templates/info_page.html",      // Docker container path (new)
+			"templates/info_page.html",           // Relative path
+			"src/templates/info_page.html",       // Another relative path
+			"proxy/src/templates/info_page.html", // Original path
 		}
-	}
 
-	if infoTemplate == nil {
-		log.Fatalf("Failed to parse info page template: %v", templateErr)
+		var templateErr error
+		for _, path := range templatePaths {
+			infoTemplate, templateErr = template.ParseFiles(path)
+			if templateErr == nil {
+				log.Printf("Successfully loaded template from: %s", path)
+				break
+			}
+		}
+
+		if infoTemplate == nil {
+			log.Fatalf("Failed to parse info page template: %v", templateErr)
+		}
+	} else {
+		log.Printf("HTTP disabled, skipping template loading")
 	}
 
 	// Initialize celestial objects for calculation
 	celestialObjects = celestial.InitSolarSystemObjects()
 
+	// Validate fixed celestial body if set
+	if fixedCelestialBody != "" {
+		_, found := findObjectByName(celestialObjects, fixedCelestialBody)
+		if !found {
+			log.Fatalf("Invalid CELESTIAL_BODY: '%s' not found in solar system objects", fixedCelestialBody)
+		}
+		log.Printf("Validated fixed celestial body: %s", fixedCelestialBody)
+	}
+
 	// Create and start the server
-	server := NewServer(*port, *https)
+	server := NewServer(*port, *https, httpEnabled, socksEnabled, fixedCelestialBody)
 	err = server.Start() // Use = instead of := as err is already declared
 	if err != nil {
 		log.Fatalf("Server error: %v", err)

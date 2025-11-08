@@ -218,7 +218,7 @@ func testHTTPSFormat() {
 
 	fmt.Printf("Successfully connected to %s via %s in %v\n", targetURL, proxyAddr, elapsed)
 	fmt.Printf("Response status: %s\n", resp.Status)
-	
+
 	// Additional TLS information
 	if resp.TLS != nil {
 		fmt.Println("TLS Connection Established:")
@@ -254,19 +254,19 @@ func testDNSFormat() {
 	defer conn.Close() // Ensure connection is closed
 
 	fmt.Printf("Successfully connected to %s via %s in %v\n", targetAddr, proxyAddr, elapsed)
-	
+
 	// Since this is a raw TCP connection to port 443, we could upgrade to TLS here:
 	fmt.Println("Upgrading connection to TLS...")
 	tlsConn := tls.Client(conn, &tls.Config{
-		InsecureSkipVerify: true, // Skip certificate verification for testing
-		ServerName:         "www.example.com", // SNI 
+		InsecureSkipVerify: true,              // Skip certificate verification for testing
+		ServerName:         "www.example.com", // SNI
 	})
-	
+
 	// Handshake to establish the TLS connection
 	if err := tlsConn.Handshake(); err != nil {
 		log.Fatalf("TLS handshake failed: %v", err)
 	}
-	
+
 	fmt.Println("TLS connection established successfully!")
 	// Now tlsConn is a secure connection that can be used for HTTPS requests
 }

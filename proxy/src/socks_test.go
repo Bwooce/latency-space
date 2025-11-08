@@ -78,7 +78,7 @@ func setupTestEnvironment() func() {
 
 // NewTestSOCKSHandler creates a SOCKS connection handler for testing with fixed latency
 func NewTestSOCKSHandler(conn net.Conn, security *SecurityValidator, metrics *MetricsCollector) *SOCKSHandler {
-	return NewSOCKSHandler(conn, security, metrics)
+	return NewSOCKSHandler(conn, security, metrics, "")
 }
 
 func TestSocksUDPAssociateAndRelay(t *testing.T) {

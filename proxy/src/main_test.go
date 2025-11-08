@@ -9,7 +9,7 @@ import (
 	"strings" // Import strings for case-insensitive comparison later
 	"testing"
 	"time"
-	
+
 	"github.com/latency-space/shared/celestial"
 )
 
@@ -278,9 +278,6 @@ func TestDisplayCelestialInfoTemplate(t *testing.T) {
 	if !strings.Contains(body, expectedDomain) {
 		t.Errorf("Response body does not contain expected domain code block: %s", expectedDomain)
 	}
-
-
-
 
 	// Check for moon links if applicable (Mars has moons).
 	if testBodyName == "Mars" {

@@ -198,7 +198,7 @@ func TestSocksTCPConnect(t *testing.T) {
 			return
 		}
 
-		handler := NewSOCKSHandler(conn, security, metrics)
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
@@ -409,7 +409,7 @@ func TestSocksTCPDomainName(t *testing.T) {
 			return
 		}
 
-		handler := NewSOCKSHandler(conn, security, metrics)
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
@@ -594,7 +594,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						return
 					}
 
-					handler := NewSOCKSHandler(conn, security, metrics)
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -684,7 +684,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						return
 					}
 
-					handler := NewSOCKSHandler(conn, security, metrics)
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -777,7 +777,7 @@ func TestSocksTCPErrorHandling(t *testing.T) {
 						return
 					}
 
-					handler := NewSOCKSHandler(conn, security, metrics)
+					handler := NewSOCKSHandler(conn, security, metrics, "")
 					handler.Handle()
 				}()
 
@@ -902,7 +902,7 @@ func TestSocksUDPReliability(t *testing.T) {
 		}
 		defer conn.Close()
 
-		handler := NewSOCKSHandler(conn, security, metrics)
+		handler := NewSOCKSHandler(conn, security, metrics, "")
 		handler.Handle()
 	}()
 
