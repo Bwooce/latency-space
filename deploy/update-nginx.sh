@@ -82,7 +82,7 @@ server {
     
     # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
-        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_pass http://$PROXY_IP:80; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -211,7 +211,7 @@ server {
 
     # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
-        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_pass http://$PROXY_IP:80; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -243,7 +243,7 @@ server {
 
     # Handle Let's Encrypt validation challenges by proxying to the backend Go app
     location /.well-known/acme-challenge/ {
-        proxy_pass http://$PROXY_IP:8080; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
+        proxy_pass http://$PROXY_IP:80; # Target the Go app's internal HTTP port (Note: Using $PROXY_IP variable from script)
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

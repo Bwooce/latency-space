@@ -237,11 +237,34 @@ docker compose down
 blue "🏗️ Building all proxy images..."
 docker compose build --no-cache
 docker compose up -d
-if [ $? -eq 0 ]; then
-  green "✅ All containers restarted successfully"
-else
-  red "❌ Failed to restart containers"
+
+# Check container status with detailed output
+echo ""
+blue "📊 Checking container status..."
+docker compose ps -a
+
+# Count running containers
+RUNNING=$(docker compose ps | grep -c "Up" || echo "0")
+TOTAL=$(docker compose config --services | wc -l)
+
+echo "Running: $RUNNING / Total services: $TOTAL"
+
+if [ "$RUNNING" -eq 0 ]; then
+  red "❌ No containers are running!"
+  echo ""
+  blue "Container logs for failed services:"
+  docker compose logs --tail=50
   exit 1
+elif [ "$RUNNING" -lt "$TOTAL" ]; then
+  yellow "⚠️ Warning: Only $RUNNING out of $TOTAL containers are running"
+  echo ""
+  blue "Checking which containers failed:"
+  docker compose ps -a | grep -v " Up "
+  echo ""
+  blue "Showing logs from recently started containers (may show which one failed):"
+  docker compose logs --tail=30 --since=2m
+else
+  green "✅ All $TOTAL containers started successfully"
 fi
 
 # Update Nginx configuration with correct container IPs
