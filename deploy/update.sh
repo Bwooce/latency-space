@@ -230,16 +230,27 @@ echo $DIVIDER
 # System is using the standard Docker installation from packages
 # Snap Docker has been removed due to containerd stability issues
 
-# Check what's using the ports we need
-blue "🔍 Checking for port conflicts before starting containers..."
+# Check what's using the ports we need BEFORE stopping existing containers
+blue "🔍 Checking for port conflicts with external services..."
 REQUIRED_PORTS="8081 8444 9099 1080 1081 1082 1083 1084 1085 2081 2084 3001 3003 3080 3084 9092 9100 9101 9102 9103 9104 9105 9201 9204 9300 9304"
 
+CONFLICTS_FOUND=false
 for port in $REQUIRED_PORTS; do
-  if ss -tlnp 2>/dev/null | grep -q ":$port " || lsof -i :$port 2>/dev/null | grep -q LISTEN; then
-    yellow "⚠️  Port $port is already in use:"
-    ss -tlnp 2>/dev/null | grep ":$port " || lsof -i :$port 2>/dev/null
+  # Check if port is in use by non-docker processes
+  PORT_INFO=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -v docker-proxy || lsof -i :$port 2>/dev/null | grep -v docker-proxy)
+  if [ -n "$PORT_INFO" ]; then
+    yellow "⚠️  Port $port is in use by NON-DOCKER process:"
+    echo "$PORT_INFO"
+    CONFLICTS_FOUND=true
   fi
 done
+
+if [ "$CONFLICTS_FOUND" = true ]; then
+  red "❌ Port conflicts detected with external services. Please resolve before deploying."
+  exit 1
+fi
+
+green "✅ No external port conflicts detected"
 
 # Restart the containers
 blue "🔄 Restarting all containers..."
@@ -272,8 +283,23 @@ elif [ "$RUNNING" -lt "$TOTAL" ]; then
   blue "Checking which containers failed:"
   docker compose ps -a | grep -v " Up "
   echo ""
-  blue "Showing logs from recently started containers (may show which one failed):"
-  docker compose logs --tail=30 --since=2m
+  blue "Attempting to start failed containers individually to see error messages:"
+
+  # Get list of containers that aren't running
+  FAILED_SERVICES=$(docker compose ps -a --format json | jq -r 'select(.State != "running") | .Service' 2>/dev/null || docker compose ps -a | grep -v " Up " | awk '{print $1}' | grep latency-space | sed 's/latency-space-\(.*\)-[0-9]*/\1/')
+
+  for service in $FAILED_SERVICES; do
+    echo ""
+    blue "=== Trying to start $service ==="
+    docker compose up -d $service 2>&1 | tail -20
+    sleep 2
+    echo "Status after attempt:"
+    docker compose ps $service 2>&1
+    if docker ps | grep -q "$service"; then
+      echo "Logs:"
+      docker compose logs --tail=20 $service 2>&1
+    fi
+  done
 else
   green "✅ All $TOTAL containers started successfully"
 fi
