@@ -317,10 +317,10 @@ fi
 
 # Check if HTTP proxy is working (try HTTPS first, then fallback to HTTP)
 blue "🌐 Testing HTTP/HTTPS proxy..."
-if curl -s --max-time 5 --insecure https://localhost:8443 &> /dev/null; then
-  green "✅ HTTPS proxy is running on port 8443!"
-elif curl -s --max-time 5 http://localhost:8080 &> /dev/null; then
-  green "✅ HTTP proxy is running on port 8080!"
+if curl -s --max-time 5 --insecure https://localhost:8444 &> /dev/null; then
+  green "✅ HTTPS proxy is running on port 8444!"
+elif curl -s --max-time 5 http://localhost:8081 &> /dev/null; then
+  green "✅ HTTP proxy is running on port 8081!"
 else
   red "❌ HTTP/HTTPS proxy is not running!"
   exit 1
