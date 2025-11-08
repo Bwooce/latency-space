@@ -8,7 +8,6 @@ COPY rules/ /etc/prometheus/rules/
 
 # Set permissions but stay as root
 USER root
-RUN apk add --no-cache libc-utils
 RUN chown -R nobody:nobody /etc/prometheus /prometheus
 # Stay as root to avoid permission issues
 # USER nobody
