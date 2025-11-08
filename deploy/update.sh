@@ -304,7 +304,26 @@ elif [ "$RUNNING" -lt "$TOTAL" ]; then
   for service in $FAILED_SERVICES; do
     echo ""
     blue "=== Trying to start $service ==="
-    docker compose up -d $service 2>&1 | tail -20
+
+    # Capture full error output
+    STARTUP_OUTPUT=$(docker compose up -d $service 2>&1)
+    echo "$STARTUP_OUTPUT"
+
+    # Try to get more details from Docker events
+    if echo "$STARTUP_OUTPUT" | grep -q "Address already in use"; then
+      yellow "Checking which port is conflicting..."
+      # Try to extract port info from docker-compose.yml for this service
+      PORTS=$(docker compose config | grep -A 20 "^  $service:" | grep "^ *- \"[0-9]" | head -5)
+      echo "Service $service uses these ports:"
+      echo "$PORTS"
+
+      # Check each port
+      for port_mapping in $(echo "$PORTS" | grep -oE "[0-9]+:[0-9]+" | cut -d: -f1); do
+        echo "Checking external port $port_mapping:"
+        lsof -i :$port_mapping 2>/dev/null | grep -v "^COMMAND" || echo "  Port $port_mapping appears free"
+      done
+    fi
+
     sleep 2
     echo "Status after attempt:"
     docker compose ps $service 2>&1
