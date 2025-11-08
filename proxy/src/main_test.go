@@ -241,7 +241,7 @@ func TestDisplayCelestialInfoTemplate(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
 	// Create a Server instance.
-	s := NewServer(80, false) // Port/HTTPS don't matter for this test
+	s := NewServer(80, false, true, true, "") // Port/HTTPS don't matter for this test
 
 	// Call the function being tested.
 	testBodyName := "Mars"
