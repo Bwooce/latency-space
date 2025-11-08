@@ -305,8 +305,8 @@ elif [ "$RUNNING" -lt "$TOTAL" ]; then
     echo ""
     blue "=== Trying to start $service ==="
 
-    # Capture full error output
-    STARTUP_OUTPUT=$(docker compose up -d $service 2>&1)
+    # Capture full error output (allow failure with || true to continue diagnostics)
+    STARTUP_OUTPUT=$(docker compose up -d $service 2>&1 || true)
     echo "$STARTUP_OUTPUT"
 
     # Try to get more details from Docker events
