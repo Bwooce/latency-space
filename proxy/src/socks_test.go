@@ -24,7 +24,7 @@ func setupTestEnvironment() func() {
 		{
 			Name:   "Sun",
 			Type:   "star",
-			Radius: 695700, // km
+			Radius: 695700,   // km
 			Mass:   1.989e30, // kg
 			// Sun is at the origin, no orbital elements needed
 		},
