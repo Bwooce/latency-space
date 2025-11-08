@@ -230,6 +230,17 @@ echo $DIVIDER
 # System is using the standard Docker installation from packages
 # Snap Docker has been removed due to containerd stability issues
 
+# Check what's using the ports we need
+blue "🔍 Checking for port conflicts before starting containers..."
+REQUIRED_PORTS="8081 8444 9099 1080 1081 1082 1083 1084 1085 2081 2084 3001 3003 3080 3084 9092 9100 9101 9102 9103 9104 9105 9201 9204 9300 9304"
+
+for port in $REQUIRED_PORTS; do
+  if ss -tlnp 2>/dev/null | grep -q ":$port " || lsof -i :$port 2>/dev/null | grep -q LISTEN; then
+    yellow "⚠️  Port $port is already in use:"
+    ss -tlnp 2>/dev/null | grep ":$port " || lsof -i :$port 2>/dev/null
+  fi
+done
+
 # Restart the containers
 blue "🔄 Restarting all containers..."
 cd /opt/latency-space
