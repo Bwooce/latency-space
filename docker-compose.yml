@@ -227,7 +227,7 @@ services:
   status:
     build:
       context: ./status
-      dockerfile: proxy/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "3000:80"
     environment:
@@ -249,7 +249,7 @@ services:
   prometheus:
     build:
       context: ./monitoring/prometheus
-      dockerfile: proxy/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "9092:9090" # Changed to avoid conflict with port 9091
     volumes:
@@ -269,7 +269,7 @@ services:
   grafana:
     build:
       context: ./monitoring/grafana
-      dockerfile: proxy/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "3002:3000" # Changed from 3001 to avoid port conflict
     volumes:
