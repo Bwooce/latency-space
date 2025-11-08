@@ -6,8 +6,8 @@ services:
       context: .
       dockerfile: proxy/Dockerfile
     ports:
-      - "8080:80" # HTTP info pages
-      - "8443:443" # HTTPS info pages
+      - "8081:80" # HTTP info pages
+      - "8444:443" # HTTPS info pages
       # DNS port removed - not needed, Nginx handles all routing
       - "9099:9090" # Prometheus metrics (using 9099 to avoid conflicts with host services)
     volumes:
@@ -229,7 +229,7 @@ services:
       context: ./status
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "3001:80"
     environment:
       - METRICS_URL=http://prometheus:9090
       # These will be filled in during deployment by Docker network service discovery
@@ -271,7 +271,7 @@ services:
       context: ./monitoring/grafana
       dockerfile: Dockerfile
     ports:
-      - "3002:3000" # Changed from 3001 to avoid port conflict
+      - "3003:3000" # Changed from 3001 to avoid port conflict
     volumes:
       - grafana_data:/var/lib/grafana
       - grafana_dashboards:/etc/grafana/provisioning/dashboards

@@ -259,7 +259,17 @@ jobs:
               
               # Alternative approach if update.sh fails
               git pull
-              
+
+              # Diagnose port conflicts
+              echo "Checking for port conflicts..."
+              REQUIRED_PORTS="8081 8444 9099 1080 1081 1082 1083 1084 1085 2081 2084 3001 3003 3080 3084 9092 9100 9101 9102 9103 9104 9105 9201 9204 9300 9304"
+              for port in $REQUIRED_PORTS; do
+                if ss -tlnp 2>/dev/null | grep -q ":$port " || lsof -i :$port 2>/dev/null | grep -q LISTEN; then
+                  echo "WARNING: Port $port is in use:"
+                  ss -tlnp 2>/dev/null | grep ":$port " || lsof -i :$port 2>/dev/null || echo "  (could not determine process)"
+                fi
+              done
+
               # Attempt to directly start containers with security options disabled
               cd /opt/latency-space
               docker compose down || true
