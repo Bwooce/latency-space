@@ -3,8 +3,8 @@ services:
   # This no longer runs SOCKS5 - that's handled by individual services below
   proxy:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "8080:80" # HTTP info pages
       - "8443:443" # HTTPS info pages
@@ -32,8 +32,8 @@ services:
 
   socks-mars:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1080:1080" # Standard SOCKS5 port for Mars
       - "9100:9090" # Metrics on different port
@@ -51,8 +51,8 @@ services:
 
   socks-moon:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1081:1080"
       - "9101:9090"
@@ -70,8 +70,8 @@ services:
 
   socks-venus:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1082:1080"
       - "9102:9090"
@@ -89,8 +89,8 @@ services:
 
   socks-mercury:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1083:1080"
       - "9103:9090"
@@ -108,8 +108,8 @@ services:
 
   socks-jupiter:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1084:1080"
       - "9104:9090"
@@ -127,8 +127,8 @@ services:
 
   socks-saturn:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "1085:1080"
       - "9105:9090"
@@ -148,8 +148,8 @@ services:
 
   socks-europa:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "2081:1080"
       - "9201:9090"
@@ -167,8 +167,8 @@ services:
 
   socks-titan:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "2084:1080"
       - "9204:9090"
@@ -188,8 +188,8 @@ services:
 
   socks-voyager1:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "3080:1080"
       - "9300:9090"
@@ -207,8 +207,8 @@ services:
 
   socks-jwst:
     build:
-      context: ./proxy
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: proxy/Dockerfile
     ports:
       - "3084:1080"
       - "9304:9090"
@@ -227,7 +227,7 @@ services:
   status:
     build:
       context: ./status
-      dockerfile: Dockerfile
+      dockerfile: proxy/Dockerfile
     ports:
       - "3000:80"
     environment:
@@ -249,7 +249,7 @@ services:
   prometheus:
     build:
       context: ./monitoring/prometheus
-      dockerfile: Dockerfile
+      dockerfile: proxy/Dockerfile
     ports:
       - "9092:9090" # Changed to avoid conflict with port 9091
     volumes:
@@ -269,7 +269,7 @@ services:
   grafana:
     build:
       context: ./monitoring/grafana
-      dockerfile: Dockerfile
+      dockerfile: proxy/Dockerfile
     ports:
       - "3002:3000" # Changed from 3001 to avoid port conflict
     volumes:
