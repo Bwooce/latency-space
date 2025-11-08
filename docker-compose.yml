@@ -8,7 +8,7 @@ services:
     ports:
       - "8080:80" # HTTP info pages
       - "8443:443" # HTTPS info pages
-      - "5355:53/udp" # DNS
+      # DNS port removed - not needed, Nginx handles all routing
       - "9099:9090" # Prometheus metrics (using 9099 to avoid conflicts with host services)
     volumes:
       - proxy_config:/etc/space-proxy
