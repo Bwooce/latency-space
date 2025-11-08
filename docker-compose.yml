@@ -9,7 +9,7 @@ services:
       - "8080:80" # HTTP info pages
       - "8443:443" # HTTPS info pages
       - "5355:53/udp" # DNS
-      - "9090:9090" # Prometheus metrics
+      - "9099:9090" # Prometheus metrics (using 9099 to avoid conflicts with host services)
     volumes:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
