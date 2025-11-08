@@ -264,7 +264,14 @@ cd /opt/latency-space
 docker compose down
 blue "🏗️ Building all proxy images..."
 docker compose build --no-cache
-docker compose up -d
+
+echo ""
+blue "🚀 Starting containers..."
+# Allow docker compose up to fail without exiting script (for diagnostics)
+docker compose up -d || true
+
+# Give containers a moment to start
+sleep 3
 
 # Check container status with detailed output
 echo ""
