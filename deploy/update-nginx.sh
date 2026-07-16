@@ -271,13 +271,18 @@ server {
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Destination \$host;
         proxy_cache_bypass \$http_upgrade;
-        
-        # Set timeouts to prevent hanging connections
+
+        # The Go proxy deliberately delays responses by interplanetary
+        # light-travel time. A 60s cap here 504'd every body past ~30s
+        # one-way (i.e. most of them at real distance) regardless of what
+        # the proxy did. Sized for distant bodies; buffering off so the
+        # delayed response streams straight through.
         proxy_connect_timeout 10s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
     }
-    
+
     # Return 444 (no response) for suspicious requests
     location ~ \.(php|aspx|asp|cgi|jsp)$ {
         return 444;

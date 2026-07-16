@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -331,65 +332,35 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	localAddr := target.LocalAddr().(*net.TCPAddr)
 	s.sendReply(SOCKS5_REP_SUCCESS, localAddr.IP, uint16(localAddr.Port))
 
-	// Start proxying data between client and target
+	// Relay data in both directions using a delay line per direction.
+	//
+	// The old relay slept the full one-way latency after EACH 32KB read,
+	// which coupled latency to throughput: a Mars link fell to ~45 bytes/s
+	// and a TLS handshake took over an hour. delayCopy instead shifts every
+	// byte in time by `latency` without blocking subsequent reads, so
+	// throughput is preserved. When one direction finishes it closes its
+	// destination, which unblocks the other direction's read and tears the
+	// tunnel down — the same teardown the original loop used.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Client -> Target with celestial body latency
-	go func() {
+	relay := func(dst, src net.Conn, label string) {
 		defer wg.Done()
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := s.conn.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Error reading from client: %v", err)
-				}
-				break
-			}
-
-			// Track bandwidth usage
+		// Each direction gets its own context so returning here unblocks
+		// only this direction's internal reader, not the other side.
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		err := delayCopy(ctx, dst, src, latency, func(n int) {
 			s.metrics.TrackBandwidth(bodyName, int64(n))
-
-			// Apply latency for each packet
-			time.Sleep(latency)
-
-			_, err = target.Write(buf[:n])
-			if err != nil {
-				log.Printf("Error writing to target: %v", err)
-				break
-			}
+		})
+		if err != nil && !isNetClosingErr(err) {
+			log.Printf("SOCKS relay %s error: %v", label, err)
 		}
-		target.Close()
-	}()
+		dst.Close() // unblocks the opposite direction's read on this conn
+	}
 
-	// Target -> Client with celestial body latency
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := target.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Error reading from target: %v", err)
-				}
-				break
-			}
-
-			// Track bandwidth usage
-			s.metrics.TrackBandwidth(bodyName, int64(n))
-
-			// Apply latency for each packet
-			time.Sleep(latency)
-
-			_, err = s.conn.Write(buf[:n])
-			if err != nil {
-				log.Printf("Error writing to client: %v", err)
-				break
-			}
-		}
-		s.conn.Close()
-	}()
+	go relay(target, s.conn, "client->target")
+	go relay(s.conn, target, "target->client")
 
 	// Wait for both goroutines to complete
 	wg.Wait()
