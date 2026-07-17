@@ -101,7 +101,7 @@ export default function LandingPage() {
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-400">
             Explore the solar system by feeling the actual light-travel delay to every planet, moon, and
-            spacecraft — through HTTP and SOCKS5 proxies, computed from live orbital mechanics.
+            spacecraft — through a SOCKS5 proxy, computed from live orbital mechanics.
           </p>
         </div>
 
