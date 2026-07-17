@@ -675,6 +675,201 @@ func InitSolarSystemObjects() []CelestialObject {
 			Mass:       1.586e21, // kg
 		},
 
+		// Additional major moons of Uranus
+		{
+			Name:       "Miranda",
+			Type:       "moon",
+			ParentName: "Uranus",
+			Radius:     235.8,
+			A:          129390.0, // km
+			E:          0.0013,
+			I:          4.338,
+			N:          100.0,
+			W:          155.6,
+			L:          30.0,
+			DL:         254.6929 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     1.413479,
+			Mass:       6.4e19, // kg
+		},
+
+		{
+			Name:       "Ariel",
+			Type:       "moon",
+			ParentName: "Uranus",
+			Radius:     578.9,
+			A:          191020.0, // km
+			E:          0.0012,
+			I:          0.260,
+			N:          22.4,
+			W:          115.3,
+			L:          40.0,
+			DL:         142.8361 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     2.520379,
+			Mass:       1.251e21, // kg
+		},
+
+		{
+			Name:       "Umbriel",
+			Type:       "moon",
+			ParentName: "Uranus",
+			Radius:     584.7,
+			A:          266300.0, // km
+			E:          0.0039,
+			I:          0.128,
+			N:          33.5,
+			W:          84.7,
+			L:          50.0,
+			DL:         86.8672 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     4.144177,
+			Mass:       1.275e21, // kg
+		},
+
+		{
+			Name:       "Oberon",
+			Type:       "moon",
+			ParentName: "Uranus",
+			Radius:     761.4,
+			A:          583520.0, // km
+			E:          0.0014,
+			I:          0.058,
+			N:          279.8,
+			W:          104.4,
+			L:          60.0,
+			DL:         26.7403 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     13.463234,
+			Mass:       3.014e21, // kg
+		},
+
+		// Additional major moons of Saturn
+		{
+			Name:       "Tethys",
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     531.1,
+			A:          294672.0, // km
+			E:          0.0001,
+			I:          1.091,
+			N:          259.8,
+			W:          45.2,
+			L:          70.0,
+			DL:         190.6987 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     1.887802,
+			Mass:       6.174e20, // kg
+		},
+
+		{
+			Name:       "Dione",
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     561.4,
+			A:          377415.0, // km
+			E:          0.0022,
+			I:          0.028,
+			N:          290.4,
+			W:          72.0,
+			L:          80.0,
+			DL:         131.5316 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     2.736915,
+			Mass:       1.0954e21, // kg
+		},
+
+		{
+			Name:       "Iapetus",
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     734.5,
+			A:          3560820.0, // km
+			E:          0.0286,
+			I:          15.47,
+			N:          75.6,
+			W:          228.0,
+			L:          90.0,
+			DL:         4.53846 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     79.3215,
+			Mass:       1.8056e21, // kg
+		},
+
+		// Other notable moons
+		{
+			Name:       "Hyperion", // Saturn — chaotic rotation
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     135.0,
+			A:          1481009.0, // km
+			E:          0.1230,
+			I:          0.43,
+			N:          145.0,
+			W:          303.0,
+			L:          100.0,
+			DL:         16.9198 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     21.276609,
+			Mass:       5.62e18, // kg
+		},
+
+		{
+			Name:       "Phoebe", // Saturn — retrograde outer moon
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     106.5,
+			A:          12947780.0, // km
+			E:          0.1634,
+			I:          175.986, // Retrograde orbit
+			N:          241.6,
+			W:          345.0,
+			L:          110.0,
+			DL:         -0.65419 * 360.0 / 365.25 * DAYS_PER_CENTURY, // Negative for retrograde
+			Period:     550.31,
+			Mass:       8.29e18, // kg
+		},
+
+		{
+			Name:       "Proteus", // Neptune — second largest Neptunian moon
+			Type:       "moon",
+			ParentName: "Neptune",
+			Radius:     210.0,
+			A:          117647.0, // km
+			E:          0.00053,
+			I:          0.524,
+			N:          48.0,
+			W:          301.0,
+			L:          120.0,
+			DL:         320.7602 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     1.122315,
+			Mass:       4.4e19, // kg
+		},
+
+		{
+			Name:       "Nereid", // Neptune — highly eccentric orbit
+			Type:       "moon",
+			ParentName: "Neptune",
+			Radius:     170.0,
+			A:          5513818.0, // km
+			E:          0.7507,
+			I:          7.090,
+			N:          334.8,
+			W:          281.0,
+			L:          130.0,
+			DL:         0.99962 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     360.13619,
+			Mass:       3.1e19, // kg
+		},
+
+		{
+			Name:       "Amalthea", // Jupiter — largest inner moon
+			Type:       "moon",
+			ParentName: "Jupiter",
+			Radius:     83.5,
+			A:          181366.0, // km
+			E:          0.00319,
+			I:          0.374,
+			N:          108.0,
+			W:          155.0,
+			L:          140.0,
+			DL:         722.6289 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     0.498179,
+			Mass:       2.08e18, // kg
+		},
+
 		// Spacecraft
 		// Active deep space missions with transmitters
 		{
@@ -685,8 +880,6 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 140.81, // AU, as of 2025 (approximate)
 			E:                 0.988,  // High eccentricity for escape trajectory
 			I:                 35.13,  // Degrees
-			DA:                0.010608,
-			DL:                6213.56,
 			LaunchDate:        "1977-09-05",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -701,8 +894,6 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 116.43, // AU, as of 2025 (approximate)
 			E:                 0.981,  // High eccentricity for escape trajectory
 			I:                 46.2,   // Degrees
-			DA:                -0.116584,
-			DL:                4414.87,
 			LaunchDate:        "1977-08-20",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -717,8 +908,6 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 45.21, // AU, as of 2025 (approximate)
 			E:                 0.852, // High eccentricity for escape trajectory
 			I:                 2.45,  // Degrees
-			DA:                -0.299682,
-			DL:                2634.77,
 			LaunchDate:        "2006-01-19",
 			TransmitterActive: true,
 			FrequencyMHz:      8438.0, // X-band downlink frequency
@@ -733,8 +922,6 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 0.294, // AU, highly elliptical orbit
 			E:                 0.860, // Very high eccentricity
 			I:                 3.4,   // Degrees
-			DA:                -2.108227,
-			DL:                -6445.07,
 			LaunchDate:        "2018-08-12",
 			TransmitterActive: true,
 			FrequencyMHz:      8421.0, // X-band downlink frequency
@@ -749,8 +936,6 @@ func InitSolarSystemObjects() []CelestialObject {
 			A:                 1.01,  // AU, L2 point distance
 			E:                 0.002, // Nearly circular halo orbit
 			I:                 0.1,   // Small inclination
-			DA:                0.289139,
-			DL:                -7647.60,
 			LaunchDate:        "2021-12-25",
 			TransmitterActive: true,
 			FrequencyMHz:      25900.0, // Ka-band downlink frequency
