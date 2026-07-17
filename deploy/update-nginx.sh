@@ -98,6 +98,10 @@ server {
     # Less strict rate limiting for main site
     limit_req zone=ip burst=20 nodelay;
     limit_conn addr 10;
+    # Return 429 (Too Many Requests), not the default 503, when throttling -
+    # these are rate-limited scanner bursts, not server errors.
+    limit_req_status 429;
+    limit_conn_status 429;
 
     # API requests - Proxy to backend Go service
     location /api/ {
@@ -302,6 +306,9 @@ server {
     # Global rate limiting - very strict
     limit_req zone=ip burst=10 nodelay;
     limit_conn addr 5;
+    # Return 429 (Too Many Requests), not the default 503, when throttling.
+    limit_req_status 429;
+    limit_conn_status 429;
     
     # DTN store-and-forward API needs POST (submit) as well as GET (poll), so it
     # is exempt from the GET-only rule below. Same backend, longer body allowed.
