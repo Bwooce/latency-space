@@ -469,7 +469,14 @@ func IsOccluded(observer, target celestial.CelestialObject, objects []celestial.
 // Helper function to find an object by name
 func findObjectByName(objects []celestial.CelestialObject, name string) (celestial.CelestialObject, bool) {
 	for _, obj := range objects {
-		if obj.Name == name || strings.EqualFold(obj.Name, name) {
+		// Match the raw name (case-insensitively) and also the subdomain slug
+		// form, where spaces become hyphens (e.g. "Voyager 1" -> "voyager-1").
+		// Without the slug match, multi-word bodies are unreachable via their
+		// advertised subdomain. Done inline (not via FormatDomainName) so this
+		// file stays self-contained for the DNS tool's symlinked build.
+		if obj.Name == name ||
+			strings.EqualFold(obj.Name, name) ||
+			strings.EqualFold(strings.ReplaceAll(obj.Name, " ", "-"), name) {
 			return obj, true
 		}
 	}

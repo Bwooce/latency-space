@@ -22,6 +22,8 @@ var testCelestialObjects = []CelestialObject{
 	{Name: "Phobos", Type: "moon", ParentName: "Mars"},
 	{Name: "Deimos", Type: "moon", ParentName: "Mars"},
 	{Name: "Europa", Type: "moon", ParentName: "Jupiter"},
+	// Multi-word name: advertised subdomain is the hyphenated slug "voyager-1".
+	{Name: "Voyager 1", Type: "spacecraft"},
 }
 
 func TestParseHostForCelestialBody(t *testing.T) {
@@ -53,6 +55,20 @@ func TestParseHostForCelestialBody(t *testing.T) {
 			expectedURL:      "",
 			expectedBody:     testCelestialObjects[4], // Phobos
 			expectedBodyName: "Phobos",
+		},
+		{
+			name:             "Multi-word body via hyphenated slug",
+			host:             "voyager-1.latency.space",
+			expectedURL:      "",
+			expectedBody:     testCelestialObjects[7], // Voyager 1
+			expectedBodyName: "Voyager 1",
+		},
+		{
+			name:             "Multi-word body slug with target",
+			host:             "www.example.com.voyager-1.latency.space",
+			expectedURL:      "www.example.com",
+			expectedBody:     testCelestialObjects[7], // Voyager 1
+			expectedBodyName: "Voyager 1",
 		},
 		{
 			name:             "Planet format with target",
