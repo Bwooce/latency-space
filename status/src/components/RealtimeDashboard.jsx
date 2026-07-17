@@ -27,13 +27,24 @@ export const formatLatency = (seconds) => {
   return h > 0 ? `${d}d ${h}h` : `${d}d`;
 };
 
-// Map a one-way latency to a watchable signal-travel duration (seconds).
-// Log-scaled so the Moon pulses quickly and Voyager crawls.
-const travelDuration = (latencySeconds) => {
-  const l = Math.max(latencySeconds, 0.5);
-  const d = 2 + Math.log10(l) * 3.2; // Moon ~2s, Mars ~11s, Voyager ~18s
-  return Math.min(Math.max(d, 2), 20);
+// Where the body sits on its track, as a fraction [0..1] of the full width,
+// log-scaled from 1s to 24h of one-way latency. Near bodies sit close to
+// Earth; distant ones sit far to the right. This is what makes the photon
+// "representative": the signal covers a proportionally longer path for a
+// more-distant body.
+const trackFraction = (latencySeconds) => {
+  const min = Math.log10(1);
+  const max = Math.log10(86400); // 24h
+  const v = Math.log10(Math.max(latencySeconds, 1));
+  const f = (v - min) / (max - min);
+  return Math.min(Math.max(f, 0.12), 0.96); // keep both endpoints on-screen
 };
+
+// Seconds for a photon to cross the FULL track width. The photon always moves
+// at this same visual speed (light is constant); a body's travel time follows
+// only from how far away it sits (trackFraction), so the delay is honest —
+// distant bodies genuinely take longer because the signal has farther to go.
+const CROSS_SECONDS = 7;
 
 // Colour by latency magnitude: near = green, far = red.
 const latencyColor = (seconds) => {
@@ -89,21 +100,33 @@ function AnimatedNumber({ value, decimals = 2, suffix = '' }) {
 // ---- signal-in-transit track ----------------------------------------------
 
 function SignalTrack({ latencySeconds, occluded }) {
-  const dur = travelDuration(latencySeconds);
+  const f = trackFraction(latencySeconds);
+  // Constant photon speed: crossing time is proportional to the distance (f).
+  const dur = Math.max(f * CROSS_SECONDS, 0.4);
+  const pct = `${(f * 100).toFixed(1)}%`;
   return (
     <div className="relative h-6 mt-3 mb-1">
-      {/* the beam line */}
-      <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-cyan-500/40 via-slate-500/30 to-transparent" />
+      {/* faint full-width guide */}
+      <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
+      {/* active beam: Earth -> body (length = distance) */}
+      <div className="absolute top-1/2 left-0 h-px bg-gradient-to-r from-cyan-500/50 to-slate-500/20" style={{ width: pct }} />
       {/* Earth endpoint */}
       <div className="absolute top-1/2 -translate-y-1/2 left-0 w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.6)]" title="Earth" />
-      {/* body endpoint */}
-      <div className={`absolute top-1/2 -translate-y-1/2 right-0 w-2.5 h-2.5 rounded-full ${occluded ? 'bg-rose-500 animate-occ' : 'bg-amber-300'} shadow-[0_0_8px_2px_rgba(252,211,77,0.5)]`} title="Body" />
-      {/* travelling signal (hidden when occluded — no line of sight) */}
+      {/* body endpoint at its distance */}
+      <div
+        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${occluded ? 'bg-rose-500 animate-occ' : 'bg-amber-300'} shadow-[0_0_8px_2px_rgba(252,211,77,0.5)]`}
+        style={{ left: pct }}
+        title="Body"
+      />
+      {/* travelling signal — moves within the beam (width f) at constant speed;
+          hidden when occluded (no line of sight) */}
       {!occluded && (
-        <div
-          className="animate-signal absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_3px_rgba(255,255,255,0.85)]"
-          style={{ animationDuration: `${dur}s` }}
-        />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0" style={{ width: pct }}>
+          <div
+            className="animate-signal absolute top-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_3px_rgba(255,255,255,0.85)]"
+            style={{ animationDuration: `${dur}s` }}
+          />
+        </div>
       )}
     </div>
   );
@@ -186,26 +209,35 @@ function Section({ title, items }) {
   );
 }
 
-export default function RealtimeDashboard({ data, lastUpdated, loading, onRefresh, secondsAgo }) {
+export default function RealtimeDashboard({ data, lastUpdated, loading, onRefresh, secondsAgo, stale }) {
   const planets = data.filter((d) => d.type === 'planet' || d.type === 'dwarf_planet');
   const moons = data.filter((d) => d.type === 'moon');
   const spacecraft = data.filter((d) => d.type === 'spacecraft');
   const others = data.filter((d) => !['planet', 'dwarf_planet', 'moon', 'spacecraft'].includes(d.type));
+
+  const haveData = data.length > 0;
+  // Reconnecting = a poll failed but we still have the last good snapshot to show.
+  const reconnecting = stale && haveData;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/70 to-slate-950/70 p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-3 text-2xl font-bold text-white">
           Real-Time Solar System Status
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-live" />
-            LIVE
-          </span>
+          {reconnecting ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-live" />
+              RECONNECTING
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-live" />
+              LIVE
+            </span>
+          )}
         </h3>
         <div className="flex items-center gap-3 text-sm text-slate-400">
-          <span>
-            {lastUpdated ? `updated ${secondsAgo}s ago` : 'connecting…'}
-          </span>
+          <span>{lastUpdated ? `updated ${secondsAgo}s ago` : 'connecting…'}</span>
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -216,12 +248,15 @@ export default function RealtimeDashboard({ data, lastUpdated, loading, onRefres
         </div>
       </div>
 
-      {loading && data.length === 0 ? (
+      {loading && !haveData ? (
         <div className="py-10 text-center text-slate-300">Acquiring signal…</div>
-      ) : data.length === 0 ? (
+      ) : !haveData ? (
         <div className="py-10 text-center text-rose-400">Failed to load celestial data. Try refreshing.</div>
       ) : (
-        <div className="space-y-8">
+        // Once we have a snapshot we keep showing it, even if a later poll fails
+        // (e.g. during a deploy) — the RECONNECTING badge signals the staleness
+        // instead of blanking the whole dashboard.
+        <div className={`space-y-8 transition-opacity ${reconnecting ? 'opacity-60' : 'opacity-100'}`}>
           <Section title="Planets &amp; Dwarf Planets" items={planets} />
           <Section title="Moons" items={moons} />
           <Section title="Spacecraft" items={spacecraft} />
