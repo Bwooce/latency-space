@@ -398,14 +398,14 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:       "dwarf_planet",
 			ParentName: "Sun",
 			Radius:     1163.0,
-			A:          67.864,
-			E:          0.44177,
-			I:          44.040,
-			L:          204.16,
-			LP:         151.639,
-			N:          35.951,
-			DL:         68.74,    // Approx value for mean motion
-			Period:     203830.0, // Orbital period (days)
+			A:          67.69,
+			E:          0.44,
+			I:          44.18,
+			L:          16.15,  // J2000 mean longitude → 2026 M≈206° (near aphelion, ~96 AU)
+			LP:         187.68, // longitude of perihelion = Ω + ω (36.02 + 151.66)
+			N:          36.02,
+			DL:         64.29,    // 36000/period(yr), period ~560 yr
+			Period:     204540.0, // Orbital period (days)
 			Mass:       1.66e22,  // kg
 		},
 
@@ -415,14 +415,14 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:       "dwarf_planet",
 			ParentName: "Sun",
 			Radius:     816.0, // Equivalent spherical radius
-			A:          43.335,
-			E:          0.19126,
+			A:          43.18,
+			E:          0.195,
 			I:          28.21,
-			L:          240.582,
-			LP:         239.512,
-			N:          121.900,
-			DL:         108.21,   // Approx value for mean motion
-			Period:     104025.0, // Orbital period (days)
+			L:          192.58, // J2000 mean longitude → 2026 M≈226° (just past aphelion, ~50 AU)
+			LP:         0.94,   // longitude of perihelion = Ω + ω (122.16 + 238.78)
+			N:          122.16,
+			DL:         126.76,   // 36000/period(yr), period ~284 yr
+			Period:     103731.0, // Orbital period (days)
 			Mass:       4.006e21, // kg
 		},
 
@@ -432,14 +432,14 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:       "dwarf_planet",
 			ParentName: "Sun",
 			Radius:     715.0,
-			A:          45.791,
-			E:          0.16254,
-			I:          29.011,
-			L:          268.05,
-			LP:         296.534,
-			N:          79.382,
-			DL:         102.13,   // Approx value for mean motion
-			Period:     111845.0, // Orbital period (days)
+			A:          45.43,
+			E:          0.161,
+			I:          28.98,
+			L:          154.50, // J2000 mean longitude → 2026 M≈172° (near aphelion, ~52.7 AU)
+			LP:         14.46,  // longitude of perihelion = Ω + ω (79.62 + 294.84)
+			N:          79.62,
+			DL:         117.65,   // 36000/period(yr), period ~306 yr
+			Period:     111767.0, // Orbital period (days)
 			Mass:       3.1e21,   // kg
 		},
 
@@ -876,10 +876,10 @@ func InitSolarSystemObjects() []CelestialObject {
 			Name:              "Voyager 1",
 			Type:              "spacecraft",
 			ParentName:        "Sun",
-			Radius:            0.01,   // Approximate spacecraft size
-			A:                 140.81, // AU, as of 2025 (approximate)
-			E:                 0.988,  // High eccentricity for escape trajectory
-			I:                 35.13,  // Degrees
+			Radius:            0.01,  // Approximate spacecraft size
+			A:                 172.6, // AU heliocentric, ~mid-2026 (recedes ~3.6 AU/yr — update periodically)
+			E:                 0.0,   // Fixed-distance model: an escape trajectory isn't a closed Keplerian orbit
+			I:                 34.9,  // Ecliptic latitude (well above the ecliptic, toward Ophiuchus)
 			LaunchDate:        "1977-09-05",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -890,10 +890,10 @@ func InitSolarSystemObjects() []CelestialObject {
 			Name:              "Voyager 2",
 			Type:              "spacecraft",
 			ParentName:        "Sun",
-			Radius:            0.01,   // Approximate spacecraft size
-			A:                 116.43, // AU, as of 2025 (approximate)
-			E:                 0.981,  // High eccentricity for escape trajectory
-			I:                 46.2,   // Degrees
+			Radius:            0.01,  // Approximate spacecraft size
+			A:                 143.0, // AU heliocentric, ~mid-2026 (recedes ~3.1 AU/yr — update periodically)
+			E:                 0.0,   // Fixed-distance model (escape trajectory, heading south of the ecliptic)
+			I:                 46.2,  // Degrees
 			LaunchDate:        "1977-08-20",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -905,8 +905,8 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:              "spacecraft",
 			ParentName:        "Sun",
 			Radius:            0.005, // Approximate spacecraft size
-			A:                 45.21, // AU, as of 2025 (approximate)
-			E:                 0.852, // High eccentricity for escape trajectory
+			A:                 64.5,  // AU heliocentric, ~mid-2026 (recedes ~2.5 AU/yr — update periodically)
+			E:                 0.0,   // Fixed-distance model (escape trajectory, near the ecliptic toward Sagittarius)
 			I:                 2.45,  // Degrees
 			LaunchDate:        "2006-01-19",
 			TransmitterActive: true,
@@ -918,10 +918,12 @@ func InitSolarSystemObjects() []CelestialObject {
 			Name:              "Parker Solar Probe",
 			Type:              "spacecraft",
 			ParentName:        "Sun",
-			Radius:            0.005, // Approximate spacecraft size
-			A:                 0.294, // AU, highly elliptical orbit
-			E:                 0.860, // Very high eccentricity
-			I:                 3.4,   // Degrees
+			Radius:            0.005,    // Approximate spacecraft size
+			A:                 0.388,    // AU semi-major (perihelion 0.046 AU, aphelion 0.73 AU)
+			E:                 0.881,    // Very high eccentricity
+			I:                 3.4,      // Degrees
+			DL:                149420.0, // ~88-day orbit → sweeps 0.046–0.73 AU (orbital phase is approximate)
+			Period:            88.0,     // days
 			LaunchDate:        "2018-08-12",
 			TransmitterActive: true,
 			FrequencyMHz:      8421.0, // X-band downlink frequency
@@ -931,11 +933,11 @@ func InitSolarSystemObjects() []CelestialObject {
 		{
 			Name:              "JWST",
 			Type:              "spacecraft",
-			ParentName:        "Sun", // Actually orbits L2 point
-			Radius:            0.01,  // Approximate spacecraft size
-			A:                 1.01,  // AU, L2 point distance
-			E:                 0.002, // Nearly circular halo orbit
-			I:                 0.1,   // Small inclination
+			ParentName:        "Earth",   // Sun–Earth L2 — modelled relative to Earth so the distance stays ~1.5M km
+			Radius:            0.01,      // Approximate spacecraft size
+			A:                 1500000.0, // km from Earth (L2 halo, anti-sunward); parent-relative → Earth distance ~1.5M km
+			E:                 0.0,
+			I:                 0.1, // Small inclination
 			LaunchDate:        "2021-12-25",
 			TransmitterActive: true,
 			FrequencyMHz:      25900.0, // Ka-band downlink frequency
