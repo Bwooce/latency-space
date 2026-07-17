@@ -36,8 +36,10 @@ func NewSecurityValidator() *SecurityValidator {
 		"apple.com", "www.apple.com",
 		// Cloud/Infra
 		"cloudflare.com", "www.cloudflare.com", "1.1.1.1",
-		"amazon.com", "www.amazon.com", // AWS services often use subdomains
-		"aws.amazon.com",
+		"amazon.com", "www.amazon.com",
+		// NB: aws.amazon.com deliberately NOT allowlisted — subdomain matching
+		// would admit *.aws.amazon.com, and AWS-hosted content is effectively
+		// attacker-controllable (too broad for a public proxy destination).
 		// Content/Info
 		"wikipedia.org", "www.wikipedia.org", "en.wikipedia.org",
 		// Social Media
