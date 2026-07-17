@@ -5,7 +5,24 @@ global:
 scrape_configs:
   - job_name: 'latency-proxy'
     static_configs:
-      - targets: ['proxy:9090']  # Using service name for better reliability
+      - targets: ['proxy:9090']  # main proxy (HTTP info pages + DTN)
+
+  # Per-body SOCKS proxies. Each runs the same binary and now exposes /metrics
+  # on :9090 (resolved by docker-compose service name). This is where the actual
+  # proxy-through usage (requests, bandwidth, UDP packets) is recorded.
+  - job_name: 'latency-socks'
+    static_configs:
+      - targets:
+          - 'socks-mars:9090'
+          - 'socks-moon:9090'
+          - 'socks-venus:9090'
+          - 'socks-mercury:9090'
+          - 'socks-jupiter:9090'
+          - 'socks-saturn:9090'
+          - 'socks-europa:9090'
+          - 'socks-titan:9090'
+          - 'socks-voyager1:9090'
+          - 'socks-jwst:9090'
 
   # Node exporter commented due to permission issues
   # - job_name: 'node'

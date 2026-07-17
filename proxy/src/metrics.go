@@ -82,13 +82,14 @@ func (m *MetricsCollector) RecordUDPPacket(body string, bytes int64) {
 	m.bandwidthUsage.WithLabelValues(body, "in").Add(float64(bytes))
 }
 
-// ServeMetrics starts an HTTP server to expose Prometheus metrics on the given address.
+// ServeMetrics starts an HTTP server to expose Prometheus metrics on the given
+// address. Intended to run in its own goroutine. A bind failure is logged but
+// NOT fatal: losing metrics scraping must never take down the proxy itself.
 func (m *MetricsCollector) ServeMetrics(addr string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	log.Printf("Starting Prometheus metrics server on %s", addr)
-	err := http.ListenAndServe(addr, mux)
-	if err != nil {
-		log.Fatalf("Failed to start metrics server on %s: %v", addr, err)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Printf("metrics server on %s stopped: %v", addr, err)
 	}
 }
