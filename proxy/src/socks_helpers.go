@@ -92,12 +92,14 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 	// Check if this is an IP address
 	if ip := net.ParseIP(host); ip != nil {
-		// Allow loopback addresses (127.0.0.1, ::1) for testing
-		if ip.IsLoopback() {
-			log.Printf("SOCKS destination allowed (loopback): %s", host)
-			return true // Allow loopback immediately for testing
+		// Loopback is permitted ONLY in test mode (the test suite dials
+		// 127.0.0.1 echo servers). In production, allowing loopback would let
+		// an unauthenticated client CONNECT to services on the proxy host,
+		// so all IP literals are rejected — clients must send domain names
+		// (--socks5-hostname) which are then checked against the allowlist.
+		if ip.IsLoopback() && isTestMode {
+			return true
 		}
-		// Reject non-loopback IP addresses
 		log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
 		return false
 	}

@@ -224,6 +224,17 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 		return fmt.Errorf("destination not in allowed list: %s", dstAddr)
 	}
 
+	// Enforce the destination port allowlist on the CONNECT/TCP path. This was
+	// previously only checked on the UDP path, so CONNECT could reach any port
+	// (e.g. an allowlisted host on port 22). Skipped in test mode, which dials
+	// echo servers on arbitrary loopback ports.
+	if !isTestMode {
+		if err := s.security.ValidateSocksDestination(dstAddr, dstPort); err != nil {
+			s.sendReply(SOCKS5_REP_CONN_NOT_ALLOWED, net.IPv4zero, 0)
+			return fmt.Errorf("SOCKS destination not allowed: %v", err)
+		}
+	}
+
 	// Extract celestial body and apply latency
 	bodyName, err := s.getCelestialBodyFromConn(s.conn.RemoteAddr())
 	if err != nil {
@@ -718,12 +729,11 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				// Check if the destination host is an IP address
 				isLoopback := false
 				if ip := net.ParseIP(dstHost); ip != nil {
-					// Allow loopback addresses (127.0.0.1, ::1) for testing
-					if ip.IsLoopback() {
-						log.Printf("UDP Relay: Destination %s allowed (loopback)", dstHost)
+					// Loopback is permitted ONLY in test mode; in production
+					// all IP literals are rejected (see isAllowedDestination).
+					if ip.IsLoopback() && isTestMode {
 						isLoopback = true
 					} else {
-						// Reject non-loopback IP addresses
 						log.Printf("UDP Relay: Destination %s is an IP address. Use --socks5-hostname to send domain names to the proxy. Dropping packet.", dstHost)
 						continue
 					}
