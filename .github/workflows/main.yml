@@ -17,10 +17,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
@@ -37,17 +37,17 @@ jobs:
         # Removed -race flag as it can be problematic on some platforms
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./proxy/src/coverage.txt
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
@@ -56,7 +56,7 @@ jobs:
         run: go mod download
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           working-directory: ./proxy/src
@@ -75,24 +75,22 @@ jobs:
       packages: write
       actions: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: string
-        uses: ASzc/change-string-case-action@v2
-        with:
-          string: ${{ env.IMAGE_NAME }}
+        run: echo "lowercase=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ steps.string.outputs.lowercase }}
           tags: |
@@ -102,7 +100,7 @@ jobs:
             type=semver,pattern={{version}}
 
       - name: Build and push proxy
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./proxy/Dockerfile
@@ -115,7 +113,7 @@ jobs:
 
       # Build other services
       - name: Build and push monitoring
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./monitoring/grafana
           push: ${{ github.event_name != 'pull_request' }}
@@ -125,7 +123,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=grafana-build
 
       - name: Build and push status
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./status
           push: ${{ github.event_name != 'pull_request' }}
@@ -148,7 +146,7 @@ jobs:
     # Removed continue-on-error to ensure workflow fails if deployment fails
     # This ensures deployment issues are properly reported
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       # Update DNS configuration
       - name: Update DNS Configuration
