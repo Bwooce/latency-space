@@ -59,9 +59,9 @@ func TestDistinctSpacecraftDistances(t *testing.T) {
 	// Set the global celestialObjects for the test context IF NEEDED by dependencies
 	// Since calculateDistancesFromEarth takes objects as arg, we don't strictly need this
 	// But GetObjectPosition relies on the global slice if ParentName lookups occur
-	originalCelestialObjects := celestialObjects                   // backup
-	celestialObjects = testObjects                                 // set global for GetObjectPosition
-	defer func() { celestialObjects = originalCelestialObjects }() // restore
+	originalCelestialObjects := getCelestialObjects()                // backup
+	setCelestialObjects(testObjects)                                 // set global for GetObjectPosition
+	defer func() { setCelestialObjects(originalCelestialObjects) }() // restore
 
 	calculateDistancesFromEarth(testObjects, testTime)
 
