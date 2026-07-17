@@ -9,6 +9,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -68,8 +69,22 @@ func (s *Server) handleDTNSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	oneWay := CalculateLatency(getCurrentDistance(bodyName))
+	// Refuse bodies with negligible latency (Earth is 0). Without the light-travel
+	// friction DTN would be a plain open proxy, which the SOCKS path also guards
+	// against; keep Earth non-proxyable. Skipped in test mode, like the SOCKS guard.
+	if !isTestMode.Load() && oneWay < time.Second {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": bodyName + " has insufficient latency to proxy (it would be an open proxy)",
+		})
+		return
+	}
+
 	job, err := s.dtn.Add(bodyName, req.Method, req.URL, req.Headers, req.Payload, oneWay)
 	if err != nil {
+		if errors.Is(err, errDTNStoreFull) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
