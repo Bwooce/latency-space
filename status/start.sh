@@ -203,6 +203,31 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
+    # Live celestial data for the landing page and dashboard. Both fetch
+    # /api/status-data; the proxy container serves it on port 80. Without this
+    # location the request falls through to the SPA and returns index.html
+    # instead of JSON.
+    location = /api/status-data {
+        proxy_pass http://${PROXY_IP}:80/api/status-data;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS' always;
+
+        # If the proxy is unreachable, serve an empty-but-valid payload so the
+        # page degrades to "no data" rather than a JSON parse error.
+        proxy_intercept_errors on;
+        error_page 500 502 503 504 = @empty_status;
+    }
+
+    location @empty_status {
+        default_type application/json;
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        return 200 '{"timestamp":"","objects":{}}';
+    }
+
     # API proxy for metrics - using direct IP address
     location /api/metrics {
         # Handle the request internally and return a simplified default response

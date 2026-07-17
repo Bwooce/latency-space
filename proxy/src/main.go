@@ -61,6 +61,7 @@ type Server struct {
 	https              bool // Flag indicating whether to enable HTTPS
 	metrics            *MetricsCollector
 	security           *SecurityValidator
+	limiter            *RateLimiter // Per-IP rate/concurrency abuse controls
 	httpServer         *http.Server
 	httpsServer        *http.Server
 	socksListener      net.Listener // Listener for the SOCKS5 server
@@ -76,10 +77,19 @@ func NewServer(port int, useHTTPS bool, httpEn bool, socksEn bool, fixedBody str
 		https:              useHTTPS,
 		metrics:            NewMetricsCollector(),
 		security:           NewSecurityValidator(),
+		limiter:            newRateLimiterFromEnv(),
 		httpEnabled:        httpEn,
 		socksEnabled:       socksEn,
 		fixedCelestialBody: fixedBody,
 	}
+}
+
+// clientIP extracts the bare IP (no port) from a net.Addr string.
+func clientIP(remoteAddr string) string {
+	if idx := strings.LastIndex(remoteAddr, ":"); idx > 0 {
+		return remoteAddr[:idx]
+	}
+	return remoteAddr
 }
 
 // Start initializes and runs the HTTP, HTTPS (if enabled), and SOCKS5 servers.
@@ -88,6 +98,11 @@ func (s *Server) Start() error {
 	// Channel to listen for OS shutdown signals
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	// Background janitor to prune idle rate-limiter buckets
+	stopCleanup := make(chan struct{})
+	defer close(stopCleanup)
+	go s.limiter.StartCleanup(stopCleanup)
 
 	// Use a WaitGroup to wait for server goroutines to finish
 	var wg sync.WaitGroup
@@ -231,6 +246,20 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate and normalize the destination BEFORE doing any latency work.
+	// ValidateDestination prepends a scheme if missing (the raw targetURL
+	// from parseHostForCelestialBody has none, which made http.NewRequest
+	// fail with "unsupported protocol scheme") and enforces the same
+	// allowlist/port policy the SOCKS path uses, so the HTTP path is not an
+	// open proxy to arbitrary hosts.
+	validatedURL, err := s.security.ValidateDestination(targetURL)
+	if err != nil {
+		log.Printf("HTTP destination rejected: %s via %s: %v", targetURL, bodyName, err)
+		http.Error(w, fmt.Sprintf("Destination not allowed: %v", err), http.StatusForbidden)
+		return
+	}
+	targetURL = validatedURL
+
 	// Find the target and Earth objects
 	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
 	if !targetFound {
@@ -268,6 +297,16 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Abuse control: per-IP rate and concurrency limits. Applied here (not
+	// in nginx) because SOCKS and direct hits bypass the front-end proxy.
+	release, err := s.limiter.Acquire(clientIP(r.RemoteAddr))
+	if err != nil {
+		log.Printf("HTTP request from %s rejected: %v", r.RemoteAddr, err)
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
+		return
+	}
+	defer release()
+
 	log.Printf("Proxy request for %s via %s (latency: %v)", targetURL, bodyName, latency)
 	time.Sleep(latency)
 
@@ -280,12 +319,18 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// Apply bandwidth limiting
 	r.Header.Set("X-Celestial-Body", bodyName)
 
-	// Forward the request to the target URL
+	// Forward the request to the target URL.
+	// NB: the timeout must be derived from latency by ADDITION. The old
+	// `latency * 2 * time.Second` multiplied a Duration by a Duration
+	// (nanoseconds x 1e9), which overflowed int64 for distant bodies and
+	// produced negative timeouts (instant failure) depending on orbital
+	// position.
+	clientTimeout := 2*latency + 30*time.Second
 	client := &http.Client{
-		Timeout: latency * 2 * time.Second,
+		Timeout: clientTimeout,
 		Transport: &http.Transport{
 			MaxIdleConns:    10,
-			IdleConnTimeout: latency * 2 * time.Second,
+			IdleConnTimeout: clientTimeout,
 		},
 	}
 
@@ -511,15 +556,16 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 }
 
 func (s *Server) startHTTPServer() error {
+	addr := fmt.Sprintf(":%d", s.port)
 	s.httpServer = &http.Server{
-		Addr:         ":80",
+		Addr:         addr,
 		Handler:      http.HandlerFunc(s.handleHTTP),
 		ReadTimeout:  60 * time.Minute,  // Increased for distant celestial bodies
 		WriteTimeout: 60 * time.Minute,  // Increased for distant celestial bodies
 		IdleTimeout:  120 * time.Minute, // Allow long-lived connections
 	}
 
-	log.Printf("Starting HTTP server on :80")
+	log.Printf("Starting HTTP server on %s", addr)
 	err := s.httpServer.ListenAndServe()
 	log.Printf("HTTP server stopped: %v", err) // This will tell you if the server stops
 	return err
@@ -589,21 +635,28 @@ func (s *Server) startSOCKSServer() error {
 		}
 
 		// Get client IP for rate limiting
-		clientIP := conn.RemoteAddr().String()
-		if idx := strings.Index(clientIP, ":"); idx > 0 {
-			clientIP = clientIP[:idx]
+		ip := clientIP(conn.RemoteAddr().String())
+
+		if !s.security.IsAllowedIP(ip) {
+			conn.Close()
+			continue
 		}
 
-		// Apply rate limiting based on IP (simplified)
-		// This is a basic form of rate limiting to prevent abuse
-		if !s.security.IsAllowedIP(clientIP) {
+		// Abuse control: per-IP rate and concurrency limits. SOCKS bypasses
+		// the front-end nginx, so this is the only such control on this path.
+		release, err := s.limiter.Acquire(ip)
+		if err != nil {
+			log.Printf("SOCKS connection from %s rejected: %v", ip, err)
 			conn.Close()
 			continue
 		}
 
 		// Handle the connection in a goroutine
 		// Pass the fixed celestial body if configured
-		go NewSOCKSHandler(conn, s.security, s.metrics, s.fixedCelestialBody).Handle()
+		go func() {
+			defer release()
+			NewSOCKSHandler(conn, s.security, s.metrics, s.fixedCelestialBody).Handle()
+		}()
 	}
 }
 
