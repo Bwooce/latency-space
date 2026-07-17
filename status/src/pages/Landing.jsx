@@ -122,22 +122,21 @@ export default function LandingPage() {
 
           <div className="space-y-8">
             <div>
-              <h4 className="mb-3 text-xl font-bold text-white">HTTP Proxy</h4>
-              <p className="mb-4 text-slate-400">Experience interplanetary latency when browsing the web or making HTTP requests.</p>
+              <h4 className="mb-3 text-xl font-bold text-white">SOCKS5 Proxy</h4>
+              <p className="mb-4 text-slate-400">Proxy real traffic through a body with its light-travel delay. Each body has its own port (Mars 1080, Moon 1081, …). TCP works via CONNECT; UDP via UDP ASSOCIATE.</p>
               <div className="space-y-4">
-                <Guide label="Direct Domain Format" code="http://mars.latency.space/" note="Adds Mars-to-Earth latency to any destination in your request." />
-                <Guide label="Target Domain Format" code="http://example.com.mars.latency.space/" note="Routes to example.com with Mars-to-Earth latency." />
-                <Guide label="Curl Example" code="curl -x mars.latency.space:80 https://example.com" note="Use as an HTTP proxy with curl." />
+                <Guide label="With curl" code="curl --socks5-hostname mars.latency.space:1080 https://example.com" note="Feel Mars' round trip when loading a site (near bodies only — distant ones exceed client timeouts)." />
+                <Guide label="Browser (SOCKS5)" code="Host: jupiter.latency.space   Port: 1080   Type: SOCKS5" note="Configure your browser's SOCKS proxy settings, and enable remote DNS." />
+                <Guide label="UDP (netcat)" code={'echo "hi" | nc -u -X 5 -x mars.latency.space:1080 1.1.1.1 53'} note="Send a UDP packet to 1.1.1.1:53 via Mars." />
               </div>
             </div>
 
             <div>
-              <h4 className="mb-3 text-xl font-bold text-white">SOCKS5 Proxy</h4>
-              <p className="mb-4 text-slate-400">Use the SOCKS5 proxy (port 1080) for TCP connections. UDP is supported via UDP ASSOCIATE.</p>
+              <h4 className="mb-3 text-xl font-bold text-white">Body Pages</h4>
+              <p className="mb-4 text-slate-400">Each body has an information page over HTTPS. These are informational — proxying is done over SOCKS5, above.</p>
               <div className="space-y-4">
-                <Guide label="With curl" code="curl --socks5-hostname neptune.latency.space:1080 https://example.com" note="Feel Neptune's multi-hour round trip when loading a site." />
-                <Guide label="Browser (SOCKS5)" code="Host: jupiter.latency.space   Port: 1080   Type: SOCKS5" note="Configure your browser's SOCKS proxy settings." />
-                <Guide label="UDP (netcat)" code={'echo "hi" | nc -u -X 5 -x mars.latency.space:1080 1.1.1.1 53'} note="Send a UDP packet to 1.1.1.1:53 via Mars." />
+                <Guide label="Planet / spacecraft" code="https://mars.latency.space/" note="Live distance, one-way latency, and occlusion for the body." />
+                <Guide label="Moon (under its planet)" code="https://phobos.mars.latency.space/" note="Moons live at moon.planet.latency.space." />
               </div>
             </div>
 

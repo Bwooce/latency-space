@@ -158,7 +158,7 @@ Each celestial body runs on its own port to enable proper routing:
 **Spacecraft:**
 | Port | Body | Typical Distance | Typical Latency | Command |
 |------|------|------------------|-----------------|---------|
-| 3080 | Voyager 1 | ~24 billion km | 22+ hours | `--socks5-hostname latency.space:3080` |
+| 3080 | Voyager 1 | ~25.8 billion km | 23+ hours | `--socks5-hostname latency.space:3080` |
 | 3084 | JWST | 1.5 million km | ~5 seconds | `--socks5-hostname latency.space:3084` |
 
 > **Why different ports?** After DNS resolution, the SOCKS5 protocol has no way to preserve which hostname (mars.latency.space vs moon.latency.space) the client originally used. Each celestial body runs on a dedicated port to enable proper routing. See [SOCKS5_PORT_ASSIGNMENTS.md](./SOCKS5_PORT_ASSIGNMENTS.md) for the complete port table.
@@ -200,7 +200,7 @@ port). The per-body subdomains serve information pages only.
 
 **Note on SSL certificates:**
 - First-level subdomains (`mars.latency.space`) are covered by the `*.latency.space` wildcard.
-- Second-level subdomains (e.g., `phobos.mars.latency.space`) need per-parent wildcard SANs (`*.mars.latency.space`, …), issued via DNS-01. Run `deploy/setup-wildcard-certs.sh` on the host (or trigger the **Wildcard Certs** GitHub Action, which defaults to a safe dry run) to reissue the certificate with those SANs.
+- Second-level subdomains (e.g., `phobos.mars.latency.space`) are covered by per-parent wildcard SANs (`*.mars.latency.space`, `*.jupiter.latency.space`, …) on the same certificate, issued via DNS-01. To reissue after a new parent body gains a moon, run `deploy/setup-wildcard-certs.sh` on the host or trigger the **Wildcard Certs** GitHub Action (defaults to a safe dry run).
 
 For proper SSL certificate configuration covering all domain levels:
 ```bash

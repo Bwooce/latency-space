@@ -203,6 +203,34 @@ server {
     }
 }
 
+# Dedicated redirect: status.latency.space -> latency.space. The status
+# dashboard is now served from the main site; this legacy host used to fall
+# through to the subdomain regex below and return "Unknown celestial body".
+# An exact server_name wins over the regex server_names, so this takes priority.
+server {
+    listen 80;
+    listen [::]:80;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name status.latency.space;
+
+    ssl_certificate /etc/letsencrypt/live/latency.space/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/latency.space/privkey.pem;
+
+    # Keep ACME challenges working for this host.
+    location /.well-known/acme-challenge/ {
+        proxy_pass http://$PROXY_IP:80;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        return 301 https://latency.space\$request_uri;
+    }
+}
+
 # Server block for HTTP -> HTTPS redirect for subdomains
 server {
     listen 80;
