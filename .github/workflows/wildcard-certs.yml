@@ -21,6 +21,9 @@ concurrency:
 jobs:
   reissue:
     runs-on: ubuntu-latest
+    # DEPLOY_HOST/USER, SSH_PRIVATE_KEY, CLOUDFLARE_API_TOKEN and SSL_EMAIL are
+    # scoped to the production environment (same as the main deploy job).
+    environment: production
     steps:
       - name: Reissue certificate on the host
         uses: appleboy/ssh-action@master
