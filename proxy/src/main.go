@@ -129,6 +129,32 @@ func (s *Server) Start() error {
 		go s.metrics.ServeMetrics(metricsAddr)
 	}
 
+	// Publish current per-body latency as a gauge for the "Solar System Latency"
+	// dashboard. Only the main proxy (HTTP enabled) emits it, so there is one
+	// series per body instead of one per SOCKS container.
+	if s.httpEnabled {
+		go func() {
+			publish := func() {
+				for _, obj := range getCelestialObjects() {
+					if d := getCurrentDistance(obj.Name); d > 0 {
+						s.metrics.SetBodyLatency(obj.Name, CalculateLatency(d).Seconds())
+					}
+				}
+			}
+			publish()
+			t := time.NewTicker(30 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-stopCleanup:
+					return
+				case <-t.C:
+					publish()
+				}
+			}
+		}()
+	}
+
 	// Use a WaitGroup to wait for server goroutines to finish
 	var wg sync.WaitGroup
 	// Channel to receive errors from server goroutines
