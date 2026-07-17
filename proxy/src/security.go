@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"sort"
 	"strconv" // Required for port conversion in ValidateSocksDestination
 	"strings"
 )
@@ -63,6 +65,19 @@ func NewSecurityValidator() *SecurityValidator {
 	allowedHostsMap := make(map[string]bool)
 	for _, host := range allowedHostsList {
 		allowedHostsMap[strings.ToLower(host)] = true // Store lowercase for case-insensitive checks
+	}
+
+	// Operators can extend the allowlist without a code change via the
+	// ALLOWED_HOSTS environment variable (comma-separated hostnames). These
+	// are merged with the built-in defaults; there is no way to remove a
+	// default this way, only add.
+	if extra := os.Getenv("ALLOWED_HOSTS"); extra != "" {
+		for _, host := range strings.Split(extra, ",") {
+			host = strings.TrimSpace(strings.ToLower(host))
+			if host != "" {
+				allowedHostsMap[host] = true
+			}
+		}
 	}
 
 	return &SecurityValidator{
@@ -187,4 +202,27 @@ func (s *SecurityValidator) ValidateSocksDestination(host string, port uint16) e
 func (s *SecurityValidator) IsAllowedIP(ip string) bool {
 	// TODO: Implement rate limiting or IP blocklist checks here if needed.
 	return true
+}
+
+// AllowedHosts returns the sorted list of allowlisted destination hosts.
+// Used to render the live allowlist (e.g. the /_debug/allowed-hosts endpoint).
+func (s *SecurityValidator) AllowedHosts() []string {
+	hosts := make([]string, 0, len(s.allowedHosts))
+	for h := range s.allowedHosts {
+		hosts = append(hosts, h)
+	}
+	sort.Strings(hosts)
+	return hosts
+}
+
+// AllowedPorts returns the sorted list of allowlisted destination ports.
+func (s *SecurityValidator) AllowedPorts() []string {
+	ports := make([]string, 0, len(s.allowedPorts))
+	for p := range s.allowedPorts {
+		if p != "" {
+			ports = append(ports, p)
+		}
+	}
+	sort.Strings(ports)
+	return ports
 }

@@ -208,6 +208,38 @@ sudo certbot certonly --standalone -d latency.space -d *.latency.space -d *.*.la
 
 See the [DNS and SSL Configuration Guide](./DNS-AND-SSL-CONFIGURATION.md) for detailed instructions.
 
+### Destination Allowlist
+
+To prevent the service from being used as an open proxy against arbitrary hosts,
+the proxy only relays to an **allowlist** of well-known destination domains (and
+their subdomains), on ports **80, 443, 8080, and 53** only. A request to any
+other host or port is rejected (HTTP `403`; SOCKS5 `connection not allowed`).
+
+The default list covers major search, dev, cloud, reference, social, and media
+sites — Google, Bing, DuckDuckGo, GitHub, Stack Overflow, Microsoft, Apple,
+Cloudflare, Amazon/AWS, Wikipedia, Facebook, YouTube, Reddit, X/Twitter,
+Instagram, LinkedIn, Netflix, BBC, NYTimes, and `example.com`.
+
+**See the live list** any time at:
+
+```bash
+curl http://latency.space/_debug/allowed-hosts
+```
+
+**Adding destinations:**
+
+- **Operators** can extend the list without a code change via the `ALLOWED_HOSTS`
+  environment variable (comma-separated hostnames), merged with the built-in
+  defaults. Set it in `.env`:
+  ```bash
+  ALLOWED_HOSTS=news.ycombinator.com,arstechnica.com
+  ```
+  (Defaults cannot be removed this way, only added. The per-body `socks-*`
+  services enforce the same allowlist; add the variable to their `environment`
+  blocks in `docker-compose.yml` if you need it applied there too.)
+- **Permanent additions** for everyone should be made by editing
+  `allowedHostsList` in `proxy/src/security.go` and opening a pull request.
+
 ### API Endpoint: `/api/status-data`
 
  Provides real-time data for celestial bodies in JSON format, including distance from Earth, calculated one-way light-travel latency, and occlusion status.

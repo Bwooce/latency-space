@@ -674,11 +674,31 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 		promhttp.Handler().ServeHTTP(w, r)
 	case "distances":
 		s.printCelestialDistances(w)
+	case "allowed-hosts":
+		s.printAllowedHosts(w)
 	case "help":
 		s.printHelp(w)
 	default:
 		http.Error(w, "Unknown debug command: "+path, http.StatusNotFound)
 	}
+}
+
+// printAllowedHosts lists the destination allowlist (hosts and ports) as JSON.
+// The proxy only relays to these hosts; operators can extend the list via the
+// ALLOWED_HOSTS environment variable.
+func (s *Server) printAllowedHosts(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	payload := map[string]interface{}{
+		"note":  "The proxy only relays to these hosts (and their subdomains) on these ports. Extend via the ALLOWED_HOSTS env var or a PR to security.go.",
+		"hosts": s.security.AllowedHosts(),
+		"ports": s.security.AllowedPorts(),
+	}
+	jsonData, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	_, _ = w.Write(jsonData)
 }
 
 // printCelestialDistances shows the current distances of all celestial bodies
@@ -807,6 +827,7 @@ func (s *Server) printHelp(w http.ResponseWriter) {
 	fmt.Fprintln(w, "Debug Endpoints:")
 	fmt.Fprintln(w, "---------------")
 	fmt.Fprintln(w, "/_debug/distances - Current distances and latencies")
+	fmt.Fprintln(w, "/_debug/allowed-hosts - Destination allowlist (hosts and ports)")
 	fmt.Fprintln(w, "/_debug/help - This help information")
 }
 
