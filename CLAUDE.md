@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Go Proxy**: `cd proxy/src && go build` or `go build -o test_socks test_socks.go`
 - **Run Tests**: `cd proxy/src && go test -v ./...` or for a single test: `go test -v -run TestName`
 - **Status Frontend**: `cd status && npm run dev` (development) or `npm run build` (production)
-- **Docker**: `docker compose up -d` (all services) or `docker compose -f docker-compose.minimal.yml up -d` (minimal)
+- **Docker**: `docker compose up -d` (all services)
 - **Diagnostic Information**: `curl https://latency.space/diagnostic.html` will provide current running instance diagnositic information
 
 ## Pre-commit Checks
