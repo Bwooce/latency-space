@@ -296,7 +296,15 @@ networks:
     ipam:
       driver: default
       config:
+        # ip_range confines DYNAMIC address allocation to .128/25. The core
+        # services below pin static IPs 172.18.0.2-.5, which sit OUTSIDE this
+        # range. Without ip_range, the many socks-* containers (no static IP)
+        # get dynamic addresses starting at .2 and steal the static ones,
+        # causing "Address already in use" for proxy/status/prometheus/grafana
+        # on a full `docker compose up`. Keeping dynamic and static apart makes
+        # restarts and deploys order-independent.
         - subnet: "172.18.0.0/16"
+          ip_range: "172.18.0.128/25"
           gateway: "172.18.0.1"
 
 volumes:
