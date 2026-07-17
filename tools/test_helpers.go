@@ -2,20 +2,22 @@
 
 package main
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
-// Variable to enable test mode - shared between test files
-var isTestMode = false
+// Variable to enable test mode - shared between test files.
+// atomic.Bool to match the proxy build, whose calculations.go (symlinked into
+// this tool) reads it via isTestMode.Load().
+var isTestMode atomic.Bool
 
 // setupTestMode enables test mode for latency calculations and returns a cleanup function
 // nolint:unused
 func setupTestMode() func() {
-	// Set test mode
-	isTestMode = true
-	
-	// Return a function to reset it
+	isTestMode.Store(true)
 	return func() {
-		isTestMode = false
+		isTestMode.Store(false)
 	}
 }
 
