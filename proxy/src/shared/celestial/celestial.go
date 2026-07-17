@@ -789,6 +789,87 @@ func InitSolarSystemObjects() []CelestialObject {
 			Mass:       1.8056e21, // kg
 		},
 
+		// Other notable moons
+		{
+			Name:       "Hyperion", // Saturn — chaotic rotation
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     135.0,
+			A:          1481009.0, // km
+			E:          0.1230,
+			I:          0.43,
+			N:          145.0,
+			W:          303.0,
+			L:          100.0,
+			DL:         16.9198 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     21.276609,
+			Mass:       5.62e18, // kg
+		},
+
+		{
+			Name:       "Phoebe", // Saturn — retrograde outer moon
+			Type:       "moon",
+			ParentName: "Saturn",
+			Radius:     106.5,
+			A:          12947780.0, // km
+			E:          0.1634,
+			I:          175.986, // Retrograde orbit
+			N:          241.6,
+			W:          345.0,
+			L:          110.0,
+			DL:         -0.65419 * 360.0 / 365.25 * DAYS_PER_CENTURY, // Negative for retrograde
+			Period:     550.31,
+			Mass:       8.29e18, // kg
+		},
+
+		{
+			Name:       "Proteus", // Neptune — second largest Neptunian moon
+			Type:       "moon",
+			ParentName: "Neptune",
+			Radius:     210.0,
+			A:          117647.0, // km
+			E:          0.00053,
+			I:          0.524,
+			N:          48.0,
+			W:          301.0,
+			L:          120.0,
+			DL:         320.7602 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     1.122315,
+			Mass:       4.4e19, // kg
+		},
+
+		{
+			Name:       "Nereid", // Neptune — highly eccentric orbit
+			Type:       "moon",
+			ParentName: "Neptune",
+			Radius:     170.0,
+			A:          5513818.0, // km
+			E:          0.7507,
+			I:          7.090,
+			N:          334.8,
+			W:          281.0,
+			L:          130.0,
+			DL:         0.99962 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     360.13619,
+			Mass:       3.1e19, // kg
+		},
+
+		{
+			Name:       "Amalthea", // Jupiter — largest inner moon
+			Type:       "moon",
+			ParentName: "Jupiter",
+			Radius:     83.5,
+			A:          181366.0, // km
+			E:          0.00319,
+			I:          0.374,
+			N:          108.0,
+			W:          155.0,
+			L:          140.0,
+			DL:         722.6289 * 360.0 / 365.25 * DAYS_PER_CENTURY, // 360/Period
+			Period:     0.498179,
+			Mass:       2.08e18, // kg
+		},
+
 		// Spacecraft
 		// Active deep space missions with transmitters
 		{
