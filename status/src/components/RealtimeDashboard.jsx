@@ -27,24 +27,16 @@ export const formatLatency = (seconds) => {
   return h > 0 ? `${d}d ${h}h` : `${d}d`;
 };
 
-// Where the body sits on its track, as a fraction [0..1] of the full width,
-// log-scaled from 1s to 24h of one-way latency. Near bodies sit close to
-// Earth; distant ones sit far to the right. This is what makes the photon
-// "representative": the signal covers a proportionally longer path for a
-// more-distant body.
-const trackFraction = (latencySeconds) => {
-  const min = Math.log10(1);
-  const max = Math.log10(86400); // 24h
-  const v = Math.log10(Math.max(latencySeconds, 1));
-  const f = (v - min) / (max - min);
-  return Math.min(Math.max(f, 0.12), 0.96); // keep both endpoints on-screen
+// The body sits at the far (right) end of every track; the signal traverses the
+// full width in a duration proportional (log-scaled) to the one-way latency.
+// A more-distant body therefore has a slower-crossing photon — the travel TIME
+// carries the delay, which is watchable across the huge latency range (Moon
+// ~1s to Voyager ~20h).
+const travelDuration = (latencySeconds) => {
+  const l = Math.max(latencySeconds, 0.5);
+  const d = 2 + Math.log10(l) * 3.2; // Moon ~2s, Mars ~11s, Voyager ~18s
+  return Math.min(Math.max(d, 2), 20);
 };
-
-// Seconds for a photon to cross the FULL track width. The photon always moves
-// at this same visual speed (light is constant); a body's travel time follows
-// only from how far away it sits (trackFraction), so the delay is honest —
-// distant bodies genuinely take longer because the signal has farther to go.
-const CROSS_SECONDS = 7;
 
 // Colour by latency magnitude: near = green, far = red.
 const latencyColor = (seconds) => {
@@ -100,33 +92,22 @@ function AnimatedNumber({ value, decimals = 2, suffix = '' }) {
 // ---- signal-in-transit track ----------------------------------------------
 
 function SignalTrack({ latencySeconds, occluded }) {
-  const f = trackFraction(latencySeconds);
-  // Constant photon speed: crossing time is proportional to the distance (f).
-  const dur = Math.max(f * CROSS_SECONDS, 0.4);
-  const pct = `${(f * 100).toFixed(1)}%`;
+  const dur = travelDuration(latencySeconds);
   return (
     <div className="relative h-6 mt-3 mb-1">
-      {/* faint full-width guide */}
-      <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
-      {/* active beam: Earth -> body (length = distance) */}
-      <div className="absolute top-1/2 left-0 h-px bg-gradient-to-r from-cyan-500/50 to-slate-500/20" style={{ width: pct }} />
+      {/* the beam line */}
+      <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-cyan-500/40 via-slate-500/30 to-transparent" />
       {/* Earth endpoint */}
       <div className="absolute top-1/2 -translate-y-1/2 left-0 w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.6)]" title="Earth" />
-      {/* body endpoint at its distance */}
-      <div
-        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${occluded ? 'bg-rose-500 animate-occ' : 'bg-amber-300'} shadow-[0_0_8px_2px_rgba(252,211,77,0.5)]`}
-        style={{ left: pct }}
-        title="Body"
-      />
-      {/* travelling signal — moves within the beam (width f) at constant speed;
-          hidden when occluded (no line of sight) */}
+      {/* body endpoint (far end) */}
+      <div className={`absolute top-1/2 -translate-y-1/2 right-0 w-2.5 h-2.5 rounded-full ${occluded ? 'bg-rose-500 animate-occ' : 'bg-amber-300'} shadow-[0_0_8px_2px_rgba(252,211,77,0.5)]`} title="Body" />
+      {/* travelling signal — crosses the full beam in a latency-proportional
+          time (slower for more-distant bodies); hidden when occluded */}
       {!occluded && (
-        <div className="absolute top-1/2 -translate-y-1/2 left-0" style={{ width: pct }}>
-          <div
-            className="animate-signal absolute top-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_3px_rgba(255,255,255,0.85)]"
-            style={{ animationDuration: `${dur}s` }}
-          />
-        </div>
+        <div
+          className="animate-signal absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_3px_rgba(255,255,255,0.85)]"
+          style={{ animationDuration: `${dur}s` }}
+        />
       )}
     </div>
   );
