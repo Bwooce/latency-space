@@ -200,7 +200,7 @@ port). The per-body subdomains serve information pages only.
 
 **Note on SSL certificates:**
 - First-level subdomains (`mars.latency.space`) are covered by the `*.latency.space` wildcard.
-- Second-level subdomains (e.g., `phobos.mars.latency.space`) need per-parent wildcard SANs (`*.mars.latency.space`, …), issued via DNS-01.
+- Second-level subdomains (e.g., `phobos.mars.latency.space`) need per-parent wildcard SANs (`*.mars.latency.space`, …), issued via DNS-01. Run `deploy/setup-wildcard-certs.sh` on the host (or trigger the **Wildcard Certs** GitHub Action, which defaults to a safe dry run) to reissue the certificate with those SANs.
 
 For proper SSL certificate configuration covering all domain levels:
 ```bash
