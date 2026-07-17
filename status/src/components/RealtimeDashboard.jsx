@@ -28,14 +28,14 @@ export const formatLatency = (seconds) => {
 };
 
 // The body sits at the far (right) end of every track; the signal traverses the
-// full width in a duration proportional (log-scaled) to the one-way latency.
-// A more-distant body therefore has a slower-crossing photon — the travel TIME
-// carries the delay, which is watchable across the huge latency range (Moon
-// ~1s to Voyager ~20h).
+// full width in a duration that grows with the one-way latency, so a more-distant
+// body's photon visibly crawls. A sqrt curve (not log) is used deliberately: log
+// was far too flat — it bunched everything from Mars to Eris into ~10–16s, so
+// Pluto looked as fast as Mercury. sqrt spreads the huge range (Moon ~1s to
+// Eris ~10h) into a clearly-different, still-watchable 1.7s–28s.
 const travelDuration = (latencySeconds) => {
-  const l = Math.max(latencySeconds, 0.5);
-  const d = 2 + Math.log10(l) * 3.2; // Moon ~2s, Mars ~11s, Voyager ~18s
-  return Math.min(Math.max(d, 2), 20);
+  const lat = Math.max(latencySeconds, 1);
+  return Math.min(1.5 + Math.sqrt(lat) * 0.16, 28); // Moon ~1.7s, Mars ~6.6s, Pluto ~22.5s
 };
 
 // Colour by latency magnitude: near = green, far = red.
