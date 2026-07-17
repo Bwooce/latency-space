@@ -228,7 +228,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	// previously only checked on the UDP path, so CONNECT could reach any port
 	// (e.g. an allowlisted host on port 22). Skipped in test mode, which dials
 	// echo servers on arbitrary loopback ports.
-	if !isTestMode {
+	if !isTestMode.Load() {
 		if err := s.security.ValidateSocksDestination(dstAddr, dstPort); err != nil {
 			s.sendReply(SOCKS5_REP_CONN_NOT_ALLOWED, net.IPv4zero, 0)
 			return fmt.Errorf("SOCKS destination not allowed: %v", err)
@@ -243,26 +243,26 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	}
 
 	// --- Occlusion Check ---
-	if celestialObjects == nil {
+	if getCelestialObjects() == nil {
 		log.Printf("Error: celestialObjects not initialized during SOCKS request.")
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
 		return fmt.Errorf("internal server error: celestial objects not initialized")
 	}
 
-	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	targetObject, targetFound := findObjectByName(getCelestialObjects(), bodyName)
 	if !targetFound {
 		log.Printf("Error: SOCKS: Target celestial body '%s' not found.", bodyName)
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
 		return fmt.Errorf("internal server error: target body '%s' not found", bodyName)
 	}
-	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	earthObject, earthFound := findObjectByName(getCelestialObjects(), "Earth")
 	if !earthFound {
 		log.Printf("Error: SOCKS: Earth celestial object not found.")
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
 		return fmt.Errorf("internal server error: earth object configuration missing")
 	}
 
-	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+	occluded, occluder := IsOccluded(earthObject, targetObject, getCelestialObjects(), time.Now())
 	if occluded {
 		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
 		log.Printf("SOCKS connection to %s rejected: occluded by %s", bodyName, occluder.Name)
@@ -276,7 +276,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	distance := getCurrentDistance(bodyName) // Get distance for latency calc
 	var latency time.Duration
 	// Use test latency in test mode
-	if isTestMode {
+	if isTestMode.Load() {
 		latency = testModeCalculateLatency(distance)
 	} else {
 		latency = CalculateLatency(distance)
@@ -285,7 +285,7 @@ func (s *SOCKSHandler) handleConnect(addrType byte) error {
 	// Anti-DDoS: Only allow bodies with significant latency (>1s)
 	// This prevents the proxy from being used for DDoS attacks
 	// Skip this check in test mode
-	if !isTestMode && latency < 1*time.Second {
+	if !isTestMode.Load() && latency < 1*time.Second {
 		log.Printf("Rejecting connection with insufficient latency: %s (%.2f ms)",
 			bodyName, latency.Seconds()*1000)
 		s.sendReply(SOCKS5_REP_GENERAL_FAILURE, net.IPv4zero, 0)
@@ -513,7 +513,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	distance := getCurrentDistance(bodyName)
 	var latency time.Duration
 	// Use test latency in test mode
-	if isTestMode {
+	if isTestMode.Load() {
 		latency = testModeCalculateLatency(distance)
 	} else {
 		latency = CalculateLatency(distance)
@@ -521,12 +521,12 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 	log.Printf("UDP Relay for %s: Using body '%s', latency %v", clientTCPAddr, bodyName, latency)
 
 	// Get Earth object for occlusion check (assuming Earth is the proxy location)
-	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	earthObject, earthFound := findObjectByName(getCelestialObjects(), "Earth")
 	if !earthFound {
 		log.Printf("Error: UDP Relay: Earth celestial object not found. Occlusion checks disabled.")
 		// Proceed without occlusion checks if Earth object is missing
 	}
-	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	targetObject, targetFound := findObjectByName(getCelestialObjects(), bodyName)
 	if !targetFound {
 		log.Printf("Error: UDP Relay: Target celestial body '%s' not found. Occlusion checks disabled.", bodyName)
 		// Proceed without occlusion checks if target object is missing
@@ -731,7 +731,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 				if ip := net.ParseIP(dstHost); ip != nil {
 					// Loopback is permitted ONLY in test mode; in production
 					// all IP literals are rejected (see isAllowedDestination).
-					if ip.IsLoopback() && isTestMode {
+					if ip.IsLoopback() && isTestMode.Load() {
 						isLoopback = true
 					} else {
 						log.Printf("UDP Relay: Destination %s is an IP address. Use --socks5-hostname to send domain names to the proxy. Dropping packet.", dstHost)
@@ -751,7 +751,7 @@ func (s *SOCKSHandler) handleUDPRelay(udpConn net.PacketConn, clientTCPAddr net.
 
 				// --- Occlusion Check ---
 				if earthFound && targetFound { // Only check if we found both Earth and the target body
-					occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+					occluded, occluder := IsOccluded(earthObject, targetObject, getCelestialObjects(), time.Now())
 					if occluded {
 						log.Printf("UDP Relay: Path to %s occluded by %s, dropping packet.", bodyName, occluder.Name)
 						continue

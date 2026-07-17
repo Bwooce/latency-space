@@ -18,7 +18,7 @@ import (
 // with multiple celestial bodies at different distances
 func setupExtendedTestEnv() (func(), map[string]CelestialObject) {
 	// Save original objects
-	originalCelestialObjects := celestialObjects
+	originalCelestialObjects := getCelestialObjects()
 
 	// Create multiple test celestial objects with varying distances/latencies
 	testBodies := []CelestialObject{
@@ -95,7 +95,7 @@ func setupExtendedTestEnv() (func(), map[string]CelestialObject) {
 	}
 
 	// Override global celestial objects
-	celestialObjects = testBodies
+	setCelestialObjects(testBodies)
 
 	// Create a map for easy lookup in tests
 	bodyMap := make(map[string]CelestialObject)
@@ -105,7 +105,7 @@ func setupExtendedTestEnv() (func(), map[string]CelestialObject) {
 
 	// Return cleanup function and the body map
 	return func() {
-		celestialObjects = originalCelestialObjects
+		setCelestialObjects(originalCelestialObjects)
 	}, bodyMap
 }
 

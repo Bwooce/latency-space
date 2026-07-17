@@ -6,12 +6,12 @@ import "testing"
 // finding: an unauthenticated SOCKS client must not be able to CONNECT to a
 // loopback address in production. Loopback stays allowed only in test mode.
 func TestSOCKSRejectsLoopbackInProduction(t *testing.T) {
-	orig := isTestMode
-	defer func() { isTestMode = orig }()
+	orig := isTestMode.Load()
+	defer func() { isTestMode.Store(orig) }()
 
 	h := &SOCKSHandler{security: NewSecurityValidator()}
 
-	isTestMode = false
+	isTestMode.Store(false)
 	for _, addr := range []string{"127.0.0.1", "::1", "127.0.0.53"} {
 		if h.isAllowedDestination(addr) {
 			t.Errorf("loopback %s must be rejected in production", addr)
@@ -22,7 +22,7 @@ func TestSOCKSRejectsLoopbackInProduction(t *testing.T) {
 		t.Error("link-local metadata IP must be rejected")
 	}
 
-	isTestMode = true
+	isTestMode.Store(true)
 	if !h.isAllowedDestination("127.0.0.1") {
 		t.Error("loopback should be allowed in test mode (tests use echo servers)")
 	}

@@ -246,11 +246,11 @@ func TestSOCKSLatencyValues(t *testing.T) {
 	defer cleanup()
 
 	// Need control over test mode latency values
-	originalTestMode := isTestMode
-	defer func() { isTestMode = originalTestMode }()
+	originalTestMode := isTestMode.Load()
+	defer func() { isTestMode.Store(originalTestMode) }()
 
 	// We'll override the test mode latency for this test
-	isTestMode = true
+	isTestMode.Store(true)
 
 	// Setup security and metrics
 	security := NewSecurityValidator()
@@ -626,8 +626,8 @@ func TestSOCKSOcclusion(t *testing.T) {
 	// This test will simulate occlusion scenarios for SOCKS proxy
 
 	// Create a custom celestial objects setup for occlusion testing
-	originalCelestialObjects := celestialObjects
-	defer func() { celestialObjects = originalCelestialObjects }()
+	originalCelestialObjects := getCelestialObjects()
+	defer func() { setCelestialObjects(originalCelestialObjects) }()
 
 	// Create mock objects
 	mockSun := CelestialObject{
@@ -655,7 +655,7 @@ func TestSOCKSOcclusion(t *testing.T) {
 	}
 
 	// Set up our test celestial objects
-	celestialObjects = testBodies
+	setCelestialObjects(testBodies)
 
 	// Setup security and metrics
 	security := NewSecurityValidator()

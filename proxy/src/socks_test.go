@@ -17,10 +17,10 @@ func setupTestEnvironment() func() {
 	// Need Earth for occlusion checks and a target body (e.g., Mars) for latency simulation context
 	// Assign the test objects to the global variable used by the main code
 	// Save the original celestial objects to restore them later
-	originalCelestialObjects := celestialObjects
+	originalCelestialObjects := getCelestialObjects()
 
 	// Override global celestial objects with test-specific ones with low latency
-	celestialObjects = []CelestialObject{
+	setCelestialObjects([]CelestialObject{
 		{
 			Name:   "Sun",
 			Type:   "star",
@@ -67,13 +67,13 @@ func setupTestEnvironment() func() {
 			Mass:   6.4171e23, // kg
 		},
 		// Add other bodies if needed for specific tests
-	}
+	})
 	// Suppress log output during tests unless debugging
 	// log.SetOutput(io.Discard) // Keep log suppression commented out for now
 
 	// Return a cleanup function to restore the original celestial objects
 	return func() {
-		celestialObjects = originalCelestialObjects
+		setCelestialObjects(originalCelestialObjects)
 	}
 }
 

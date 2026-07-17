@@ -26,9 +26,9 @@ var testCelestialObjects = []CelestialObject{
 
 func TestParseHostForCelestialBody(t *testing.T) {
 	// Override global celestialObjects with test data for this specific test.
-	originalCelestialObjects := celestialObjects
-	celestialObjects = testCelestialObjects
-	defer func() { celestialObjects = originalCelestialObjects }() // Restore original celestialObjects data after the test completes.
+	originalCelestialObjects := getCelestialObjects()
+	setCelestialObjects(testCelestialObjects)
+	defer func() { setCelestialObjects(originalCelestialObjects) }() // Restore original celestialObjects data after the test completes.
 
 	// dummyURL is used as a placeholder for the URL argument, as it's not used by the function.
 	dummyURL, _ := url.Parse("http://example.com")
@@ -173,9 +173,9 @@ func TestParseHostForCelestialBody(t *testing.T) {
 // TestFindObjectByName tests the helper function directly.
 func TestFindObjectByName(t *testing.T) {
 	// Use the same test object data.
-	originalCelestialObjects := celestialObjects
-	celestialObjects = testCelestialObjects
-	defer func() { celestialObjects = originalCelestialObjects }()
+	originalCelestialObjects := getCelestialObjects()
+	setCelestialObjects(testCelestialObjects)
+	defer func() { setCelestialObjects(originalCelestialObjects) }()
 
 	testCases := []struct {
 		name          string
@@ -198,7 +198,7 @@ func TestFindObjectByName(t *testing.T) {
 			if tc.name == "Find planet in nil slice" {
 				objectsToSearch = nil
 			} else {
-				objectsToSearch = celestialObjects
+				objectsToSearch = getCelestialObjects()
 			}
 
 			foundBody, found := findObjectByName(objectsToSearch, tc.searchName)
@@ -221,14 +221,14 @@ func TestFindObjectByName(t *testing.T) {
 // TestDisplayCelestialInfoTemplate tests the rendering of the info page HTML template.
 func TestDisplayCelestialInfoTemplate(t *testing.T) {
 	// Initialize real celestial objects data.
-	celestialObjects = celestial.InitSolarSystemObjects()
+	setCelestialObjects(celestial.InitSolarSystemObjects())
 	// Ensure celestialObjects were loaded.
-	if len(celestialObjects) == 0 {
+	if len(getCelestialObjects()) == 0 {
 		t.Fatal("Failed to initialize celestialObjects (slice is nil or empty)")
 	}
 
 	// Populate the distance cache.
-	calculateDistancesFromEarth(celestialObjects, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	calculateDistancesFromEarth(getCelestialObjects(), time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	// Parse the HTML template.
 	var err error

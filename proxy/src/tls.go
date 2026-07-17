@@ -35,7 +35,7 @@ func isValidSubdomain(host string) bool {
 	// Requires exactly 3 parts: body.latency.space
 	if numParts == 3 {
 		bodyName := parts[0]
-		_, found := findObjectByName(celestialObjects, bodyName)
+		_, found := findObjectByName(getCelestialObjects(), bodyName)
 		return found // Valid if the body name exists
 	}
 
@@ -44,7 +44,7 @@ func isValidSubdomain(host string) bool {
 	if numParts == 4 {
 		moonName := parts[0]
 		planetName := parts[1]
-		moon, moonFound := findObjectByName(celestialObjects, moonName)
+		moon, moonFound := findObjectByName(getCelestialObjects(), moonName)
 		// Check if moon exists, is a moon, and its parent matches the planet part
 		return moonFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName)
 	}
@@ -54,7 +54,7 @@ func isValidSubdomain(host string) bool {
 	if numParts >= 4 {
 		bodyName := parts[numParts-3]
 		// Check if it's a valid celestial body (non-moon)
-		body, found := findObjectByName(celestialObjects, bodyName)
+		body, found := findObjectByName(getCelestialObjects(), bodyName)
 		if found && body.Type != "moon" {
 			return true
 		}
@@ -64,8 +64,8 @@ func isValidSubdomain(host string) bool {
 		if numParts >= 5 {
 			moonName := parts[numParts-4]
 			planetName := parts[numParts-3]
-			moon, moonFound := findObjectByName(celestialObjects, moonName)
-			_, planetFound := findObjectByName(celestialObjects, planetName)
+			moon, moonFound := findObjectByName(getCelestialObjects(), moonName)
+			_, planetFound := findObjectByName(getCelestialObjects(), planetName)
 			// Check if moon and planet exist, moon type is correct, and parent matches
 			if moonFound && planetFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName) {
 				return true

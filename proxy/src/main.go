@@ -235,9 +235,9 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Accessing for |%s|, via body |%s|", targetURL, bodyName)
 
-	if celestialObjects == nil {
+	if getCelestialObjects() == nil {
 		log.Printf("Init celestial objects")
-		celestialObjects = celestial.InitSolarSystemObjects()
+		setCelestialObjects(celestial.InitSolarSystemObjects())
 	}
 
 	// If there's no target URL, just display info about this celestial body
@@ -261,13 +261,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL = validatedURL
 
 	// Find the target and Earth objects
-	targetObject, targetFound := findObjectByName(celestialObjects, bodyName)
+	targetObject, targetFound := findObjectByName(getCelestialObjects(), bodyName)
 	if !targetFound {
 		log.Printf("Error: Target celestial body '%s' not found after host parsing.", bodyName)
 		http.Error(w, "Internal server error: Target body not found", http.StatusInternalServerError)
 		return
 	}
-	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	earthObject, earthFound := findObjectByName(getCelestialObjects(), "Earth")
 	if !earthFound {
 		log.Printf("Error: Earth celestial object not found.")
 		http.Error(w, "Internal server error: Earth object configuration missing", http.StatusInternalServerError)
@@ -275,7 +275,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check for occlusion
-	occluded, occluder := IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+	occluded, occluder := IsOccluded(earthObject, targetObject, getCelestialObjects(), time.Now())
 	if occluded {
 		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
 		log.Printf("HTTP connection to %s rejected: occluded by %s", bodyName, occluder.Name)
@@ -391,11 +391,11 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	var occluded bool
 	var occluderName string
 	var occluder CelestialObject // Use struct type to match IsOccluded return type
-	targetObject, targetFound := findObjectByName(celestialObjects, name)
-	earthObject, earthFound := findObjectByName(celestialObjects, "Earth")
+	targetObject, targetFound := findObjectByName(getCelestialObjects(), name)
+	earthObject, earthFound := findObjectByName(getCelestialObjects(), "Earth")
 
 	if targetFound && earthFound {
-		occluded, occluder = IsOccluded(earthObject, targetObject, celestialObjects, time.Now())
+		occluded, occluder = IsOccluded(earthObject, targetObject, getCelestialObjects(), time.Now())
 		// Check if an actual occluding object was returned (Name will be non-empty)
 		if occluded && occluder.Name != "" {
 			occluderName = occluder.Name
@@ -467,8 +467,8 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	}
 
 	// Ensure celestial objects are initialized
-	if celestialObjects == nil {
-		celestialObjects = celestial.InitSolarSystemObjects()
+	if getCelestialObjects() == nil {
+		setCelestialObjects(celestial.InitSolarSystemObjects())
 	}
 
 	// Check if it's a latency.space domain (case-insensitive manual check)
@@ -493,8 +493,8 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		potentialMoonName := parts[numParts-4]
 		potentialPlanetName := parts[numParts-3]
 
-		moon, moonFound := findObjectByName(celestialObjects, potentialMoonName)
-		planet, planetFound := findObjectByName(celestialObjects, potentialPlanetName)
+		moon, moonFound := findObjectByName(getCelestialObjects(), potentialMoonName)
+		planet, planetFound := findObjectByName(getCelestialObjects(), potentialPlanetName)
 
 		// If both potential moon and planet are found, perform strict validation
 		if moonFound && planetFound {
@@ -528,7 +528,7 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// Case 4: [planet].latency.space (3 parts, target is empty)
 	if numParts >= 3 {
 		potentialBodyName := parts[numParts-3]
-		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
+		body, bodyFound := findObjectByName(getCelestialObjects(), potentialBodyName)
 
 		// Check if body is found and is not a moon (case-insensitive check to avoid conflict with moon.planet format)
 		if bodyFound && !strings.EqualFold(body.Type, "moon") {
@@ -545,7 +545,7 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 	// This handles the case where someone just goes to mars.latency.space
 	if numParts == 3 {
 		potentialBodyName := parts[0]
-		body, bodyFound := findObjectByName(celestialObjects, potentialBodyName)
+		body, bodyFound := findObjectByName(getCelestialObjects(), potentialBodyName)
 		if bodyFound {
 			return "", body, body.Name
 		}
@@ -726,7 +726,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure distance data is up-to-date
 	now := time.Now()
-	calculateDistancesFromEarth(celestialObjects, now) // Refresh cache
+	calculateDistancesFromEarth(getCelestialObjects(), now) // Refresh cache
 	log.Printf("DEBUG: distanceEntries after calculation: %+v\n", distanceEntries)
 
 	// Prepare the response structure
@@ -740,7 +740,7 @@ func (s *Server) handleStatusData(w http.ResponseWriter, r *http.Request) {
 	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
 
 	// Populate the response data
-	for _, obj := range celestialObjects {
+	for _, obj := range getCelestialObjects() {
 		if obj.Type == "star" { // Skip the Sun for this endpoint
 			continue
 		}
@@ -885,11 +885,11 @@ func main() {
 	}
 
 	// Initialize celestial objects for calculation
-	celestialObjects = celestial.InitSolarSystemObjects()
+	setCelestialObjects(celestial.InitSolarSystemObjects())
 
 	// Validate fixed celestial body if set
 	if fixedCelestialBody != "" {
-		_, found := findObjectByName(celestialObjects, fixedCelestialBody)
+		_, found := findObjectByName(getCelestialObjects(), fixedCelestialBody)
 		if !found {
 			log.Fatalf("Invalid CELESTIAL_BODY: '%s' not found in solar system objects", fixedCelestialBody)
 		}

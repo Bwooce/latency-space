@@ -46,12 +46,12 @@ func TestValidateDestinationSchemeAndAllowlist(t *testing.T) {
 // allowlist on the HTTP proxy path (previously it had no check at all, so any
 // host embedded in the subdomain was proxied — an open HTTP proxy).
 func TestHTTPProxyRejectsNonAllowlistedHost(t *testing.T) {
-	orig := celestialObjects
-	celestialObjects = []CelestialObject{
+	orig := getCelestialObjects()
+	setCelestialObjects([]CelestialObject{
 		{Name: "Earth", Type: "planet"},
 		{Name: "Mars", Type: "planet"},
-	}
-	defer func() { celestialObjects = orig }()
+	})
+	defer func() { setCelestialObjects(orig) }()
 
 	s := newTestServer()
 
@@ -72,12 +72,12 @@ func TestHTTPProxyRejectsNonAllowlistedHost(t *testing.T) {
 // network fetch — which is exactly the point where we can confirm validation
 // (scheme prepend + allowlist) succeeded without making a real request.
 func TestHTTPProxyAllowlistedHostPassesValidation(t *testing.T) {
-	orig := celestialObjects
-	celestialObjects = []CelestialObject{
+	orig := getCelestialObjects()
+	setCelestialObjects([]CelestialObject{
 		{Name: "Earth", Type: "planet"},
 		{Name: "Mars", Type: "planet"},
-	}
-	defer func() { celestialObjects = orig }()
+	})
+	defer func() { setCelestialObjects(orig) }()
 
 	cleanup := setupTestModeWithLatency(3 * time.Millisecond)
 	defer cleanup()

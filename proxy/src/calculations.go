@@ -8,21 +8,39 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/latency-space/shared/celestial"
 )
 
-var celestialObjects []celestial.CelestialObject
+// celestialObjectsPtr holds the solar-system snapshot. Atomic because tests swap
+// it while SOCKS UDP relay goroutines may still be reading it (a data race under
+// -race); production sets it once in init() and never mutates it afterwards.
+// Always access via getCelestialObjects/setCelestialObjects, never the pointer.
+var celestialObjectsPtr atomic.Pointer[[]celestial.CelestialObject]
 var DistanceCacheMutex sync.RWMutex // Exported mutex for cache access
 
+// getCelestialObjects returns the current solar-system snapshot (nil if unset).
+func getCelestialObjects() []celestial.CelestialObject {
+	if p := celestialObjectsPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// setCelestialObjects atomically replaces the solar-system snapshot.
+func setCelestialObjects(objs []celestial.CelestialObject) {
+	celestialObjectsPtr.Store(&objs)
+}
+
 func init() {
-	celestialObjects = celestial.InitSolarSystemObjects()
-	log.Printf("Celestial objects initialized. Count: %d", len(celestialObjects))
+	setCelestialObjects(celestial.InitSolarSystemObjects())
+	log.Printf("Celestial objects initialized. Count: %d", len(getCelestialObjects()))
 
 	// Debug: Verify Sun is in the list
 	sunFound := false
-	for _, obj := range celestialObjects {
+	for _, obj := range getCelestialObjects() {
 		if obj.Name == "Sun" {
 			sunFound = true
 			break
@@ -35,7 +53,7 @@ func init() {
 
 func CalculateLatency(distanceKm float64) time.Duration {
 	// Use test mode with fixed low latency if enabled
-	if isTestMode {
+	if isTestMode.Load() {
 		return testModeCalculateLatency(distanceKm)
 	}
 
@@ -546,7 +564,7 @@ func getCurrentDistance(bodyName string) float64 {
 	}
 
 	//log.Printf("Size of celestialObjects: %d", len(celestialObjects))
-	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated (handles its own locking)
+	calculateDistancesFromEarth(getCelestialObjects(), time.Now()) // Ensure cache is potentially updated (handles its own locking)
 
 	DistanceCacheMutex.RLock()         // Acquire read lock to access the cache
 	defer DistanceCacheMutex.RUnlock() // Ensure lock is released
@@ -564,7 +582,7 @@ func getCurrentDistance(bodyName string) float64 {
 
 // Display objects of a specific type
 func printObjectsByType(w io.Writer, objectType string) {
-	calculateDistancesFromEarth(celestialObjects, time.Now()) // Ensure cache is potentially updated
+	calculateDistancesFromEarth(getCelestialObjects(), time.Now()) // Ensure cache is potentially updated
 
 	DistanceCacheMutex.RLock()         // Acquire read lock
 	defer DistanceCacheMutex.RUnlock() // Ensure lock is released

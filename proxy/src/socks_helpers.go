@@ -75,7 +75,7 @@ func (s *SOCKSHandler) processDomainName(domain string) (string, error) {
 
 		// Get the celestial body name for logging
 		bodyName := parts[bodyIndex]
-		_, found := findObjectByName(celestialObjects, bodyName)
+		_, found := findObjectByName(getCelestialObjects(), bodyName)
 
 		if !found {
 			return "", fmt.Errorf("unknown celestial body: %s", bodyName)
@@ -97,7 +97,7 @@ func (s *SOCKSHandler) isAllowedDestination(host string) bool {
 		// an unauthenticated client CONNECT to services on the proxy host,
 		// so all IP literals are rejected — clients must send domain names
 		// (--socks5-hostname) which are then checked against the allowlist.
-		if ip.IsLoopback() && isTestMode {
+		if ip.IsLoopback() && isTestMode.Load() {
 			return true
 		}
 		log.Printf("SOCKS destination rejected: %s is an IP address. Use --socks5-hostname instead of --socks5 to send domain names to the proxy.", host)
@@ -169,7 +169,7 @@ func (s *SOCKSHandler) getCelestialBodyFromConn(addr net.Addr) (string, error) {
 			// The celestial body is the second-to-last part before "latency.space"
 			bodyIndex := len(parts) - 3
 			bodyName := parts[bodyIndex]
-			celestialBody, found := findObjectByName(celestialObjects, bodyName)
+			celestialBody, found := findObjectByName(getCelestialObjects(), bodyName)
 			if found {
 				log.Printf("Using celestial body from domain: %s", celestialBody.Name)
 				return celestialBody.Name, nil
@@ -180,7 +180,7 @@ func (s *SOCKSHandler) getCelestialBodyFromConn(addr net.Addr) (string, error) {
 	// Check if the first part of the hostname is a celestial body
 	hostParts := strings.Split(host, ".")
 	if len(hostParts) > 0 {
-		body, found := findObjectByName(celestialObjects, hostParts[0])
+		body, found := findObjectByName(getCelestialObjects(), hostParts[0])
 		if found {
 			log.Printf("Using celestial body from hostname: %s", body.Name)
 			return body.Name, nil
@@ -189,6 +189,6 @@ func (s *SOCKSHandler) getCelestialBodyFromConn(addr net.Addr) (string, error) {
 
 	// For clients connecting directly via IP, use Mars with minimal latency for testing
 	log.Printf("No celestial body detected in hostname, using Mars for connection from |%s|", host)
-	body, _ := findObjectByName(celestialObjects, "Mars")
+	body, _ := findObjectByName(getCelestialObjects(), "Mars")
 	return body.Name, nil
 }
