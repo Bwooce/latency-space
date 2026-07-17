@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings" // Import strings for case-insensitive comparison later
 	"testing"
 	"time"
@@ -26,161 +25,48 @@ var testCelestialObjects = []CelestialObject{
 	{Name: "Voyager 1", Type: "spacecraft"},
 }
 
-func TestParseHostForCelestialBody(t *testing.T) {
+func TestResolveCelestialHost(t *testing.T) {
 	// Override global celestialObjects with test data for this specific test.
 	originalCelestialObjects := getCelestialObjects()
 	setCelestialObjects(testCelestialObjects)
 	defer func() { setCelestialObjects(originalCelestialObjects) }() // Restore original celestialObjects data after the test completes.
 
-	// dummyURL is used as a placeholder for the URL argument, as it's not used by the function.
-	dummyURL, _ := url.Parse("http://example.com")
-
 	testCases := []struct {
 		name             string
 		host             string
-		expectedURL      string
-		expectedBody     CelestialObject // Compare the actual object
-		expectedBodyName string          // Also compare the name for clarity in errors
+		expectedBodyName string // "" means the host names no known body
 	}{
-		{
-			name:             "Moon format with target",
-			host:             "www.example.com.phobos.mars.latency.space",
-			expectedURL:      "www.example.com",
-			expectedBody:     testCelestialObjects[4], // Phobos
-			expectedBodyName: "Phobos",
-		},
-		{
-			name:             "Moon format without target",
-			host:             "phobos.mars.latency.space",
-			expectedURL:      "",
-			expectedBody:     testCelestialObjects[4], // Phobos
-			expectedBodyName: "Phobos",
-		},
-		{
-			name:             "Multi-word body via hyphenated slug",
-			host:             "voyager-1.latency.space",
-			expectedURL:      "",
-			expectedBody:     testCelestialObjects[7], // Voyager 1
-			expectedBodyName: "Voyager 1",
-		},
-		{
-			name:             "Multi-word body slug with target",
-			host:             "www.example.com.voyager-1.latency.space",
-			expectedURL:      "www.example.com",
-			expectedBody:     testCelestialObjects[7], // Voyager 1
-			expectedBodyName: "Voyager 1",
-		},
-		{
-			name:             "Planet format with target",
-			host:             "www.example.com.mars.latency.space",
-			expectedURL:      "www.example.com",
-			expectedBody:     testCelestialObjects[1], // Mars
-			expectedBodyName: "Mars",
-		},
-		{
-			name:             "Planet format without target",
-			host:             "mars.latency.space",
-			expectedURL:      "",
-			expectedBody:     testCelestialObjects[1], // Mars
-			expectedBodyName: "Mars",
-		},
-		{
-			name:             "Invalid moon parent", // Phobos orbits Mars, not Jupiter
-			host:             "www.example.com.phobos.jupiter.latency.space",
-			expectedURL:      "",                // Should fail moon check, potentially fallback or fail entirely
-			expectedBody:     CelestialObject{}, // Expect empty object
-			expectedBodyName: "",                // Expect empty name
-		},
-		{
-			name:             "Moon format with wrong planet type", // Earth is a planet, but Moon doesn't orbit Mars
-			host:             "www.example.com.moon.mars.latency.space",
-			expectedURL:      "",
-			expectedBody:     CelestialObject{},
-			expectedBodyName: "",
-		},
-		{
-			name:             "Non-existent body",
-			host:             "www.example.com.unknown.latency.space",
-			expectedURL:      "",
-			expectedBody:     CelestialObject{},
-			expectedBodyName: "",
-		},
-		{
-			name:             "Invalid format - just domain",
-			host:             "latency.space",
-			expectedURL:      "",
-			expectedBody:     CelestialObject{},
-			expectedBodyName: "",
-		},
-		{
-			name:             "Invalid format - wrong TLD",
-			host:             "mars.latency.com",
-			expectedURL:      "",
-			expectedBody:     CelestialObject{},
-			expectedBodyName: "",
-		},
-		{
-			name:             "Invalid format - unrelated domain",
-			host:             "example.com",
-			expectedURL:      "",
-			expectedBody:     CelestialObject{},
-			expectedBodyName: "",
-		},
-		{
-			name: "Case insensitivity - Moon format with target",
-			host: "WWW.EXAMPLE.COM.PHOBOS.MARS.LATENCY.SPACE",
-			// Note: Go's URL/host parsing tends to lowercase the host,
-			// but our function uses the host string directly. Let's test if it handles it.
-			// The target domain extraction *should* preserve case.
-			// The body name lookup *should* be case-insensitive (handled by findObjectByName).
-			expectedURL:      "WWW.EXAMPLE.COM",
-			expectedBody:     testCelestialObjects[4], // Phobos
-			expectedBodyName: "Phobos",
-		},
-		{
-			name:             "Case insensitivity - Planet format without target",
-			host:             "MARS.latency.space",
-			expectedURL:      "",
-			expectedBody:     testCelestialObjects[1], // Mars
-			expectedBodyName: "Mars",
-		},
-		{
-			name:             "Host with port",
-			host:             "mars.latency.space:8080",
-			expectedURL:      "",
-			expectedBody:     testCelestialObjects[1], // Mars
-			expectedBodyName: "Mars",
-		},
-		{
-			name:             "Moon format with target and port",
-			host:             "www.example.com.phobos.mars.latency.space:443",
-			expectedURL:      "www.example.com",
-			expectedBody:     testCelestialObjects[4], // Phobos
-			expectedBodyName: "Phobos",
-		},
+		// Valid info-page hosts.
+		{"Planet", "mars.latency.space", "Mars"},
+		{"Moon with parent", "phobos.mars.latency.space", "Phobos"},
+		{"Multi-word body via hyphenated slug", "voyager-1.latency.space", "Voyager 1"},
+		{"Case insensitivity - planet", "MARS.latency.space", "Mars"},
+		{"Case insensitivity - moon", "PHOBOS.MARS.LATENCY.SPACE", "Phobos"},
+		{"Host with port", "mars.latency.space:8080", "Mars"},
+
+		// Target-embedding forms are no longer resolved (they never resolved in
+		// public DNS; proxying is done over SOCKS).
+		{"Embedded target on planet rejected", "www.example.com.mars.latency.space", ""},
+		{"Embedded target on moon rejected", "www.example.com.phobos.mars.latency.space", ""},
+		{"Embedded target slug rejected", "www.example.com.voyager-1.latency.space", ""},
+
+		// Invalid / malformed hosts.
+		{"Invalid moon parent", "phobos.jupiter.latency.space", ""}, // Phobos orbits Mars
+		{"Moon under non-parent planet", "moon.mars.latency.space", ""},
+		{"Non-existent body", "unknown.latency.space", ""},
+		{"Bare apex", "latency.space", ""},
+		{"Wrong TLD", "mars.latency.com", ""},
+		{"Unrelated domain", "example.com", ""},
 	}
 
 	// Instantiate a Server to call the method under test.
 	s := &Server{}
 
 	for _, tc := range testCases {
-		// Use t.Run for better test organization and output.
 		t.Run(tc.name, func(t *testing.T) {
-			actualURL, actualBody, actualBodyName := s.parseHostForCelestialBody(tc.host, dummyURL)
-
-			// Assert the extracted target URL.
-			if actualURL != tc.expectedURL {
-				t.Errorf("host '%s': expected target URL '%s', got '%s'", tc.host, tc.expectedURL, actualURL)
-			}
-
-			// Assert the extracted body name (case-insensitive).
-			if !strings.EqualFold(actualBodyName, tc.expectedBodyName) {
-				t.Errorf("host '%s': expected body name '%s' (case-insensitive), got '%s'", tc.host, tc.expectedBodyName, actualBodyName)
-			}
-
-			// Assert the correct CelestialObject was returned (using Name as identifier).
-			if actualBody.Name != tc.expectedBody.Name {
-				t.Errorf("host '%s': expected body object name '%s', got '%s'", tc.host, tc.expectedBody.Name, actualBody.Name)
+			got := s.resolveCelestialHost(tc.host)
+			if !strings.EqualFold(got, tc.expectedBodyName) {
+				t.Errorf("host '%s': expected body name '%s', got '%s'", tc.host, tc.expectedBodyName, got)
 			}
 		})
 	}

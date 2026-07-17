@@ -49,31 +49,10 @@ func isValidSubdomain(host string) bool {
 		return moonFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName)
 	}
 
-	// Check for target routing format (e.g., example.com.mars.latency.space).
-	// Requires >= 4 parts: target...body.latency.space
-	if numParts >= 4 {
-		bodyName := parts[numParts-3]
-		// Check if it's a valid celestial body (non-moon)
-		body, found := findObjectByName(getCelestialObjects(), bodyName)
-		if found && body.Type != "moon" {
-			return true
-		}
-
-		// Check for target routing moon format (e.g., example.com.phobos.mars.latency.space).
-		// Requires >= 5 parts: target...moon.planet.latency.space
-		if numParts >= 5 {
-			moonName := parts[numParts-4]
-			planetName := parts[numParts-3]
-			moon, moonFound := findObjectByName(getCelestialObjects(), moonName)
-			_, planetFound := findObjectByName(getCelestialObjects(), planetName)
-			// Check if moon and planet exist, moon type is correct, and parent matches
-			if moonFound && planetFound && moon.Type == "moon" && strings.EqualFold(moon.ParentName, planetName) {
-				return true
-			}
-		}
-	}
-
-	return false // No valid pattern matched
+	// Deeper names (target-embedding: target.body.latency.space) are not valid:
+	// a dotted target under a body can be covered by neither a DNS nor a TLS
+	// wildcard, so no certificate should ever be issued for them.
+	return false
 }
 
 // setupTLS configures and returns a *tls.Config suitable for the HTTPS server,

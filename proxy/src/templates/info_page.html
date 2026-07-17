@@ -136,24 +136,17 @@
         {{end}}
 
         <div class="usage-section">
-            <h2>HTTP Proxy Usage</h2>
-            <p>Use <code>{{.Domain}}</code> on port 80 as an HTTP proxy:</p>
-            <p>1. Direct Domain Format:</p>
-            <pre><code>http://{{.Domain}}/</code></pre>
-            <p>2. Target Domain Format (routes to example.com):</p>
-            <pre><code>http://example.com.{{.Domain}}/</code></pre>
-            <p>3. Query Parameter:</p>
-            <pre><code>http://{{.Domain}}/?destination=https://example.com</code></pre>
-            <p>4. Curl Example:</p>
-            <pre><code>curl -x {{.Domain}}:80 https://example.com</code></pre>
-
-            <h2>SOCKS5 Proxy Usage</h2>
+            <h2>Proxy Usage</h2>
+            <p>Real traffic is proxied over <strong>SOCKS5</strong>, which applies the
+               light-travel delay to <code>{{.Name}}</code>. The web page you are reading
+               is informational only.</p>
             <p>Use <code>{{.Domain}}</code> on port 1080 as a SOCKS5 proxy:</p>
-            <p>1. SSH Example:</p>
+            <p>1. Curl Example:</p>
+            <pre><code>curl --socks5-hostname {{.Domain}}:1080 https://example.com</code></pre>
+            <p>2. SSH Example:</p>
             <pre><code>ssh -o ProxyCommand="nc -X 5 -x {{.Domain}}:1080 %h %p" your-server.com</code></pre>
-            <p>2. Curl Example:</p>
-            <pre><code>curl --socks5 {{.Domain}}:1080 https://example.com</code></pre>
             <p>3. Browser Configuration: Set SOCKS5 proxy to Host <code>{{.Domain}}</code>, Port <code>1080</code>.</p>
+            <p style="font-size: 0.9em; color: #94a3b8;">Note: destination hosts are restricted to an allowlist.</p>
         </div>
 
         <hr style="border-color: #334155; margin-top: 40px; margin-bottom: 20px;">

@@ -105,14 +105,18 @@ sudo chmod -R 777 /var/www/html
 
 ## Available Endpoints
 
-### HTTP Proxy Endpoints
+### Body Information Pages (HTTP)
 
-Access websites with planetary latency:
+Each body has an informational web page showing its live distance, one-way
+latency, and occlusion status:
 
-- `mars.latency.space` - Mars latency
-- `jupiter.latency.space` - Jupiter latency
-- `earth.latency.space` - Earth latency (minimal, useful for baseline)
+- `https://mars.latency.space/` - Mars
+- `https://jupiter.latency.space/` - Jupiter
+- `https://voyager-1.latency.space/` - Voyager 1 (multi-word names use a hyphen slug)
 - etc. (any celestial body defined in the configuration)
+
+These pages are informational only. Actual traffic is proxied over SOCKS5
+(see below), not over HTTP.
 
 ### SOCKS5 Proxy
 
@@ -185,21 +189,18 @@ echo "dns-query-data" | nc -u -X 5 -x latency.space:1080 1.1.1.1 53
 echo "dns-query-data" | nc -u -X 5 -x latency.space:1081 1.1.1.1 53
 ```
 
-### Special DNS-style Routing
+### A note on domain-embedding URLs
 
-You can also proxy any domain through specific celestial bodies:
+An older URL form embedded the target in the hostname
+(`example.com.mars.latency.space`). This is **not supported**: a dotted target
+sitting under a body can be covered by neither a DNS wildcard nor a TLS wildcard
+(both match only a single label), so such hostnames never resolve. To proxy a
+destination through a body, use the SOCKS5 interface above (pick the body by
+port). The per-body subdomains serve information pages only.
 
-- www.google.com.mars.latency.space - Access Google through Mars
-- api.github.com.jupiter.latency.space - Access GitHub API through Jupiter
-- example.com.moon.earth.latency.space - Access example.com through Earth's Moon
-
-This works with both HTTP and SOCKS5 proxies (TCP only for SOCKS5 with this method).
-
- **Important Note on SSL Certificates:**
- - First-level subdomains (mars.latency.space) support HTTPS with valid certificates.
- - Second-level subdomains (e.g., `phobos.mars.latency.space`) require special wildcard certificate configuration.
- - Multi-level proxy-through domains (e.g., `www.google.com.mars.latency.space`) work over **HTTP only**.
-   - This is a limitation of standard wildcard SSL certificates.
+**Note on SSL certificates:**
+- First-level subdomains (`mars.latency.space`) are covered by the `*.latency.space` wildcard.
+- Second-level subdomains (e.g., `phobos.mars.latency.space`) need per-parent wildcard SANs (`*.mars.latency.space`, …), issued via DNS-01.
 
 For proper SSL certificate configuration covering all domain levels:
 ```bash
