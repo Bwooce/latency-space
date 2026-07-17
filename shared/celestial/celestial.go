@@ -877,9 +877,10 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:              "spacecraft",
 			ParentName:        "Sun",
 			Radius:            0.01,  // Approximate spacecraft size
-			A:                 172.6, // AU heliocentric, ~mid-2026 (recedes ~3.6 AU/yr — update periodically)
-			E:                 0.0,   // Fixed-distance model: an escape trajectory isn't a closed Keplerian orbit
+			A:                 77.2,  // AU at J2000; grows via DA so the distance auto-tracks (no manual refresh)
+			E:                 0.0,   // Escape trajectory modelled as radial recession, not a closed orbit
 			I:                 34.9,  // Ecliptic latitude (well above the ecliptic, toward Ophiuchus)
+			DA:                360.0, // AU/century (~3.6 AU/yr) → ~172.6 AU in mid-2026, self-updating
 			LaunchDate:        "1977-09-05",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -891,9 +892,10 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:              "spacecraft",
 			ParentName:        "Sun",
 			Radius:            0.01,  // Approximate spacecraft size
-			A:                 143.0, // AU heliocentric, ~mid-2026 (recedes ~3.1 AU/yr — update periodically)
-			E:                 0.0,   // Fixed-distance model (escape trajectory, heading south of the ecliptic)
+			A:                 60.85, // AU at J2000; grows via DA so the distance auto-tracks
+			E:                 0.0,   // Escape trajectory modelled as radial recession (heading south of the ecliptic)
 			I:                 46.2,  // Degrees
+			DA:                310.0, // AU/century (~3.1 AU/yr) → ~143 AU in mid-2026, self-updating
 			LaunchDate:        "1977-08-20",
 			TransmitterActive: true,
 			FrequencyMHz:      8415.0, // X-band downlink frequency
@@ -905,9 +907,10 @@ func InitSolarSystemObjects() []CelestialObject {
 			Type:              "spacecraft",
 			ParentName:        "Sun",
 			Radius:            0.005, // Approximate spacecraft size
-			A:                 64.5,  // AU heliocentric, ~mid-2026 (recedes ~2.5 AU/yr — update periodically)
-			E:                 0.0,   // Fixed-distance model (escape trajectory, near the ecliptic toward Sagittarius)
+			A:                 0.9,   // AU at J2000-referenced; grows via DA so the distance auto-tracks
+			E:                 0.0,   // Escape trajectory modelled as radial recession (near ecliptic, toward Sagittarius)
 			I:                 2.45,  // Degrees
+			DA:                240.0, // AU/century (~2.4 AU/yr) → ~64.5 AU in mid-2026, self-updating
 			LaunchDate:        "2006-01-19",
 			TransmitterActive: true,
 			FrequencyMHz:      8438.0, // X-band downlink frequency
