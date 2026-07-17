@@ -4,8 +4,7 @@ import { Routes, Route } from 'react-router-dom';
 import StatusDashboard from './pages/StatusDashboard';
 import LandingPage from './pages/Landing'; // Corrected import name
 
-// Import global styles
-import './styles/index.css'; // Assuming you have a global CSS file
+// Global styles are imported once in main.jsx (./index.css).
 
 export default function App() {
   return (
