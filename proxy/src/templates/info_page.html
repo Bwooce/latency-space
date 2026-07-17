@@ -147,6 +147,12 @@
             <pre><code>ssh -o ProxyCommand="nc -X 5 -x {{.Domain}}:1080 %h %p" your-server.com</code></pre>
             <p>3. Browser Configuration: Set SOCKS5 proxy to Host <code>{{.Domain}}</code>, Port <code>1080</code>.</p>
             <p style="font-size: 0.9em; color: #94a3b8;">Note: destination hosts are restricted to an allowlist.</p>
+
+            <h2>Store-and-Forward (distant bodies)</h2>
+            <p>When the round trip is longer than a normal client will wait, deliver requests asynchronously
+               instead: submit one and poll for the response.</p>
+            <pre><code>curl -X POST https://{{.Domain}}/dtn/send -d '{"url":"https://example.com/"}'
+curl https://{{.Domain}}/dtn/status/&lt;id&gt;</code></pre>
         </div>
 
         <hr style="border-color: #334155; margin-top: 40px; margin-bottom: 20px;">

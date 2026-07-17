@@ -189,6 +189,29 @@ echo "dns-query-data" | nc -u -X 5 -x latency.space:1080 1.1.1.1 53
 echo "dns-query-data" | nc -u -X 5 -x latency.space:1081 1.1.1.1 53
 ```
 
+### Store-and-Forward (DTN) for distant bodies
+
+A transparent proxy can't serve a body that is hours or days away — the client
+socket times out long before the simulated delay elapses. For those bodies,
+requests are delivered asynchronously, the way real deep-space networks move
+data: you submit a request, get a job id immediately, and poll for the response.
+The server models both light-travel legs (out and back).
+
+```bash
+# Submit a request "to" a destination via Voyager 1 (~24h one way)
+curl -X POST https://voyager-1.latency.space/dtn/send \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com/","method":"GET"}'
+# -> { "id":"...", "state":"in_transit", "estimatedDeliveryAt":"...", "statusUrl":"/dtn/status/..." }
+
+# Poll until state is "delivered" (or "failed")
+curl https://voyager-1.latency.space/dtn/status/<id>
+```
+
+- The body is taken from the host subdomain, or from a `"via":"Voyager 1"` field when posting to the apex.
+- States: `in_transit` (outbound) → `arriving` → `returning` → `delivered` / `failed`. The response is withheld until it has finished travelling back.
+- Destinations are restricted to the same allowlist as the proxy. Jobs persist across restarts and are retained for 7 days after delivery.
+
 ### A note on domain-embedding URLs
 
 An older URL form embedded the target in the hostname
