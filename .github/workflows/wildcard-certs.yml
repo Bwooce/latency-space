@@ -1,0 +1,42 @@
+name: Wildcard Certs
+
+# Reissue the latency.space certificate with per-parent-body wildcard SANs so
+# second-level body pages (moon.planet.latency.space) validate over HTTPS.
+# Manual only - certificate issuance is rate-limited and outward-facing, so it
+# is never run automatically. Leave dry_run=true first to validate the DNS-01
+# flow against Let's Encrypt staging without issuing a real certificate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (validate DNS-01 against staging, issue nothing)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: wildcard-certs
+  cancel-in-progress: false
+
+jobs:
+  reissue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reissue certificate on the host
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          envs: CLOUDFLARE_API_TOKEN,SSL_EMAIL,DRY_RUN
+          script: |
+            set -e
+            cd /opt/latency-space
+            git pull --ff-only || git pull
+            chmod +x deploy/setup-wildcard-certs.sh
+            deploy/setup-wildcard-certs.sh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SSL_EMAIL: ${{ secrets.SSL_EMAIL }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
