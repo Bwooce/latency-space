@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -140,6 +141,74 @@ func TestDTNRequiresBody(t *testing.T) {
 	}
 	if out["body"] != "Jupiter" {
 		t.Errorf("expected body Jupiter, got %v", out["body"])
+	}
+}
+
+// TestDTNRedirectSSRFBlocked verifies a redirect to a non-allowlisted host is
+// refused (not followed), so the response is never delivered.
+func TestDTNRedirectSSRFBlocked(t *testing.T) {
+	defer setupTestModeWithLatency(40 * time.Millisecond)()
+	setCelestialObjects(celestial.InitSolarSystemObjects())
+
+	// Allowlisted-in-test-mode loopback origin that redirects to a host that is
+	// NOT on the allowlist (simulating an open redirect -> internal/SSRF target).
+	dest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://evil.not-listed-anywhere.example/secret", http.StatusFound)
+	}))
+	defer dest.Close()
+
+	s := newDTNTestServer(t)
+	code, out := dtnSend(t, s, "mars.latency.space", fmt.Sprintf(`{"url":%q}`, dest.URL))
+	if code != http.StatusAccepted {
+		t.Fatalf("send: expected 202, got %d (%v)", code, out)
+	}
+	id := out["id"].(string)
+
+	var final map[string]interface{}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_, final = dtnStatus(t, s, id)
+		st := final["state"]
+		if st == "failed" || st == "delivered" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if final["state"] != "failed" {
+		t.Fatalf("expected redirect-to-disallowed to fail, got state %v (response leaked: %v)",
+			final["state"], final["response"])
+	}
+	if _, leaked := final["response"]; leaked {
+		t.Error("SSRF: a blocked redirect must not deliver a response body")
+	}
+}
+
+// TestDTNRejectsEarth verifies zero/negligible-latency bodies are refused
+// outside test mode, keeping DTN from being an open proxy.
+func TestDTNRejectsEarth(t *testing.T) {
+	orig := isTestMode.Load()
+	isTestMode.Store(false) // exercise the production guard
+	defer isTestMode.Store(orig)
+	setCelestialObjects(celestial.InitSolarSystemObjects())
+
+	s := newDTNTestServer(t)
+	code, out := dtnSend(t, s, "earth.latency.space", `{"url":"https://example.com/"}`)
+	if code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for Earth (zero latency), got %d (%v)", code, out)
+	}
+}
+
+// TestDTNStoreCapacity verifies Add refuses new jobs once the store is full.
+func TestDTNStoreCapacity(t *testing.T) {
+	defer setupTestMode()()
+	store := NewDTNStore(t.TempDir()+"/dtn.json", NewSecurityValidator(), NewTestMetricsCollector())
+	// Pre-fill the map to the cap without scheduling real fetches.
+	for i := 0; i < dtnMaxJobs; i++ {
+		store.jobs[fmt.Sprintf("job-%d", i)] = &DTNJob{ID: fmt.Sprintf("job-%d", i)}
+	}
+	_, err := store.Add("Mars", "GET", "https://example.com/", nil, "", time.Second)
+	if !errors.Is(err, errDTNStoreFull) {
+		t.Fatalf("expected errDTNStoreFull at capacity, got %v", err)
 	}
 }
 

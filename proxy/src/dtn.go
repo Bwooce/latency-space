@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,7 +30,11 @@ const (
 	dtnMaxBodyBytes = 1 << 20            // cap stored request/response bodies at 1 MiB
 	dtnRetention    = 7 * 24 * time.Hour // keep delivered jobs this long after delivery
 	dtnFetchTimeout = 60 * time.Second   // real network timeout for the actual fetch
+	dtnMaxJobs      = 512                // hard cap on live jobs, bounding memory + store size
 )
+
+// errDTNStoreFull is returned by Add when the store is at capacity.
+var errDTNStoreFull = errors.New("DTN store is at capacity; try again later")
 
 // DTNJob is a single store-and-forward request and its (eventual) response.
 type DTNJob struct {
@@ -226,7 +231,22 @@ func (s *DTNStore) fetch(method, rawURL string, headers map[string]string, body 
 			req.Header.Set(k, v)
 		}
 	}
-	client := &http.Client{Timeout: dtnFetchTimeout}
+	client := &http.Client{
+		Timeout: dtnFetchTimeout,
+		// Re-validate every redirect hop against the allowlist. Without this an
+		// open redirect on an allowlisted host could bounce the fetch to
+		// 169.254.169.254 / 127.0.0.1 / internal services and return the body
+		// via /dtn/status - an SSRF that defeats the initial-URL allowlist.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			if _, err := s.security.ValidateHTTPTarget(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect to disallowed target: %w", err)
+			}
+			return nil
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, "", fmt.Sprintf("fetch: %v", err)
@@ -283,6 +303,10 @@ func (s *DTNStore) Add(bodyName, method, rawURL string, headers map[string]strin
 	}
 
 	s.mu.Lock()
+	if len(s.jobs) >= dtnMaxJobs {
+		s.mu.Unlock()
+		return nil, errDTNStoreFull
+	}
 	s.jobs[j.ID] = j
 	s.scheduleFetchLocked(j)
 	s.save()
