@@ -70,10 +70,11 @@ if ! command -v certbot >/dev/null 2>&1 || ! certbot plugins 2>/dev/null | grep 
   fi
 fi
 
-# Write the Cloudflare credentials to a locked-down temp file and remove it on exit.
-CF_CREDS="$(mktemp)"
-chmod 600 "$CF_CREDS"
-trap 'rm -f "$CF_CREDS"' EXIT
+# Write the Cloudflare credentials to a persistent, locked-down file. It must
+# survive this run: certbot records this path in the renewal config, so the
+# unattended `certbot renew` cron needs it to reissue the wildcard SANs later.
+CF_CREDS="/etc/letsencrypt/cloudflare.ini"
+install -m 600 /dev/null "$CF_CREDS"
 printf 'dns_cloudflare_api_token = %s\n' "$CLOUDFLARE_API_TOKEN" > "$CF_CREDS"
 
 CERTBOT_ARGS=(
