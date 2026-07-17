@@ -40,3 +40,9 @@ dist/
 **/proxy/src/proxy
 
 **/.claude/settings.local.json
+
+# Build/edit cruft and runtime-generated TLS material
+*.bak
+*.key
+proxy/certs/
+test-docker-build/
