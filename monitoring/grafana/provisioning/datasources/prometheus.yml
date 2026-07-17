@@ -1,0 +1,15 @@
+# Grafana datasource provisioning. Without this Grafana has NO datasource, so
+# the baked dashboards (which reference uid "prometheus") render nothing even
+# when Prometheus is collecting. The URL uses Prometheus's static IP because this
+# host's Docker DNS resolves service names to the host IP (see ops notes); access
+# "proxy" means the Grafana server reaches it over the container network.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://172.18.0.3:9090
+    isDefault: true
+    editable: true
