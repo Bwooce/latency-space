@@ -7,6 +7,7 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [secondsAgo, setSecondsAgo] = useState(0);
+  const [stale, setStale] = useState(false);
   const lastFetchRef = useRef(Date.now());
 
   const fetchCelestialData = async () => {
@@ -18,6 +19,7 @@ export default function LandingPage() {
       setLastUpdated(data.timestamp);
       lastFetchRef.current = Date.now();
       setSecondsAgo(0);
+      setStale(false);
 
       const parsed = [];
       for (const typeKey in data.objects) {
@@ -47,8 +49,11 @@ export default function LandingPage() {
 
       setCelestialData(parsed);
     } catch (error) {
+      // Keep the last good snapshot on a failed poll (e.g. during a deploy or a
+      // transient blip) rather than blanking the dashboard; mark it stale so the
+      // UI shows a RECONNECTING state. Only the very first load can be empty.
       console.error('Error fetching celestial data:', error);
-      setCelestialData([]);
+      setStale(true);
     } finally {
       setLoading(false);
     }
@@ -106,6 +111,7 @@ export default function LandingPage() {
             lastUpdated={lastUpdated}
             loading={loading}
             secondsAgo={secondsAgo}
+            stale={stale}
             onRefresh={fetchCelestialData}
           />
         </div>
