@@ -88,7 +88,8 @@
             "uid": "prometheus"
           },
           "expr": "space_latency_seconds",
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "{{body}}"
         }
       ],
       "title": "Latency by Planet",
@@ -112,4 +113,3 @@
   "version": 0,
   "weekStart": ""
 }
-

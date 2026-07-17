@@ -42,11 +42,20 @@ func NewTestMetricsCollector() *MetricsCollector {
 		[]string{"body"}, // Label by celestial body
 	)
 
+	spaceLatency := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "test_space_latency_seconds",
+			Help: "Current one-way latency per body (test)",
+		},
+		[]string{"body"},
+	)
+
 	// Create the metrics collector without registering the metrics
 	return &MetricsCollector{
 		requestDuration: requestDuration,
 		requestsTotal:   requestsTotal,
 		bandwidthUsage:  bandwidthUsage,
 		udpPackets:      udpPackets,
+		spaceLatency:    spaceLatency,
 	}
 }

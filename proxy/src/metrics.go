@@ -14,6 +14,7 @@ type MetricsCollector struct {
 	requestsTotal   *prometheus.CounterVec
 	bandwidthUsage  *prometheus.CounterVec
 	udpPackets      *prometheus.CounterVec // Counter for UDP packets handled by SOCKS UDP associate
+	spaceLatency    *prometheus.GaugeVec   // Current one-way light latency per body (for the dashboard)
 }
 
 // NewMetricsCollector creates and registers Prometheus metrics collectors.
@@ -47,6 +48,13 @@ func NewMetricsCollector() *MetricsCollector {
 			},
 			[]string{"body"}, // Label by celestial body
 		),
+		spaceLatency: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "space_latency_seconds",
+				Help: "Current one-way light-travel latency to each celestial body",
+			},
+			[]string{"body"},
+		),
 	}
 
 	// Register Prometheus metrics.
@@ -54,8 +62,16 @@ func NewMetricsCollector() *MetricsCollector {
 	prometheus.MustRegister(m.requestsTotal)
 	prometheus.MustRegister(m.bandwidthUsage)
 	prometheus.MustRegister(m.udpPackets)
+	prometheus.MustRegister(m.spaceLatency)
 
 	return m
+}
+
+// SetBodyLatency publishes the current one-way latency (seconds) to a body.
+func (m *MetricsCollector) SetBodyLatency(body string, seconds float64) {
+	if m.spaceLatency != nil {
+		m.spaceLatency.WithLabelValues(body).Set(seconds)
+	}
 }
 
 // RecordRequest observes request duration and increments the total request count.
