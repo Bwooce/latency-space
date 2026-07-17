@@ -171,6 +171,17 @@ server {
          proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 
+    # DTN store-and-forward API (POST /dtn/send, GET /dtn/status/...) -> Go proxy,
+    # not the status frontend. Supports posting to the apex with a "via" field.
+    location ^~ /dtn/ {
+         proxy_pass http://${PROXY_IP}:80;
+         proxy_http_version 1.1;
+         proxy_set_header Host \$host;
+         proxy_set_header X-Real-IP \$remote_addr;
+         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+         client_max_body_size 1m;
+    }
+
     # Proxy root to the status service
     location / {
         # Explicitly exclude debug paths if they are handled by other servers/locations
@@ -282,13 +293,28 @@ server {
     limit_req zone=ip burst=10 nodelay;
     limit_conn addr 5;
     
+    # DTN store-and-forward API needs POST (submit) as well as GET (poll), so it
+    # is exempt from the GET-only rule below. Same backend, longer body allowed.
+    location /dtn/ {
+        proxy_pass http://$PROXY_IP:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Destination \$host;
+        client_max_body_size 1m;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
     # For all subdomains, serve over HTTP directly
     location / {
         # Only allow GET requests to prevent abuse
         limit_except GET {
             deny all;
         }
-        
+
         # Docker service resolution - using direct IP instead of DNS
         proxy_pass http://$PROXY_IP:80;
         proxy_http_version 1.1;
