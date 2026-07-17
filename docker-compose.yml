@@ -16,6 +16,11 @@ services:
       - proxy_certs:/app/certs
     environment:
       - SOCKS_ENABLED=false # Disable SOCKS5 on main proxy
+      # Extra destination hosts to allow, comma-separated, merged with the
+      # built-in allowlist. Set in .env. The per-body socks-* services below
+      # enforce the same allowlist; add the var to their environment blocks
+      # (or a shared YAML anchor) if you need it there too.
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
