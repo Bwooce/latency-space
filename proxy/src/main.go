@@ -117,6 +117,18 @@ func (s *Server) Start() error {
 		s.dtn.Start(stopCleanup)
 	}
 
+	// Expose Prometheus metrics on a dedicated port (this is what Prometheus
+	// scrapes; the /metrics HTTP handler only exists on the proxy's :80/:443 and
+	// not on the SOCKS-only containers). Runs in every container. Configurable/
+	// disableable via METRICS_ADDR; empty disables it.
+	metricsAddr := os.Getenv("METRICS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = ":9090"
+	}
+	if metricsAddr != "-" {
+		go s.metrics.ServeMetrics(metricsAddr)
+	}
+
 	// Use a WaitGroup to wait for server goroutines to finish
 	var wg sync.WaitGroup
 	// Channel to receive errors from server goroutines
