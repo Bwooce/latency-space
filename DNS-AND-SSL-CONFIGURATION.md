@@ -144,7 +144,16 @@ Here's a complete reference of domain formats supported by the system:
    - Asteroids: `vesta.latency.space`, etc.
    - Spacecraft: `voyager-1.latency.space`, `perseverance.latency.space`, etc.
 
-4. **Proxy-Through Domains**
-   - Format: `target-site.celestial-body.latency.space`
-   - Example: `example.com.mars.latency.space`
-   - Multi-level: `example.com.phobos.mars.latency.space`
+4. **Proxying to a destination**
+   - Done over the SOCKS5 interface (one port per body), not by embedding the
+     target in the hostname. The old `target.body.latency.space` form is not
+     supported: a dotted target under a body is matched by neither a DNS nor a
+     TLS wildcard (both cover a single label), so it never resolved.
+   - Example: `curl --socks5-hostname mars.latency.space:1080 https://example.com`
+
+5. **TLS certificate**
+   - A single Let's Encrypt certificate covers `latency.space`, `*.latency.space`,
+     and a wildcard per parent body that has moons (`*.mars.latency.space`,
+     `*.jupiter.latency.space`, …) so second-level moon pages
+     (`phobos.mars.latency.space`) validate. Wildcards are issued via the
+     Cloudflare DNS-01 challenge; see `deploy/setup-wildcard-certs.sh`.
