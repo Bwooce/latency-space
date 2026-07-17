@@ -1,0 +1,59 @@
+name: Purge Cloudflare Cache
+
+# Cloudflare caches apex (latency.space) responses at its edge, so changes to
+# static content (favicon, robots.txt, the SPA bundle) can be shadowed by a
+# stale cached copy. Run this after such a change. Manual only.
+#
+# The token (CLOUDFLARE_API_TOKEN, production environment) needs Zone:Read and
+# Zone:Cache Purge on the latency.space zone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Comma-separated URLs to purge; leave empty to purge everything"
+        type: string
+        default: ""
+
+concurrency:
+  group: purge-cache
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Purge Cloudflare cache
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          URLS: ${{ inputs.urls }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_TOKEN:-}" ]; then
+            echo "CLOUDFLARE_API_TOKEN is not set"; exit 1
+          fi
+
+          ZONE=$(curl -s -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?name=latency.space" \
+            | jq -r '.result[0].id // empty')
+          if [ -z "$ZONE" ]; then
+            echo "Could not resolve zone id for latency.space (token needs Zone:Read)"; exit 1
+          fi
+          echo "zone: $ZONE"
+
+          if [ -z "${URLS:-}" ]; then
+            BODY='{"purge_everything":true}'
+          else
+            BODY=$(printf '%s' "$URLS" | jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0)) | {files: .}')
+          fi
+          echo "purge body: $BODY"
+
+          RESP=$(curl -s -X POST \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE/purge_cache" \
+            --data "$BODY")
+          echo "$RESP" | jq .
+          echo "$RESP" | jq -e '.success == true' >/dev/null || { echo "purge failed"; exit 1; }
+          echo "purge succeeded"

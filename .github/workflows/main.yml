@@ -237,15 +237,29 @@ jobs:
               fi
             fi
             
-            # Pull latest code with error handling
-            echo "Pulling latest code..."
-            if ! git pull; then
-              echo "Git pull failed, trying with force option..."
-              git reset --hard HEAD
-              if ! git pull --force; then
-                echo "Git pull failed even with force option"
-                exit 1
+            # Sync the working tree to the EXACT commit that triggered this
+            # deploy. Plain `git pull` occasionally landed a commit behind
+            # (GitHub read-replica lag right after a merge), which built images
+            # from stale source. Hard-reset to the expected SHA and retry until
+            # origin has propagated it.
+            EXPECTED="${{ github.sha }}"
+            echo "Syncing to ${EXPECTED:-origin/main}..."
+            git config --global --add safe.directory /opt/latency-space || true
+            SYNCED=""
+            for attempt in 1 2 3 4 5 6; do
+              git fetch --quiet origin main || true
+              git reset --hard origin/main || true
+              CURRENT=$(git rev-parse HEAD)
+              if [ -z "$EXPECTED" ] || [ "$CURRENT" = "$EXPECTED" ]; then
+                echo "Synced to $CURRENT"
+                SYNCED=1
+                break
               fi
+              echo "HEAD=$CURRENT expected=$EXPECTED (attempt $attempt); waiting for origin to propagate..."
+              sleep 5
+            done
+            if [ -z "$SYNCED" ]; then
+              echo "WARNING: could not reach $EXPECTED; proceeding at $(git rev-parse HEAD)"
             fi
             
             # NB: no blanket stop/rm of containers here. update.sh does a rolling
