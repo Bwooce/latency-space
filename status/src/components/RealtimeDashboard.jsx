@@ -113,7 +113,11 @@ function SignalTrack({ latencySeconds, occluded }) {
 
 function BodyCard({ item, index }) {
   const c = latencyColor(item.latencySeconds);
-  const domain = item.parentName ? formatMoonDomain(item.name, item.parentName) : formatFullDomain(item.name);
+  // Only moons use the parent-qualified domain (e.g. phobos.mars.latency.space).
+  // Planets/dwarf planets/spacecraft carry parentName "Sun" but address as
+  // <name>.latency.space, so don't treat their parent as a domain level.
+  const isMoon = item.type === 'moon';
+  const domain = isMoon ? formatMoonDomain(item.name, item.parentName) : formatFullDomain(item.name);
   const barPct = (latencyFraction(item.latencySeconds) * 100).toFixed(1);
 
   return (
@@ -124,7 +128,7 @@ function BodyCard({ item, index }) {
       <div className="flex items-baseline justify-between">
         <h5 className="text-lg font-semibold text-white capitalize">
           {item.name}
-          {item.parentName && <span className="ml-1 text-xs font-normal text-slate-400">/ {item.parentName}</span>}
+          {isMoon && item.parentName && <span className="ml-1 text-xs font-normal text-slate-400">/ {item.parentName}</span>}
         </h5>
         <span className={`inline-flex items-center gap-1 text-[11px] ${item.occluded ? 'text-rose-300' : 'text-emerald-300'}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${item.occluded ? 'bg-rose-400 animate-occ' : 'bg-emerald-400'}`} />
