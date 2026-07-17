@@ -330,6 +330,13 @@ func (s *DTNStore) Get(id string) (*DTNJob, bool) {
 	return &snap, true
 }
 
+// Count returns the number of jobs currently held.
+func (s *DTNStore) Count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.jobs)
+}
+
 func newDTNID() string {
 	var b [12]byte
 	_, _ = rand.Read(b[:])

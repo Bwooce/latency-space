@@ -1,0 +1,9 @@
+# latency.space - interplanetary network latency simulator
+# The landing page and status dashboard are fine to index. The proxy control
+# surface (debug endpoints, the DTN API, the status-data feed) is not content
+# and should not be crawled. Per-body subdomains serve their own robots.txt
+# (Disallow: /) from the proxy.
+User-agent: *
+Disallow: /_debug/
+Disallow: /dtn/
+Disallow: /api/
