@@ -254,6 +254,15 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// robots.txt: the per-body hosts are proxy/info endpoints, not content to
+	// index - tell crawlers to stay out. (The apex latency.space serves its own
+	// robots.txt from the status frontend.)
+	if r.URL.Path == "/robots.txt" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
+		return
+	}
+
 	// API endpoint for status data
 	if r.URL.Path == "/api/status-data" {
 		s.handleStatusData(w, r)
@@ -556,8 +565,32 @@ func (s *Server) handleDebugEndpoint(w http.ResponseWriter, r *http.Request) {
 		s.printAllowedHosts(w)
 	case "help":
 		s.printHelp(w)
+	case "status":
+		s.printStatus(w)
 	default:
 		http.Error(w, "Unknown debug command: "+path, http.StatusNotFound)
+	}
+}
+
+// printStatus returns a small JSON summary of the running instance. This backs
+// /_debug/status, which nginx routed but the app previously did not implement.
+func (s *Server) printStatus(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	body := s.fixedCelestialBody
+	if body == "" {
+		body = "dynamic"
+	}
+	status := map[string]interface{}{
+		"httpEnabled":      s.httpEnabled,
+		"socksEnabled":     s.socksEnabled,
+		"celestialBody":    body,
+		"celestialObjects": len(getCelestialObjects()),
+		"allowedHosts":     len(s.security.AllowedHosts()),
+		"allowedPorts":     s.security.AllowedPorts(),
+		"dtnJobs":          s.dtn.Count(),
+	}
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		log.Printf("printStatus: encode error: %v", err)
 	}
 }
 
