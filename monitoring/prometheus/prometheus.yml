@@ -11,13 +11,32 @@ scrape_configs:
     static_configs:
       - targets: ['172.18.0.2:9090']  # main proxy (HTTP info pages + DTN), static IP
 
-  # Per-body SOCKS proxies now expose /metrics on :9090, but they currently get
-  # DYNAMIC IPs (172.18.0.128/25) so they can't be pinned here. To collect their
-  # request/bandwidth/UDP usage, assign each a static IP in docker-compose.yml
-  # (e.g. 172.18.0.10-.19) and list those IPs here.
-  # - job_name: 'latency-socks'
-  #   static_configs:
-  #     - targets: ['172.18.0.10:9090', ...]
+  # Per-body SOCKS proxies (the actual proxy-through usage: requests, bandwidth,
+  # UDP packets). Pinned by the static IPs assigned in docker-compose.yml
+  # (service names can't be used - this host's Docker DNS resolves them to the
+  # host IP). The `body` label lets us tell them apart in queries/Grafana.
+  - job_name: 'latency-socks'
+    static_configs:
+      - targets: ['172.18.0.10:9090']
+        labels: {body: mars}
+      - targets: ['172.18.0.11:9090']
+        labels: {body: moon}
+      - targets: ['172.18.0.12:9090']
+        labels: {body: venus}
+      - targets: ['172.18.0.13:9090']
+        labels: {body: mercury}
+      - targets: ['172.18.0.14:9090']
+        labels: {body: jupiter}
+      - targets: ['172.18.0.15:9090']
+        labels: {body: saturn}
+      - targets: ['172.18.0.16:9090']
+        labels: {body: europa}
+      - targets: ['172.18.0.17:9090']
+        labels: {body: titan}
+      - targets: ['172.18.0.18:9090']
+        labels: {body: voyager1}
+      - targets: ['172.18.0.19:9090']
+        labels: {body: jwst}
 
   # Node exporter commented due to permission issues
   # - job_name: 'node'
