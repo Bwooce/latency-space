@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"sort"
 	"strconv" // Required for port conversion in ValidateSocksDestination
@@ -99,6 +100,39 @@ func NewSecurityValidator() *SecurityValidator {
 		},
 		allowedHosts: allowedHostsMap,
 	}
+}
+
+// ValidateHTTPTarget validates a destination URL for the DTN store-and-forward
+// path: it defaults a missing scheme to https, then enforces the same
+// scheme/host/port allowlist the SOCKS path uses. Returns the normalized URL.
+func (s *SecurityValidator) ValidateHTTPTarget(raw string) (string, error) {
+	if raw == "" {
+		return "", fmt.Errorf("url is required")
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid url: %v", err)
+	}
+	if !s.allowedSchemes[strings.ToLower(u.Scheme)] {
+		return "", fmt.Errorf("scheme %q is not allowed", u.Scheme)
+	}
+	host := u.Hostname()
+	// Loopback is permitted only in test mode (tests use local echo servers on
+	// arbitrary ports); in production isTestMode is false, so loopback falls
+	// through to the allowlist check and is rejected like any other IP literal.
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() && isTestMode.Load() {
+		return u.String(), nil
+	}
+	if p := u.Port(); p != "" && !s.allowedPorts[p] {
+		return "", fmt.Errorf("port %q is not allowed", p)
+	}
+	if !s.IsAllowedHost(host) {
+		return "", fmt.Errorf("host %q is not allowed", host)
+	}
+	return u.String(), nil
 }
 
 // IsAllowedHost checks if the destination host (or its parent domain) is in the allowed list.

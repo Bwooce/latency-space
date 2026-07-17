@@ -61,6 +61,7 @@ type Server struct {
 	metrics            *MetricsCollector
 	security           *SecurityValidator
 	limiter            *RateLimiter // Per-IP rate/concurrency abuse controls
+	dtn                *DTNStore    // Store-and-forward delivery for distant bodies
 	httpServer         *http.Server
 	httpsServer        *http.Server
 	socksListener      net.Listener // Listener for the SOCKS5 server
@@ -71,7 +72,7 @@ type Server struct {
 
 // NewServer creates and returns a new Server instance.
 func NewServer(port int, useHTTPS bool, httpEn bool, socksEn bool, fixedBody string) *Server {
-	return &Server{
+	s := &Server{
 		port:               port,
 		https:              useHTTPS,
 		metrics:            NewMetricsCollector(),
@@ -81,6 +82,14 @@ func NewServer(port int, useHTTPS bool, httpEn bool, socksEn bool, fixedBody str
 		socksEnabled:       socksEn,
 		fixedCelestialBody: fixedBody,
 	}
+	// Store-and-forward jobs persist across restarts (DTN latencies span hours to
+	// days). Path is overridable for tests/ops via DTN_STORE_PATH.
+	storePath := os.Getenv("DTN_STORE_PATH")
+	if storePath == "" {
+		storePath = "/data/dtn-jobs.json"
+	}
+	s.dtn = NewDTNStore(storePath, s.security, s.metrics)
+	return s
 }
 
 // clientIP extracts the bare IP (no port) from a net.Addr string.
@@ -102,6 +111,11 @@ func (s *Server) Start() error {
 	stopCleanup := make(chan struct{})
 	defer close(stopCleanup)
 	go s.limiter.StartCleanup(stopCleanup)
+
+	// Recover any in-flight store-and-forward jobs and start their retention sweep.
+	if s.dtn != nil {
+		s.dtn.Start(stopCleanup)
+	}
 
 	// Use a WaitGroup to wait for server goroutines to finish
 	var wg sync.WaitGroup
@@ -205,6 +219,12 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	// API endpoint for status data
 	if r.URL.Path == "/api/status-data" {
 		s.handleStatusData(w, r)
+		return
+	}
+
+	// Store-and-forward (DTN) API for bodies too distant to proxy synchronously.
+	if strings.HasPrefix(r.URL.Path, "/dtn/") {
+		s.handleDTN(w, r)
 		return
 	}
 
@@ -644,6 +664,13 @@ func (s *Server) printHelp(w http.ResponseWriter) {
 	fmt.Fprintln(w, "---------------------------------")
 	fmt.Fprintln(w, "https://mars.latency.space/           - a body's info page")
 	fmt.Fprintln(w, "https://phobos.mars.latency.space/    - a moon (under its planet)")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Store-and-Forward (DTN) - for distant bodies:")
+	fmt.Fprintln(w, "---------------------------------------------")
+	fmt.Fprintln(w, "Distant bodies (hours/days away) exceed live-proxy timeouts, so requests")
+	fmt.Fprintln(w, "are delivered asynchronously - submit now, poll for the response later:")
+	fmt.Fprintln(w, "  POST https://voyager-1.latency.space/dtn/send   {\"url\":\"https://example.com/\"}")
+	fmt.Fprintln(w, "  GET  https://voyager-1.latency.space/dtn/status/{id}")
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Debug Endpoints:")
 	fmt.Fprintln(w, "---------------")

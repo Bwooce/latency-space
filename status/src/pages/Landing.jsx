@@ -141,6 +141,15 @@ export default function LandingPage() {
             </div>
 
             <div>
+              <h4 className="mb-3 text-xl font-bold text-white">Store &amp; Forward (distant bodies)</h4>
+              <p className="mb-4 text-slate-400">Bodies hours or days away exceed any client timeout, so requests are delivered asynchronously: submit one, poll for the response. The server models both light-travel legs.</p>
+              <div className="space-y-4">
+                <Guide label="Submit" code={'curl -X POST https://voyager-1.latency.space/dtn/send -d \'{"url":"https://example.com/"}\''} note="Returns a job id immediately." />
+                <Guide label="Poll" code="curl https://voyager-1.latency.space/dtn/status/<id>" note="Response appears once state is 'delivered'." />
+              </div>
+            </div>
+
+            <div>
               <h4 className="mb-3 text-xl font-bold text-white">Debug &amp; Info Endpoints</h4>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Endpoint title="Distances" url="/_debug/distances" note="Current distances from Earth to all bodies." />

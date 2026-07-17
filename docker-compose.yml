@@ -14,6 +14,7 @@ services:
       - proxy_config:/etc/space-proxy
       - proxy_ssl:/etc/letsencrypt
       - proxy_certs:/app/certs
+      - proxy_data:/data # DTN store-and-forward jobs (persist across restarts)
     environment:
       - SOCKS_ENABLED=false # Disable SOCKS5 on main proxy
       # Extra destination hosts to allow, comma-separated, merged with the
@@ -319,3 +320,4 @@ volumes:
   proxy_config:
   proxy_ssl:
   proxy_certs:
+  proxy_data:
