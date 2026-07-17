@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -224,159 +223,20 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Process the host to determine if this is a celestial body request
-	targetURL, _, bodyName := s.parseHostForCelestialBody(r.Host, r.URL)
-
-	// Check if celestial body exists
+	// Resolve which celestial body (or moon) this hostname names.
+	bodyName := s.resolveCelestialHost(r.Host)
 	if bodyName == "" {
 		http.Error(w, "Unknown celestial body", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Accessing for |%s|, via body |%s|", targetURL, bodyName)
-
-	if getCelestialObjects() == nil {
-		log.Printf("Init celestial objects")
-		setCelestialObjects(celestial.InitSolarSystemObjects())
-	}
-
-	// If there's no target URL, just display info about this celestial body
-	if targetURL == "" || targetURL == "/" {
-		s.displayCelestialInfo(w, bodyName)
-		return
-	}
-
-	// Validate and normalize the destination BEFORE doing any latency work.
-	// ValidateDestination prepends a scheme if missing (the raw targetURL
-	// from parseHostForCelestialBody has none, which made http.NewRequest
-	// fail with "unsupported protocol scheme") and enforces the same
-	// allowlist/port policy the SOCKS path uses, so the HTTP path is not an
-	// open proxy to arbitrary hosts.
-	validatedURL, err := s.security.ValidateDestination(targetURL)
-	if err != nil {
-		log.Printf("HTTP destination rejected: %s via %s: %v", targetURL, bodyName, err)
-		http.Error(w, fmt.Sprintf("Destination not allowed: %v", err), http.StatusForbidden)
-		return
-	}
-	targetURL = validatedURL
-
-	// Find the target and Earth objects
-	targetObject, targetFound := findObjectByName(getCelestialObjects(), bodyName)
-	if !targetFound {
-		log.Printf("Error: Target celestial body '%s' not found after host parsing.", bodyName)
-		http.Error(w, "Internal server error: Target body not found", http.StatusInternalServerError)
-		return
-	}
-	earthObject, earthFound := findObjectByName(getCelestialObjects(), "Earth")
-	if !earthFound {
-		log.Printf("Error: Earth celestial object not found.")
-		http.Error(w, "Internal server error: Earth object configuration missing", http.StatusInternalServerError)
-		return
-	}
-
-	// Check for occlusion
-	occluded, occluder := IsOccluded(earthObject, targetObject, getCelestialObjects(), time.Now())
-	if occluded {
-		// If occluded is true, occluder is guaranteed to be non-nil by IsOccluded
-		log.Printf("HTTP connection to %s rejected: occluded by %s", bodyName, occluder.Name)
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "Connection refused: Target body '%s' is occluded by '%s'.", bodyName, occluder.Name)
-		return
-	}
-
-	// Apply space latency
-	distance := getCurrentDistance(bodyName) // Use the existing function for distance
-	latency := CalculateLatency(distance)
-
-	// Anti-DDoS: Only allow bodies with significant latency (>1s)
-	// This prevents the proxy from being used for DDoS attacks
-	if latency < 1*time.Second {
-		log.Printf("Rejecting connection with insufficient latency: %s (%.2f ms)",
-			bodyName, latency.Seconds()*1000)
-		http.Error(w, "rejecting request with insufficient latency", http.StatusBadRequest)
-		return
-	}
-
-	// Abuse control: per-IP rate and concurrency limits. Applied here (not
-	// in nginx) because SOCKS and direct hits bypass the front-end proxy.
-	release, err := s.limiter.Acquire(clientIP(r.RemoteAddr))
-	if err != nil {
-		log.Printf("HTTP request from %s rejected: %v", r.RemoteAddr, err)
-		http.Error(w, err.Error(), http.StatusTooManyRequests)
-		return
-	}
-	defer release()
-
-	log.Printf("Proxy request for %s via %s (latency: %v)", targetURL, bodyName, latency)
-	time.Sleep(latency)
-
-	// Start metrics collection
-	start := time.Now()
-	defer func() {
-		s.metrics.RecordRequest(bodyName, "http", time.Since(start))
-	}()
-
-	// Apply bandwidth limiting
-	r.Header.Set("X-Celestial-Body", bodyName)
-
-	// Forward the request to the target URL.
-	// NB: the timeout must be derived from latency by ADDITION. The old
-	// `latency * 2 * time.Second` multiplied a Duration by a Duration
-	// (nanoseconds x 1e9), which overflowed int64 for distant bodies and
-	// produced negative timeouts (instant failure) depending on orbital
-	// position.
-	clientTimeout := 2*latency + 30*time.Second
-	client := &http.Client{
-		Timeout: clientTimeout,
-		Transport: &http.Transport{
-			MaxIdleConns:    10,
-			IdleConnTimeout: clientTimeout,
-		},
-	}
-
-	// Create a new request to the target URL
-	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error creating proxy request: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Copy headers from original request
-	for name, values := range r.Header {
-		// Skip host header (case-insensitive check)
-		if !strings.EqualFold(name, "host") {
-			for _, value := range values {
-				proxyReq.Header.Add(name, value)
-			}
-		}
-	}
-
-	// Make the request
-	resp, err := client.Do(proxyReq)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error making proxy request: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Copy headers from response
-	for name, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(name, value)
-		}
-	}
-
-	// Apply interplanetary latency on the return path too
-	time.Sleep(latency)
-
-	// Copy status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Copy body and check for errors
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Printf("Error copying response body: %v", err)
-	}
+	// Over HTTP, latency.space subdomains are purely informational. Actual
+	// proxying with light-travel latency is provided by the SOCKS interface
+	// (one port per body). The old target-embedding form
+	// (target.body.latency.space) was removed: a dotted target sitting under a
+	// body can be covered by neither a DNS wildcard nor a TLS wildcard (both
+	// match a single label), so those hostnames never resolved in practice.
+	s.displayCelestialInfo(w, bodyName)
 }
 
 // displayCelestialInfo renders the information page for a celestial body using the template
@@ -459,8 +319,19 @@ func (s *Server) displayCelestialInfo(w http.ResponseWriter, name string) {
 	// Note: No need to call w.WriteHeader(http.StatusOK) as Execute does this implicitly on success.
 }
 
-// parseHostForCelestialBody extracts target URL and celestial body from request
-func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string, CelestialObject, string) {
+// resolveCelestialHost resolves a latency.space hostname to the name of the
+// celestial body (or moon) it identifies, for that body's information page.
+// Only two hostname shapes are recognised:
+//
+//	body.latency.space           - any non-moon body (planet, dwarf planet, spacecraft, ...)
+//	moon.planet.latency.space    - a moon, validated against its parent planet
+//
+// The former target-embedding shapes (target.body.latency.space) are gone on
+// purpose: a dotted target under a body can be covered by neither a DNS nor a
+// TLS wildcard, so those hostnames never resolved. Actual proxying is done over
+// SOCKS, not by embedding a target in the hostname. Returns "" if the host does
+// not name a known body.
+func (s *Server) resolveCelestialHost(host string) string {
 	// Remove port from host if present
 	if idx := strings.Index(host, ":"); idx > 0 {
 		host = host[:idx]
@@ -471,88 +342,37 @@ func (s *Server) parseHostForCelestialBody(host string, reqURL *url.URL) (string
 		setCelestialObjects(celestial.InitSolarSystemObjects())
 	}
 
-	// Check if it's a latency.space domain (case-insensitive manual check)
+	// Must end with ".latency.space" (case-insensitive)
 	suffix := ".latency.space"
 	if len(host) < len(suffix) || !strings.EqualFold(host[len(host)-len(suffix):], suffix) {
-		// Host does NOT end with ".latency.space" case-insensitively
-		return "", CelestialObject{}, ""
+		return ""
 	}
 
-	// Extract parts: [..., body, latency, space] or [..., moon, planet, latency, space]
 	parts := strings.Split(host, ".")
 	numParts := len(parts)
-
-	// Basic validation (using strings.EqualFold for case-insensitive checks)
 	if numParts < 3 || !strings.EqualFold(parts[numParts-1], "space") || !strings.EqualFold(parts[numParts-2], "latency") {
-		return "", CelestialObject{}, "" // Invalid format: doesn't end in .latency.space
+		return ""
 	}
 
-	// Case 1: [target].[moon].[planet].latency.space (>= 5 parts)
-	// Case 2: [moon].[planet].latency.space (4 parts, target is empty)
-	if numParts >= 4 {
-		potentialMoonName := parts[numParts-4]
-		potentialPlanetName := parts[numParts-3]
-
-		moon, moonFound := findObjectByName(getCelestialObjects(), potentialMoonName)
-		planet, planetFound := findObjectByName(getCelestialObjects(), potentialPlanetName)
-
-		// If both potential moon and planet are found, perform strict validation
-		if moonFound && planetFound {
-			// 1. Check if the identified 'moon' is actually a moon type
-			if moon.Type != "moon" {
-				// If not a moon, this format is invalid, return empty
-				return "", CelestialObject{}, ""
-			}
-			// 2. Check if the identified 'planet' is a valid parent type
-			if !(planet.Type == "planet" || planet.Type == "dwarf_planet") {
-				// If the parent is not a planet/dwarf_planet, invalid format
-				return "", CelestialObject{}, ""
-			}
-			// 3. Check if the moon's parent matches the identified planet (case-insensitive)
-			if !strings.EqualFold(moon.ParentName, planet.Name) {
-				// Invalid parent relationship, return empty
-				return "", CelestialObject{}, ""
-			}
-
-			// If all checks pass, proceed to extract target and return moon
-			targetDomain := ""
-			if numParts >= 5 { // Only extract target if there are enough parts
-				targetDomain = strings.Join(parts[:numParts-4], ".")
-			}
-			// Return the moon as the final body
-			return targetDomain, moon, moon.Name
+	switch numParts {
+	case 3:
+		// body.latency.space - any non-moon body.
+		if body, found := findObjectByName(getCelestialObjects(), parts[0]); found && !strings.EqualFold(body.Type, "moon") {
+			return body.Name
+		}
+	case 4:
+		// moon.planet.latency.space - moon validated against its parent planet.
+		moon, moonFound := findObjectByName(getCelestialObjects(), parts[0])
+		planet, planetFound := findObjectByName(getCelestialObjects(), parts[1])
+		if moonFound && planetFound &&
+			moon.Type == "moon" &&
+			(planet.Type == "planet" || planet.Type == "dwarf_planet") &&
+			strings.EqualFold(moon.ParentName, planet.Name) {
+			return moon.Name
 		}
 	}
 
-	// Case 3: [target].[planet].latency.space (>= 4 parts)
-	// Case 4: [planet].latency.space (3 parts, target is empty)
-	if numParts >= 3 {
-		potentialBodyName := parts[numParts-3]
-		body, bodyFound := findObjectByName(getCelestialObjects(), potentialBodyName)
-
-		// Check if body is found and is not a moon (case-insensitive check to avoid conflict with moon.planet format)
-		if bodyFound && !strings.EqualFold(body.Type, "moon") {
-			targetDomain := ""
-			if numParts >= 4 { // Only extract target if there are enough parts
-				targetDomain = strings.Join(parts[:numParts-3], ".")
-			}
-			// Return the planet/other body
-			return targetDomain, body, body.Name
-		}
-	}
-
-	// If none of the specific formats match, try the simple [body].latency.space format
-	// This handles the case where someone just goes to mars.latency.space
-	if numParts == 3 {
-		potentialBodyName := parts[0]
-		body, bodyFound := findObjectByName(getCelestialObjects(), potentialBodyName)
-		if bodyFound {
-			return "", body, body.Name
-		}
-	}
-
-	// If no valid format is found
-	return "", CelestialObject{}, ""
+	return ""
 }
 
 func (s *Server) startHTTPServer() error {

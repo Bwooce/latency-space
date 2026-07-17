@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"sort"
 	"strconv" // Required for port conversion in ValidateSocksDestination
@@ -100,43 +99,6 @@ func NewSecurityValidator() *SecurityValidator {
 		},
 		allowedHosts: allowedHostsMap,
 	}
-}
-
-// ValidateDestination checks if the HTTP destination URL format, scheme, and port are allowed.
-// It attempts to add a default scheme if missing.
-func (s *SecurityValidator) ValidateDestination(dest string) (string, error) {
-	if dest == "" {
-		return "", fmt.Errorf("destination URL cannot be empty")
-	}
-
-	// Attempt to add a default scheme if none is present
-	if !strings.Contains(dest, "://") {
-		dest = "http://" + dest // Default to HTTP
-	}
-
-	// Parse the URL
-	u, err := url.Parse(dest)
-	if err != nil {
-		return "", fmt.Errorf("invalid destination URL format: %v", err)
-	}
-
-	// Validate scheme
-	if !s.allowedSchemes[strings.ToLower(u.Scheme)] {
-		return "", fmt.Errorf("URL scheme '%s' is not allowed", u.Scheme)
-	}
-
-	// Validate port (if specified)
-	port := u.Port()
-	if port != "" && !s.allowedPorts[port] {
-		return "", fmt.Errorf("destination port '%s' is not allowed", port)
-	}
-
-	// Validate host
-	if !s.IsAllowedHost(u.Hostname()) {
-		return "", fmt.Errorf("destination host '%s' is not allowed", u.Hostname())
-	}
-
-	return u.String(), nil // Return the potentially modified URL (with added scheme)
 }
 
 // IsAllowedHost checks if the destination host (or its parent domain) is in the allowed list.
