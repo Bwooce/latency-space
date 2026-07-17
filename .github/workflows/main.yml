@@ -139,7 +139,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     environment: production
-    concurrency: production
+    # Queue deploys instead of cancelling a running one mid-flight (a cancelled
+    # deploy could leave the stack half-rolled). Rolling up -d makes each deploy
+    # idempotent, so serial execution is safe.
+    concurrency:
+      group: production
+      cancel-in-progress: false
     # Removed continue-on-error to ensure workflow fails if deployment fails
     # This ensures deployment issues are properly reported
     steps:
@@ -245,13 +250,10 @@ jobs:
               fi
             fi
             
-            # Stopping containers safely
-            echo "Stopping all containers..."
-            docker ps -q | xargs -r docker stop || true
-            
-            # Attempt to manually remove stopped containers if needed
-            docker ps -aq | xargs -r docker rm -f || true
-            
+            # NB: no blanket stop/rm of containers here. update.sh does a rolling
+            # `docker compose up -d --build` that recreates only changed services,
+            # so the stack stays up during the deploy.
+
             # Run the update script without special snap Docker handling
             echo "Running update script..."
             if ! sudo -E ./deploy/update.sh; then
@@ -270,20 +272,14 @@ jobs:
                 fi
               done
 
-              # Attempt to directly start containers with security options disabled
+              # Last-resort recovery if the rolling update failed: recreate the
+              # stack. NB: NO `docker volume prune` here — with containers down it
+              # would delete the named data volumes (grafana/prometheus/certs).
               cd /opt/latency-space
               docker compose down || true
-              
-              # Try to remove any Docker containers and volumes that might be causing issues
-              echo "Attempting to clean up Docker resources..."
               docker container prune -f || true
-              docker volume prune -f || true
-              
-              # Build and start without AppArmor configuration
               echo "Building fresh images..."
-              docker compose build --no-cache
-              
-              # Start services normally without additional options
+              docker compose build
               echo "Starting services..."
               docker compose up -d
 

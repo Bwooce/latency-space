@@ -66,10 +66,9 @@ blue "📥 Pulling latest code from GitHub..."
 git fetch origin
 git reset --hard origin/main
 
-# Clean up any stuck containers with very forceful approach
-blue "🧹 Cleaning up any problematic containers..."
-# Stop all containers 
-docker ps -aq | xargs -r docker stop || true
+# NB: deliberately NOT stopping all containers here. A rolling `docker compose
+# up -d --build` later recreates only the services that actually changed, so the
+# stack stays up during deploys instead of a full stop/start window.
 
 # Fix Docker bridge network conflicts
 blue "🌉 Checking for Docker bridge network conflicts..."
@@ -258,17 +257,15 @@ fi
 
 green "✅ No external port conflicts detected"
 
-# Restart the containers
-blue "🔄 Restarting all containers..."
+# Roll out changed containers only — near-zero downtime.
+blue "🔄 Building (with layer cache) and rolling out changed containers..."
 cd /opt/latency-space
-docker compose down
-blue "🏗️ Building all proxy images..."
-docker compose build --no-cache
-
-echo ""
-blue "🚀 Starting containers..."
-# Allow docker compose up to fail without exiting script (for diagnostics)
-docker compose up -d || true
+# `docker compose up -d --build` recreates only services whose image or config
+# changed, one at a time; unchanged containers keep running. We deliberately do
+# NOT `docker compose down` or build `--no-cache`: those tore the whole stack
+# down on every deploy (≈1 min outage) and the cache-less builds filled the disk
+# (the root cause of the 2026 outage).
+docker compose up -d --build --remove-orphans || true
 
 # Give containers a moment to start
 sleep 3
